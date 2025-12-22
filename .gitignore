@@ -1,0 +1,13 @@
+# python artifacts
+*.mp3
+*.wav
+*.ogg
+*.json
+__pycache__/
+*.pyc
+venv/
+.env
+
+# build artifacts
+**/target/
+**/build/
