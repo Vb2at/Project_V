@@ -11,27 +11,19 @@ export default function GameCanvas({ notes, currentTime }) {
     let animationId;
 
     function gameLoop() {
-      // 화면 클리어
       ctx.clearRect(0, 0, GAME_CONFIG.CANVAS.WIDTH, GAME_CONFIG.CANVAS.HEIGHT);
       
-      // 배경
       ctx.fillStyle = '#1a1a1a';
       ctx.fillRect(0, 0, GAME_CONFIG.CANVAS.WIDTH, GAME_CONFIG.CANVAS.HEIGHT);
       
-      // 레인 그리기
       drawLanes(ctx);
-      
-      // 판정 라인
       drawHitLine(ctx);
-      
-      // 노트 그리기
       drawNotes(ctx, notes, currentTime);
       
       animationId = requestAnimationFrame(gameLoop);
     }
 
     gameLoop();
-
     return () => cancelAnimationFrame(animationId);
   }, [notes, currentTime]);
 
@@ -40,7 +32,7 @@ export default function GameCanvas({ notes, currentTime }) {
       ref={canvasRef} 
       width={GAME_CONFIG.CANVAS.WIDTH} 
       height={GAME_CONFIG.CANVAS.HEIGHT}
-      style={{border: '2px solid #333'}} 
+      style={{border: '2px solid #333'}}
     />
   );
 }
@@ -73,18 +65,46 @@ function drawHitLine(ctx) {
 
 function drawNotes(ctx, notes, currentTime) {
   const { LANE_WIDTH, NOTE_HEIGHT, HIT_LINE_Y } = GAME_CONFIG.CANVAS;
-  const SPEED = GAME_CONFIG.SPEED; // 이 줄 추가
+  const SPEED = GAME_CONFIG.SPEED;
   
   notes.forEach(note => {
-    const timeDiff = note.timing - currentTime;
-    const y = HIT_LINE_Y - (timeDiff * SPEED);
+    const x = note.lane * LANE_WIDTH;
     
-    // 화면 안에 있을 때만 그리기
-    if (y > -NOTE_HEIGHT && y < HIT_LINE_Y + 100) {
-      const x = note.lane * LANE_WIDTH;
+    if (note.type === 'long') {
+      // 롱노트 그리기
+      const startDiff = note.timing - currentTime;
+      const endDiff = note.endTiming - currentTime;
       
-      ctx.fillStyle = '#ff6b6b';
-      ctx.fillRect(x + 5, y, LANE_WIDTH - 10, NOTE_HEIGHT);
+      const startY = HIT_LINE_Y - (startDiff * SPEED);
+      const endY = HIT_LINE_Y - (endDiff * SPEED);
+      
+      const noteLength = startY - endY;
+      
+      // 롱노트 몸통 (그라디언트)
+      const gradient = ctx.createLinearGradient(x, endY, x, startY);
+      gradient.addColorStop(0, GAME_CONFIG.LONG_NOTE_COLOR);
+      gradient.addColorStop(1, GAME_CONFIG.LONG_NOTE_COLOR + 'AA');
+      
+      ctx.fillStyle = gradient;
+      ctx.fillRect(x + 10, endY, LANE_WIDTH - 20, noteLength);
+      
+      // 롱노트 시작 부분 (헤드)
+      ctx.fillStyle = note.holding ? '#22c55e' : GAME_CONFIG.LONG_NOTE_COLOR;
+      ctx.fillRect(x + 5, startY - NOTE_HEIGHT, LANE_WIDTH - 10, NOTE_HEIGHT);
+      
+      // 롱노트 끝 부분 (테일)
+      ctx.fillStyle = GAME_CONFIG.LONG_NOTE_COLOR;
+      ctx.fillRect(x + 5, endY, LANE_WIDTH - 10, NOTE_HEIGHT);
+      
+    } else {
+      // 일반 탭노트
+      const timeDiff = note.timing - currentTime;
+      const y = HIT_LINE_Y - (timeDiff * SPEED);
+      
+      if (y > -NOTE_HEIGHT && y < HIT_LINE_Y + 100) {
+        ctx.fillStyle = GAME_CONFIG.TAP_NOTE_COLOR;
+        ctx.fillRect(x + 5, y, LANE_WIDTH - 10, NOTE_HEIGHT);
+      }
     }
   });
 }
