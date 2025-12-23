@@ -25,98 +25,129 @@ import com.V_Beat.service.OnlineUserService;
 import jakarta.servlet.http.HttpSession;
 
 @Configuration
-@EnableWebSocketMessageBroker // STOMP 프로토콜을 사용한 WebSocket 메시지 브로커 활성화
+@EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-	// 접속자 관리 서비스 (DI)
-	private final OnlineUserService onlineUserService;
+    private final OnlineUserService onlineUserService;
 
-	public WebSocketConfig(OnlineUserService onlineUserService) {
-		this.onlineUserService = onlineUserService;
-	}
+    public WebSocketConfig(OnlineUserService onlineUserService) {
+        this.onlineUserService = onlineUserService;
+    }
 
-	// 메시지 브로커 설정
-	// 클라이언트가 구독할 경로와 메시지를 보낼 경로 정의
-	@Override
-	public void configureMessageBroker(MessageBrokerRegistry config) {
-		// 클라이언트가 구독하는 경로 접두사 (예: /topic/chat, /topic/online-users)
-		config.enableSimpleBroker("/topic");
+    /**
+     * 메시지 브로커 설정
+     * - /topic : 클라이언트 구독용 (브로드캐스트)
+     * - /app   : 클라이언트 -> 서버 전송용 (@MessageMapping)
+     */
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        config.enableSimpleBroker("/topic");
+        config.setApplicationDestinationPrefixes("/app");
+    }
 
-		// 클라이언트가 메시지를 보낼 경로 접두사 (예: /app/chat)
-		config.setApplicationDestinationPrefixes("/app");
-	}
+    /**
+     * STOMP 엔드포인트 등록
+     * - /ws 로 WebSocket 연결
+     * - HandshakeInterceptor에서 HTTP 세션(loginMember) -> WS session attributes로 userId 전달
+     */
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+            .addInterceptors(new HandshakeInterceptor() {
 
-	// WebSocket 엔드포인트 등록
-	// 클라이언트가 연결할 경로와 HTTP 세션 → WebSocket 세션 데이터 전달 설정
-	@Override
-	public void registerStompEndpoints(StompEndpointRegistry registry) {
-		registry.addEndpoint("/ws") // WebSocket 연결 경로: ws://localhost:8080/ws
-				.addInterceptors(new HandshakeInterceptor() {
+                @Override
+                public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
+                        WebSocketHandler wsHandler, Map<String, Object> attributes) throws Exception {
 
-					// WebSocket 핸드셰이크 직전 실행
-					// HTTP 세션에서 로그인 정보(loginMember)를 가져와 WebSocket 세션에 저장
-					@Override
-					public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
-							WebSocketHandler wsHandler, Map<String, Object> attributes) throws Exception {
+                    // Servlet 기반 요청에서만 HttpSession 접근 가능
+                    if (!(request instanceof ServletServerHttpRequest servletRequest)) {
+                        // (선택) ServletRequest가 아니면 인증정보를 꺼낼 수 없으니 차단할지 결정
+                        return false;
+                    }
 
-						// ServerHttpRequest를 ServletServerHttpRequest로 캐스팅하여 HttpSession 접근
-						if (request instanceof ServletServerHttpRequest) {
-							ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
-							HttpSession session = servletRequest.getServletRequest().getSession();
+                    // ✅ 수정 1) getSession(false) 사용
+                    // - getSession()은 세션이 없으면 새로 생성해 "가짜 세션"이 생길 수 있음
+                    HttpSession session = servletRequest.getServletRequest().getSession(false);
+                    if (session == null) {
+                        // ✅ 로그인 세션이 없으면 WS 연결 거절(권장)
+                        return false;
+                    }
 
-							// HTTP 세션에서 loginMember 추출
-							Object loginMember = session.getAttribute("loginMember");
-							if (loginMember != null && loginMember instanceof Member) {
-								Member member = (Member) loginMember;
-								// WebSocket 세션 속성에 userId 저장 (CONNECT/DISCONNECT에서 사용)
-								attributes.put("userId", member.getId());
-							}
-						}
-						return true; // 핸드셰이크 계속 진행
-					}
+                    // HTTP 세션에서 loginMember 추출
+                    Object loginMember = session.getAttribute("loginMember");
+                    if (!(loginMember instanceof Member member)) {
+                        // ✅ 로그인 정보 없으면 WS 연결 거절(권장)
+                        return false;
+                    }
 
-					// 핸드셰이크 완료 후 실행 (현재는 미사용)
-					@Override
-					public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
-							WebSocketHandler wsHandler, Exception exception) {
-						// 추가 처리 없음
-					}
-				}).setAllowedOriginPatterns("localhost:*") // 모든 Origin 허용 (프로덕션에서는 특정 도메인만 허용 권장)
-				.withSockJS(); // SockJS 폴백 옵션 활성화 (WebSocket 미지원 브라우저 대응)
-	}
+                    // WS 세션 attributes에 userId 저장 (CONNECT/DISCONNECT에서 사용)
+                    attributes.put("userId", member.getId());
 
-	// 클라이언트 → 서버로 들어오는 메시지 채널 인터셉터 등록
-	// CONNECT: 접속자 추가
-	// DISCONNECT: 접속자 제거
-	@Override
-	public void configureClientInboundChannel(ChannelRegistration registration) {
-		registration.interceptors(new ChannelInterceptor() {
+                    return true;
+                }
 
-			// 메시지 전송 직전 실행
-			// STOMP 커맨드(CONNECT/DISCONNECT)를 감지하여 접속자 관리
-			@Override
-			public Message<?> preSend(Message<?> message, MessageChannel channel) {
-				// STOMP 헤더 접근자로 메시지 래핑
-				StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
-				// CONNECT 커맨드: 사용자 접속 시
-				if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-					// WebSocket 세션 속성에서 userId 추출 (HandshakeInterceptor에서 저장한 값)
-					Integer userId = (Integer) accessor.getSessionAttributes().get("userId");
-					if (userId != null) {
-						// 접속자 목록에 추가 → 이벤트 발행 → 모든 클라이언트에게 브로드캐스트
-						onlineUserService.addUser(userId);
-					}
-				}
-				// DISCONNECT 커맨드: 사용자 접속 종료 시
-				if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
-					Integer userId = (Integer) accessor.getSessionAttributes().get("userId");
-					if (userId != null) {
-						// 접속자 목록에서 제거 → 이벤트 발행 → 모든 클라이언트에게 브로드캐스트
-						onlineUserService.removeUser(userId);
-					}
-				}
-				return message; // 메시지 계속 전달
-			}
-		});
-	}
+                @Override
+                public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
+                        WebSocketHandler wsHandler, Exception exception) {
+                    // 필요 시 로깅/추적
+                }
+            })
+
+            // ✅ 수정 2) Origin 패턴 수정
+            // 브라우저 Origin은 보통 "http://localhost:8080" 처럼 scheme 포함
+            // 기존 "localhost:*"는 매칭 실패 가능
+            .setAllowedOriginPatterns(
+                "http://localhost:*",
+                "http://127.0.0.1:*"
+                // 운영 환경에서는 실제 도메인만 허용하도록 변경 권장
+            )
+
+            .withSockJS();
+    }
+
+    /**
+     * 클라이언트 -> 서버 inbound 채널 인터셉터
+     * - CONNECT / DISCONNECT를 감지하여 온라인 상태를 관리
+     *
+     * ✅ 수정 3) 멀티탭/멀티디바이스 대응
+     * - userId만 Set으로 관리하면, 탭 2개 열고 1개 닫을 때 오프라인으로 오판 가능
+     * - sessionId까지 함께 전달해서 "세션 단위"로 관리하는 것이 안전
+     */
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(new ChannelInterceptor() {
+
+            @Override
+            public Message<?> preSend(Message<?> message, MessageChannel channel) {
+
+                StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+
+                // ✅ 수정 4) DISCONNECT 시점에 sessionAttributes가 null일 수 있어 방어
+                Map<String, Object> attrs = accessor.getSessionAttributes();
+                if (attrs == null) {
+                    return message;
+                }
+
+                Integer userId = (Integer) attrs.get("userId");
+                if (userId == null) {
+                    return message;
+                }
+
+                // 같은 userId라도 탭/디바이스마다 sessionId가 다름
+                String sessionId = accessor.getSessionId();
+
+                if (StompCommand.CONNECT.equals(accessor.getCommand())) {
+                    // ✅ 권장: 세션 단위 등록
+                    // OnlineUserService에 addSession/removeSession 구현 필요
+                    onlineUserService.addSession(userId, sessionId);
+                }
+
+                if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
+                    onlineUserService.removeSession(userId, sessionId);
+                }
+
+                return message;
+            }
+        });
+    }
 }
