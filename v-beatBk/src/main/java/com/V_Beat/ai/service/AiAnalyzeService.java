@@ -1,16 +1,28 @@
-package com.V_Beat.ai.Service;
+package com.V_Beat.ai.service;
 
+import java.io.File;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
-import com.V_Beat.ai.Dao.AiAnalyzeDao;
+
+import com.V_Beat.ai.dao.AiAnalyzeDao;
+import com.V_Beat.ai.dto.NoteResult;
+import com.V_Beat.ai.dto.SongNotesResult;
+import com.V_Beat.dto.Note;
+import com.V_Beat.dto.Song;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class AiAnalyzeService {
@@ -58,5 +70,69 @@ public class AiAnalyzeService {
 				restTemplate.postForEntity(PYTHON_URL, request, String.class);
 		
 		return response.getBody();
+	}
+	
+	@Transactional
+	public Long analyzeSave(MultipartFile file) throws Exception{
+		
+		//Flask 분석 호출 (JSON 문자열 받기)
+		String json = analyze(file);
+		
+		//JSON 파싱 준비, JSON 문자열을 트리 구조로 변환
+		ObjectMapper mapper = new ObjectMapper();
+		JsonNode root = mapper.readTree(json);
+		JsonNode notesNode = root.get("notes");
+		
+		if(notesNode == null || !notesNode.isArray()) {
+			throw new IllegalAccessException("Flask에 notes 배열 없음");
+		}
+		
+		//song 테이블 저장
+		Song song = new Song();
+		song.setTitle(file.getOriginalFilename());
+		song.setFilePath(null); //추후 수정
+		
+		this.aiAnalyzeDao.insertSong(song);
+		Long songId = song.getId();
+		
+		//파일 저장
+		String uploadDir = System.getProperty("user.dir") + "/upload";
+		File dir = new File(uploadDir);
+		if(!dir.exists()) dir.mkdirs();
+		
+		String original = file.getOriginalFilename();
+		String ext = (original != null && original.contains("."))
+					 ? original.substring(original.lastIndexOf("."))
+					 : ".mp3";
+		
+		String savedPath = uploadDir + "/" + songId + ext;
+		file.transferTo(new File(savedPath));
+		
+		//filePath 업데이트
+		song.setId(songId);
+		song.setFilePath(savedPath);
+		this.aiAnalyzeDao.updateSongFilePath(song);
+		
+		//note 테이블 저장
+		for(JsonNode noteNode : notesNode) {
+			
+			Note note = new Note();
+			note.setSongId(songId);
+			note.setNoteTime(noteNode.get("time").decimalValue());
+			note.setLane(noteNode.get("lane").intValue());
+			
+			this.aiAnalyzeDao.insertNote(note);
+		}
+		return songId;
+	}
+	
+	@Transactional(readOnly=true)
+	public SongNotesResult getSongNotes(Long songId) {
+		List<NoteResult> notes = this.aiAnalyzeDao.getSongNotes(songId);
+		return new SongNotesResult(songId, notes);
+	}
+
+	public Song getSong(Long songId) {
+		return this.aiAnalyzeDao.getSong(songId);
 	}
 }

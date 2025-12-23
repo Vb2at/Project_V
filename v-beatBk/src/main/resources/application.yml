@@ -1,15 +1,26 @@
 spring:
   application:
     name: demo
-  mvc: 
-   view:
-    prefix: /view/
-    suffix: .jsp
+
+  mvc:
+    view:
+      prefix: /view/
+      suffix: .jsp
+
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+  file:
+    upload-dir: C:/VBeat/uploads
+
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/DiscoDing
-    username: root 
+    url: jdbc:mysql://localhost:3306/Vbeat
+    username: root
     password:
+
   mail:
     host: smtp.gmail.com
     port: 587
@@ -24,7 +35,8 @@ spring:
             required: true
           connectiontimeout: 5000
           timeout: 5000
-          writetimeout: 5000         
+          writetimeout: 5000
+
 server:
   port: 8080
   servlet:
@@ -38,11 +50,11 @@ kakao:
   redirect-uri: http://localhost:8080/oauth/kakao/callback
 
 github:
-    client-id: Iv23liV6kMdOeCSDEsZB
-    client-secret: 497da41cde1cd7de73401c6100a12e8d1345f373
-    redirect-uri: http://localhost:8080/oauth/github/callback
+  client-id: Iv23liV6kMdOeCSDEsZB
+  client-secret: 497da41cde1cd7de73401c6100a12e8d1345f373
+  redirect-uri: http://localhost:8080/oauth/github/callback
 
 google:
-    client-id: 136270481858-1lt34e28j8hp9sf09qhb515qrntcvlhl.apps.googleusercontent.com
-    client-secret: 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
-    redirect-uri: http://localhost:8080/oauth/google/callback
+  client-id: 136270481858-1lt34e28j8hp9sf09qhb515qrntcvlhl.apps.googleusercontent.com
+  client-secret: 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
+  redirect-uri: http://localhost:8080/oauth/google/callback
