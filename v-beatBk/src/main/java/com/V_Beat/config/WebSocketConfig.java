@@ -19,7 +19,8 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
-import com.V_Beat.dto.User;
+import com.V_Beat.dto.Member;
+import com.V_Beat.service.BattleSessionService;
 import com.V_Beat.service.OnlineUserService;
 
 import jakarta.servlet.http.HttpSession;
@@ -30,9 +31,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
 	// 접속자 관리 서비스 (DI)
 	private final OnlineUserService onlineUserService;
+	private final BattleSessionService battleSessionService;
 
-	public WebSocketConfig(OnlineUserService onlineUserService) {
+	public WebSocketConfig(OnlineUserService onlineUserService, BattleSessionService battleSessionService) {
 		this.onlineUserService = onlineUserService;
+		this.battleSessionService = battleSessionService;
 	}
 
 	// 메시지 브로커 설정
@@ -66,8 +69,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
 							// HTTP 세션에서 loginMember 추출
 							Object loginMember = session.getAttribute("loginMember");
-							if (loginMember != null && loginMember instanceof User) {
-								User member = (User) loginMember;
+							if (loginMember instanceof Member) {
+								Member member = (Member) loginMember;
 								// WebSocket 세션 속성에 userId 저장 (CONNECT/DISCONNECT에서 사용)
 								attributes.put("userId", member.getId());
 							}
@@ -98,6 +101,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 			public Message<?> preSend(Message<?> message, MessageChannel channel) {
 				// STOMP 헤더 접근자로 메시지 래핑
 				StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+
 				// CONNECT 커맨드: 사용자 접속 시
 				if (StompCommand.CONNECT.equals(accessor.getCommand())) {
 					// WebSocket 세션 속성에서 userId 추출 (HandshakeInterceptor에서 저장한 값)
@@ -107,14 +111,19 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 						onlineUserService.addUser(userId);
 					}
 				}
+
 				// DISCONNECT 커맨드: 사용자 접속 종료 시
 				if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
 					Integer userId = (Integer) accessor.getSessionAttributes().get("userId");
 					if (userId != null) {
 						// 접속자 목록에서 제거 → 이벤트 발행 → 모든 클라이언트에게 브로드캐스트
 						onlineUserService.removeUser(userId);
+
+						// 추가: 비정상 종료(탭 종료/네트워크 끊김) 때도 관전자 상태 정리
+						battleSessionService.spectatorLeaveAll(userId);
 					}
 				}
+
 				return message; // 메시지 계속 전달
 			}
 		});

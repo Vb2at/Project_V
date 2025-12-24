@@ -12,4 +12,6 @@ public class Message {
     private String regDate;
     private String nickName; 
     private String profileImg;
+    
+    
 }
