@@ -20,6 +20,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
 import com.V_Beat.dto.Member;
+import com.V_Beat.service.BattleSessionService;
 import com.V_Beat.service.OnlineUserService;
 
 import jakarta.servlet.http.HttpSession;
@@ -30,9 +31,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
 	// 접속자 관리 서비스 (DI)
 	private final OnlineUserService onlineUserService;
+	private final BattleSessionService battleSessionService;
 
-	public WebSocketConfig(OnlineUserService onlineUserService) {
+	
+	public WebSocketConfig(OnlineUserService onlineUserService, BattleSessionService battleSessionService) {
 		this.onlineUserService = onlineUserService;
+		this.battleSessionService = battleSessionService;
 	}
 
 	// 메시지 브로커 설정
@@ -113,6 +117,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 					if (userId != null) {
 						// 접속자 목록에서 제거 → 이벤트 발행 → 모든 클라이언트에게 브로드캐스트
 						onlineUserService.removeUser(userId);
+						
+						// 추가: 비정상 종료(탭 종료/네트워크 끊김) 때도 관전자 상태 정리
+				        battleSessionService.spectatorLeaveAll(userId);
 					}
 				}
 				return message; // 메시지 계속 전달

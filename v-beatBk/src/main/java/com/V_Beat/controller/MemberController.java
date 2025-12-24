@@ -194,7 +194,7 @@ public class MemberController {
 			return "fail";
 		}
 	}
-	@GetMapping("user/member/profile")
+	@GetMapping("/user/member/profile")
 	public String profile(String loginId, String email) {
 		return("user/member/profile");
 	}
@@ -245,4 +245,103 @@ public class MemberController {
 		return result;
 	}
 	
+	// ===========================
+	// 친구 기능 API (Member DTO 확장 방식)
+	// ===========================
+
+	// 친구 요청
+	@PostMapping("/user/friend/request")
+	@ResponseBody
+	public String friendRequest(String keyword) {
+	    if (req.getLoginMemberId() == 0) return "needLogin";
+	    return memberService.sendFriendRequest(req.getLoginMemberId(), keyword);
+	}
+
+	// 받은 요청 목록
+	@GetMapping("/user/friend/requests")
+	@ResponseBody
+	public Object friendRequests() {
+	    if (req.getLoginMemberId() == 0) return "needLogin";
+	    return memberService.getReceivedFriendRequests(req.getLoginMemberId());
+	}
+
+	// 보낸 요청 목록
+	@GetMapping("/user/friend/sent")
+	@ResponseBody
+	public Object friendSent() {
+	    if (req.getLoginMemberId() == 0) return "needLogin";
+	    return memberService.getSentFriendRequests(req.getLoginMemberId());
+	}
+
+	// 친구 목록
+	@GetMapping("/user/friend/list")
+	@ResponseBody
+	public Object friendList() {
+	    if (req.getLoginMemberId() == 0) return "needLogin";
+	    return memberService.getFriendList(req.getLoginMemberId());
+	}
+
+	// 수락
+	@PostMapping("/user/friend/accept")
+	@ResponseBody
+	public String friendAccept(int id) { // FriendRequest.id
+	    if (req.getLoginMemberId() == 0) return "needLogin";
+	    return memberService.acceptFriendRequest(req.getLoginMemberId(), id);
+	}
+
+	// 거절
+	@PostMapping("/user/friend/reject")
+	@ResponseBody
+	public String friendReject(int id) {
+	    if (req.getLoginMemberId() == 0) return "needLogin";
+	    return memberService.rejectFriendRequest(req.getLoginMemberId(), id);
+	}
+
+	// 취소
+	@PostMapping("/user/friend/cancel")
+	@ResponseBody
+	public String friendCancel(int id) {
+	    if (req.getLoginMemberId() == 0) return "needLogin";
+	    return memberService.cancelFriendRequest(req.getLoginMemberId(), id);
+	}
+
+	// 친구 삭제
+	@PostMapping("/user/friend/delete")
+	@ResponseBody
+	public String friendDelete(int targetId) {
+	    if (req.getLoginMemberId() == 0) return "needLogin";
+	    return memberService.deleteFriend(req.getLoginMemberId(), targetId);
+	}
+	/*
+	 * 대결 초대 보내기
+	 * - targetId에게 대결 초대 생성 + WebSocket 알림
+	 */
+	@PostMapping("/user/duel/invite")
+	@ResponseBody
+	public String duelInvite(int targetId, String message) {
+	    if (req.getLoginMemberId() == 0) return "needLogin";
+	    return memberService.inviteDuel(req.getLoginMemberId(), targetId, message);
+	}
+
+	/*
+	 * 대결 초대 수락
+	 * - id = DuelInvite.id
+	 */
+	@PostMapping("/user/duel/accept")
+	@ResponseBody
+	public String duelAccept(int id) {
+	    if (req.getLoginMemberId() == 0) return "needLogin";
+	    return memberService.acceptDuelInvite(req.getLoginMemberId(), id);
+	}
+
+	/*
+	 * 대결 초대 거절
+	 * - id = DuelInvite.id
+	 */
+	@PostMapping("/user/duel/reject")
+	@ResponseBody
+	public String duelReject(int id) {
+	    if (req.getLoginMemberId() == 0) return "needLogin";
+	    return memberService.rejectDuelInvite(req.getLoginMemberId(), id);
+	}
 }
