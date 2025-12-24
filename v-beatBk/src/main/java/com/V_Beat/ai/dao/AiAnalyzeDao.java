@@ -45,7 +45,7 @@ public interface AiAnalyzeDao {
 	void updateSongFilePath(Song song);
 	
 	@Select("""
-			SELECT * 
+			SELECT id, title, file_path AS filePath
 				FROM song
 				WHERE id = #{songId}
 			""")
