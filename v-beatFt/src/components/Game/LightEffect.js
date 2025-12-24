@@ -1,3 +1,4 @@
+// LightEffect.js
 import { Container, Sprite } from 'pixi.js';
 
 const TAP_LIFE_MS = 220;
@@ -22,11 +23,10 @@ export default class LightEffect {
     this.dead = false;
     this.startTime = performance.now();
 
-    // long
     this.ending = false;
     this.endStartTime = 0;
 
-    // 초기값
+    this.lastSeen = this.startTime;
     this.container.alpha = 1;
   }
 
@@ -41,11 +41,9 @@ export default class LightEffect {
         return;
       }
 
-      // 연속 함수로만 변화 (깨짐 방지)
       const a = 1 - t;
       this.container.alpha = a;
 
-      // tap: 순간 팡
       this.core.alpha = a * 0.45;
       this.bloom.alpha = a * 0.65;
       this.flare.alpha = a;
@@ -53,15 +51,12 @@ export default class LightEffect {
       this.core.scale.set(0.55 + t * 0.25);
       this.bloom.scale.set(0.95 + t * 1.25);
       this.flare.scale.set(0.75 + t * 0.95);
-
       return;
     }
 
     if (this.type === 'long') {
       if (!this.ending) {
-        // long 유지: 흔들림 없이 고정
         this.container.alpha = 1;
-
         this.core.alpha = 0.35;
         this.bloom.alpha = 0.45;
         this.flare.alpha = 0;
@@ -69,11 +64,9 @@ export default class LightEffect {
         this.core.scale.set(0.6);
         this.bloom.scale.set(1.35);
         this.flare.scale.set(1.0);
-
         return;
       }
 
-      // release 후 fade-out
       const t = (now - this.endStartTime) / LONG_FADE_MS;
       const a = Math.max(0, 1 - t);
       this.container.alpha = a;
