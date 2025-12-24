@@ -42,34 +42,40 @@ public class AiAnalyzeController {
 	}
 	
 	//특정 곡에 대한 데이터 전체 조회 API
-	@GetMapping("/song/{songId}/notes")
-	public ResponseEntity<SongNotesResult> getNotes(@PathVariable Long songId) {
-		return ResponseEntity.ok(this.aiAnalyzeService.getSongNotes(songId));
-	}
-	
 	@GetMapping("/song/{songId}/audio")
-	public ResponseEntity<Resource> getAudio(@PathVariable Long songId) throws Exception {
-		
-		Song song = this.aiAnalyzeService.getSong(songId);
-		if(song == null) {
-			return ResponseEntity.notFound().build();
-		}
-		
-		String path = song.getFilePath();
-		if(path == null) {
-			return ResponseEntity.badRequest().build();
-		}
-		
-		File file = new File(song.getFilePath());
-		
-		if(!file.exists()) {
-			return ResponseEntity.notFound().build();
-		}
-		
-		Resource resource = new FileSystemResource(file);
-		
-		return ResponseEntity.ok().contentType(MediaType.APPLICATION_OCTET_STREAM)
-			   .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getName() + "\"")
-			   .body(resource);
+	public ResponseEntity<Resource> getAudio(@PathVariable Long songId) {
+	    Song song = this.aiAnalyzeService.getSong(songId);
+	    System.out.println("songId=" + songId);
+	    System.out.println("song=" + song);
+
+	    if (song == null) {
+	        System.out.println("-> 404: song null");
+	        return ResponseEntity.notFound().build();
+	    }
+
+	    String path = song.getFilePath();
+	    System.out.println("filePath=" + path);
+
+	    if (path == null || path.isBlank()) {
+	        System.out.println("-> 400: filePath null/blank");
+	        return ResponseEntity.badRequest().build();
+	    }
+
+	    File file = new File(path);
+	    System.out.println("abs=" + file.getAbsolutePath());
+	    System.out.println("exists=" + file.exists() + ", len=" + (file.exists() ? file.length() : -1));
+
+	    if (!file.exists()) {
+	        System.out.println("-> 404: file not found");
+	        return ResponseEntity.notFound().build();
+	    }
+
+	    Resource resource = new FileSystemResource(file);
+	    return ResponseEntity.ok()
+	            .contentType(MediaType.parseMediaType("audio/mpeg"))
+	            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getName() + "\"")
+	            .contentLength(file.length())
+	            .body(resource);
 	}
+
 }
