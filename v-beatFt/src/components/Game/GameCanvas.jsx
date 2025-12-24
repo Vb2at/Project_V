@@ -183,87 +183,49 @@ function drawKeyLabels(ctx, pressedKeys) {
 }
 
 // ===== 노트 그리기 =====
-
 function drawNotes(ctx, notes, currentTime) {
   const { LANE_WIDTH, NOTE_HEIGHT, HIT_LINE_Y } = GAME_CONFIG.CANVAS;
   const SPEED = GAME_CONFIG.SPEED;
-  
+
   notes.forEach(note => {
     // 레인의 좌우 경계
     const laneLeft = note.lane * LANE_WIDTH;
     const laneRight = (note.lane + 1) * LANE_WIDTH;
+
+  if (note.type === 'long') {
+    const startDiff = note.timing - currentTime;
+    const endDiff = note.endTime - currentTime;
     
-    if (note.type === 'long') {
-      const startDiff = note.timing - currentTime;
-      const endDiff = note.endTime - currentTime;
+    const startY = HIT_LINE_Y - (startDiff * SPEED);
+    const endY = HIT_LINE_Y - (endDiff * SPEED);
+
+    const headHeight = NOTE_HEIGHT * applyPerspective(laneLeft, startY).scale;
+    const headTopY = startY - headHeight;
+    
+    const tailHeight = NOTE_HEIGHT * applyPerspective(laneLeft, endY).scale;
+    const tailBottomY = endY + tailHeight;
+    
+    if (tailBottomY > 0 || headTopY < GAME_CONFIG.CANVAS.HEIGHT) {
+      const topLeft = applyPerspective(laneLeft, headTopY);
+      const topRight = applyPerspective(laneRight, headTopY);
       
-      // 롱노트의 시작(헤드)과 끝(테일) Y 위치
-      const startY = HIT_LINE_Y - (startDiff * SPEED);
-      const endY = HIT_LINE_Y - (endDiff * SPEED);
+      const bottomLeft = applyPerspective(laneLeft, tailBottomY);
+      const bottomRight = applyPerspective(laneRight, tailBottomY);
       
-      // 시작점과 끝점의 좌우 경계 (원근법 적용)
-      const startLeft = applyPerspective(laneLeft, startY);
-      const startRight = applyPerspective(laneRight, startY);
-      const endLeft = applyPerspective(laneLeft, endY);
-      const endRight = applyPerspective(laneRight, endY);
-      
-      // 높이도 원근법 적용
-      const startHeight = NOTE_HEIGHT * startLeft.scale;
-      const endHeight = NOTE_HEIGHT * endLeft.scale;
-      
-      // 롱노트 몸통 (홀딩 중이면 초록색)
       const longNoteColor = note.holding ? '#22c55e' : GAME_CONFIG.LONG_NOTE_COLOR;
-      ctx.fillStyle = longNoteColor + 'AA';
-      ctx.beginPath();
-      ctx.moveTo(endLeft.x + 10 * endLeft.scale, endY);
-      ctx.lineTo(endRight.x - 10 * endRight.scale, endY);
-      ctx.lineTo(startRight.x - 10 * startRight.scale, startY);
-      ctx.lineTo(startLeft.x + 10 * startLeft.scale, startY);
-      ctx.closePath();
-      ctx.fill();
-      
-      // 몸통 테두리
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      
-      // 롱노트 헤드
-      const headTopY = startY - startHeight;
-      const headTopLeft = applyPerspective(laneLeft, headTopY);
-      const headTopRight = applyPerspective(laneRight, headTopY);
-      
       ctx.fillStyle = longNoteColor;
       ctx.beginPath();
-      ctx.moveTo(headTopLeft.x + 5 * headTopLeft.scale, headTopY);
-      ctx.lineTo(headTopRight.x - 5 * headTopRight.scale, headTopY);
-      ctx.lineTo(startRight.x - 5 * startRight.scale, startY);
-      ctx.lineTo(startLeft.x + 5 * startLeft.scale, startY);
+      ctx.moveTo(topLeft.x + 5 * topLeft.scale, headTopY);
+      ctx.lineTo(topRight.x - 5 * topRight.scale, headTopY);
+      ctx.lineTo(bottomRight.x - 5 * bottomRight.scale, tailBottomY);
+      ctx.lineTo(bottomLeft.x + 5 * bottomLeft.scale, tailBottomY);
       ctx.closePath();
       ctx.fill();
       
-      // 헤드 테두리
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
       ctx.stroke();
-      
-      // 롱노트 테일
-      const tailBottomY = endY + endHeight;
-      const tailBottomLeft = applyPerspective(laneLeft, tailBottomY);
-      const tailBottomRight = applyPerspective(laneRight, tailBottomY);
-      
-      ctx.fillStyle = longNoteColor;
-      ctx.beginPath();
-      ctx.moveTo(endLeft.x + 5 * endLeft.scale, endY);
-      ctx.lineTo(endRight.x - 5 * endRight.scale, endY);
-      ctx.lineTo(tailBottomRight.x - 5 * tailBottomRight.scale, tailBottomY);
-      ctx.lineTo(tailBottomLeft.x + 5 * tailBottomLeft.scale, tailBottomY);
-      ctx.closePath();
-      ctx.fill();
-      
-      // 테일 테두리
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+    }
       
     } else {
       // 탭노트
@@ -277,7 +239,7 @@ function drawNotes(ctx, notes, currentTime) {
         const noteTopRight = applyPerspective(laneRight, y);
         const noteHeight = NOTE_HEIGHT * noteTopLeft.scale;
         
-        // 노트의 아래쪽 경계
+        // 노트의 아래쪽 경계graphicsRef
         const noteBottomY = y + noteHeight;
         const noteBottomLeft = applyPerspective(laneLeft, noteBottomY);
         const noteBottomRight = applyPerspective(laneRight, noteBottomY);

@@ -21,13 +21,13 @@ export const GAME_CONFIG = {
     WIDTH: 700,
     HEIGHT: 650,
     LANE_WIDTH: 100,
-    NOTE_HEIGHT: 20,
+    NOTE_HEIGHT: 30,
     HIT_LINE_Y: 550
   },
   
   PERSPECTIVE: {
-    SCALE_MIN: 0.3,
-    SCALE_MAX: 1.0
+    SCALE_MIN: 0.5,
+    SCALE_MAX: 1
   },
   
   SPEED: 0.5,
