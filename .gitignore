@@ -10,4 +10,4 @@ venv/
 
 # build artifacts
 **/target/
-**/build/
+**/build/v-beatBk/bin/
