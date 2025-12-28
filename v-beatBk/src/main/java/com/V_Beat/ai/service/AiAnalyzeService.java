@@ -96,7 +96,7 @@ public class AiAnalyzeService {
 		Long songId = song.getId();
 		
 		//파일 저장
-		String uploadDir = System.getProperty("user.dir") + "/upload";
+		String uploadDir = "D:/VBeat/upload";
 		File dir = new File(uploadDir);
 		if(!dir.exists()) dir.mkdirs();
 		
@@ -121,6 +121,18 @@ public class AiAnalyzeService {
 			note.setNoteTime(noteNode.get("time").decimalValue());
 			note.setLane(noteNode.get("lane").intValue());
 			
+			String type = (noteNode.has("type") && !noteNode.get("type").isNull())
+					? noteNode.get("type").asText()
+					: "tap";
+			note.setType(type);
+			
+			if("long".equals(type)) {
+				if(!noteNode.has("endTime") || noteNode.get("endTime").isNull()) {
+					throw new IllegalArgumentException("long note requires endTime");
+				}
+				note.setEndTime(noteNode.get("endTime").decimalValue());
+			} else {
+				note.setEndTime(null);			}
 			this.aiAnalyzeDao.insertNote(note);
 		}
 		return songId;

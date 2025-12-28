@@ -1,23 +1,31 @@
 # python artifacts
-*.mp3
-*.wav
-*.ogg
-*.json
 __pycache__/
 *.pyc
 venv/
 .env
 
+# audio files (if not tracked)
+*.mp3
+*.wav
+*.ogg
+
 # build artifacts
 **/target/
-
-# backend build output
-v-beatBk/bin/
-v-beatBk/target/
+**/build/
+**/bin/
 **/*.class
 
+# backend build output (project-specific)
+v-beatBk/bin/
+v-beatBk/target/
+
 # frontend build/cache
-v-beatFt/node_modules/
-v-beatFt/.vite/
+**/node_modules/
+**/.vite/
 node_modules/
 .vite/
+v-beatFt/node_modules/
+v-beatFt/.vite/
+
+# ide / misc
+**/src/main/java/snippet/

@@ -77,5 +77,10 @@ public class AiAnalyzeController {
 	            .contentLength(file.length())
 	            .body(resource);
 	}
+	
+	@GetMapping("/song/{songId}/notes")
+	public ResponseEntity<SongNotesResult> getNotes(@PathVariable Long songId) {
+		return ResponseEntity.ok(this.aiAnalyzeService.getSongNotes(songId));
+	}
 
 }

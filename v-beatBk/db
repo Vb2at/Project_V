@@ -34,13 +34,16 @@ CREATE TABLE song(
     create_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-
+SELECT * FROM song;
 CREATE TABLE note(
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     song_id BIGINT UNSIGNED NOT NULL,
+    `type` ENUM('tap', 'long') NOT NULL DEFAULT 'tap',
+    end_time DECIMAL(10,3) NULL,
     note_time DECIMAL(10,3) NOT NULL,
     lane TINYINT UNSIGNED NOT NULL,
     create_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
-    INDEX idx_song_time (song_id, note_time)
+    INDEX idx_song_time (song_id, note_time),
+    INDEX idx_song_lane_time(song_id, lane, note_time)
 );
