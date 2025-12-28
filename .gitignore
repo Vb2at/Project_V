@@ -10,4 +10,14 @@ venv/
 
 # build artifacts
 **/target/
-**/build/v-beatBk/bin/
+
+# backend build output
+v-beatBk/bin/
+v-beatBk/target/
+**/*.class
+
+# frontend build/cache
+v-beatFt/node_modules/
+v-beatFt/.vite/
+node_modules/
+.vite/
