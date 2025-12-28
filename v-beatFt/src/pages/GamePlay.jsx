@@ -10,13 +10,13 @@ import { addTapEffect } from '../util/EffectsHelpers';
 export default function GamePlay() {
   const [notes, setNotes] = useState([
     // 0-2초: 기본 탭노트
-    { lane: 0, timing: 500, type: 'tap', hit: false },
-    { lane: 1, timing: 700, type: 'tap', hit: false },
-    { lane: 2, timing: 900, type: 'tap', hit: false },
+    { lane: 3, timing: 500, type: 'tap', hit: false },
+    { lane: 3, timing: 700, type: 'tap', hit: false },
+    { lane: 3, timing: 900, type: 'tap', hit: false },
     { lane: 3, timing: 1100, type: 'tap', hit: false },
-    { lane: 4, timing: 1300, type: 'tap', hit: false },
-    { lane: 5, timing: 1500, type: 'tap', hit: false },
-    { lane: 6, timing: 1700, type: 'tap', hit: false },
+    { lane: 3, timing: 1300, type: 'tap', hit: false },
+    { lane: 3, timing: 1500, type: 'tap', hit: false },
+    { lane: 3, timing: 1700, type: 'tap', hit: false },
 
     // 2-4초: 롱노트 + 탭노트 혼합
     { lane: 1, timing: 2000, endTime: 3000, type: 'long', hit: false, holding: false },

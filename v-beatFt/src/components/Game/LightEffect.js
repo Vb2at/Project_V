@@ -1,12 +1,23 @@
 // LightEffect.js
 import { Container, Sprite } from 'pixi.js';
 
+/* =========================
+   조정 파라미터
+   ========================= */
+
 const TAP_LIFE_MS = 220;
 const LONG_FADE_MS = 220;
 
+/* ========================= */
+
 export default class LightEffect {
-  constructor({ textures, type }) {
+  constructor({ textures, type, duration = 0, startTime }) {
     this.type = type;
+    this.duration = duration;
+
+    // 🔑 핵심: 롱 노트는 노트 시작 시간 기준
+    this.startTime = startTime ?? performance.now();
+
     this.container = new Container();
 
     this.core = new Sprite(textures.core);
@@ -21,18 +32,16 @@ export default class LightEffect {
     this.container.addChild(this.bloom, this.flare, this.core);
 
     this.dead = false;
-    this.startTime = performance.now();
-
     this.ending = false;
     this.endStartTime = 0;
 
-    this.lastSeen = this.startTime;
     this.container.alpha = 1;
   }
 
   update(now) {
     if (this.dead) return;
 
+       //TAP
     if (this.type === 'tap') {
       const t = (now - this.startTime) / TAP_LIFE_MS;
       if (t >= 1) {
@@ -48,28 +57,38 @@ export default class LightEffect {
       this.bloom.alpha = a * 0.65;
       this.flare.alpha = a;
 
-      this.core.scale.set(0.55 + t * 0.25);
-      this.bloom.scale.set(0.95 + t * 1.25);
-      this.flare.scale.set(0.75 + t * 0.95);
+      this.core.scale.set(0.2 + t * 0.1);
+      this.bloom.scale.set(0.1 + t * 0.5);
+      this.flare.scale.set(0.3 + t * 0.8);
       return;
     }
 
+       //LONG
     if (this.type === 'long') {
       if (!this.ending) {
-        this.container.alpha = 1;
-        this.core.alpha = 0.35;
-        this.bloom.alpha = 0.45;
-        this.flare.alpha = 0;
+        const progress = Math.min(1, (now - this.startTime) / this.duration);
 
-        this.core.scale.set(0.6);
-        this.bloom.scale.set(1.35);
-        this.flare.scale.set(1.0);
+        this.container.alpha = 1;
+
+        // core: 주체, 하지만 튀지 않게
+        this.core.alpha = 0.9;
+        this.core.scale.set(0.2 + progress * 0.4); // 0.45 → 0.6
+
+        // bloom: 분위기만
+        this.bloom.alpha = 0. + progress * 0.07;  // 0.08 → 0.15
+        this.bloom.scale.set(0.3 + progress * 0.1); // 0.5 → 0.65
+
+        // flare: 존재만 느껴지게
+        this.flare.alpha = 0.6 + Math.sin(now * 0.004) * 0.03;
+        this.flare.scale.set(0.5);
+
         return;
       }
 
+
+      // 종료 페이드
       const t = (now - this.endStartTime) / LONG_FADE_MS;
-      const a = Math.max(0, 1 - t);
-      this.container.alpha = a;
+      this.container.alpha = Math.max(0, 1 - t);
       if (t >= 1) this.dead = true;
     }
   }
@@ -77,6 +96,7 @@ export default class LightEffect {
   startEnd(now) {
     if (this.type !== 'long') return;
     if (this.ending) return;
+
     this.ending = true;
     this.endStartTime = now;
   }
