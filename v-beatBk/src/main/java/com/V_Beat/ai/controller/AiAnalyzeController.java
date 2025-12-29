@@ -32,11 +32,11 @@ public class AiAnalyzeController {
 	}
 	
 	//음원 업로드, 분석, 노트 생성 ,저장하는 API
-	@PostMapping("/analyze")
+	@PostMapping("/analyze/{diff}")
 		//POST방식으로 /api/ai/analyze 주소로 요청이 오면 아래 메서드 실행
-	public ResponseEntity<Long> analyze(@RequestParam("file") MultipartFile file) throws Exception {
+	public ResponseEntity<Long> analyze(@RequestParam("file") MultipartFile file, @PathVariable String diff) throws Exception {
 	//응답 바디에 Long값을 담아 보냄
-		Long songId = this.aiAnalyzeService.analyzeSave(file);
+		Long songId = this.aiAnalyzeService.analyzeSave(file, diff);
 		//Flask로 분석 요청 -> song,note DB에 저장 -> 저장된 songId 받아옴
 		return ResponseEntity.ok(songId);
 	}
@@ -76,6 +76,11 @@ public class AiAnalyzeController {
 	            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getName() + "\"")
 	            .contentLength(file.length())
 	            .body(resource);
+	}
+	
+	@GetMapping("/song/{songId}/notes")
+	public ResponseEntity<SongNotesResult> getNotes(@PathVariable Long songId) {
+		return ResponseEntity.ok(this.aiAnalyzeService.getSongNotes(songId));
 	}
 
 }

@@ -24,16 +24,16 @@ public interface AiAnalyzeDao {
 	void insertSong(Song song);
 
 	@Insert("""
-			INSERT INTO note(song_id, note_time, lane)
-			VALUES (#{songId}, #{noteTime}, #{lane})
+			INSERT INTO note(song_id, `type`, end_time, note_time, lane)
+			VALUES (#{songId}, #{type}, #{endTime}, #{noteTime}, #{lane})
 			""")
 	void insertNote(Note note);
 	
 	@Select("""
-			SELECT note_time AS time, lane
-			FROM note
-			WHERE song_id = #{songId}
-			ORDER BY note_time ASC
+			SELECT note_time AS time, lane, `type`, end_time AS endTime
+				FROM note
+				WHERE song_id = #{songId}
+				ORDER BY note_time ASC
 			""")
 	List<NoteResult> getSongNotes(Long songId);
 
