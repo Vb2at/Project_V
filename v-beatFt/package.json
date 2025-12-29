@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@pixi/particle-emitter": "^5.0.8",
     "axios": "^1.13.2",
     "howler": "^2.2.4",
+    "pixi.js": "^8.14.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^6.30.2"
