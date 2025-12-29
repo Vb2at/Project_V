@@ -137,7 +137,8 @@ def analyze():
     tmp.close()
     file.save(tmp_path)
 
-    diff = request.args.get("diff", "easy")
+    diff = request.form.get("diff", "easy")
+    print("DIFF =", diff)
     diff = apply_preset(diff)
     rng = np.random.default_rng(SEED) if SEED is not None else np.random.default_rng()
 

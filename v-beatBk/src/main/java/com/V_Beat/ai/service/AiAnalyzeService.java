@@ -73,10 +73,31 @@ public class AiAnalyzeService {
 	}
 	
 	@Transactional
-	public Long analyzeSave(MultipartFile file) throws Exception{
+	public Long analyzeSave(MultipartFile file, String diff) throws Exception{
+		
+		if(diff == null || diff.isBlank()) {
+			diff = "normal";
+		}
+		
+		MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+		
+		body.add("file", new ByteArrayResource(file.getBytes()) {
+			@Override
+			public String getFilename() {
+				return file.getOriginalFilename();
+			}
+		});
+		
+		//Flask로 diff 같이 보냄
+		body.add("diff", diff);
+		
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+		HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
+		ResponseEntity<String> resp =restTemplate.postForEntity(PYTHON_URL, request, String.class);
 		
 		//Flask 분석 호출 (JSON 문자열 받기)
-		String json = analyze(file);
+		String json = resp.getBody();
 		
 		//JSON 파싱 준비, JSON 문자열을 트리 구조로 변환
 		ObjectMapper mapper = new ObjectMapper();
@@ -96,7 +117,7 @@ public class AiAnalyzeService {
 		Long songId = song.getId();
 		
 		//파일 저장
-		String uploadDir = "C:/VBeat/upload";
+		String uploadDir = "D:/VBeat/upload";
 		File dir = new File(uploadDir);
 		if(!dir.exists()) dir.mkdirs();
 		

@@ -7,50 +7,14 @@ import { GAME_CONFIG } from '../constants/GameConfig';
 import PixiEffects from '../components/Game/PixiEffects';
 
 export default function GamePlay() {
+  // =========================
+  // 기존 상태
+  // =========================
   const [notes, setNotes] = useState([
-    // 0-2초: 기본 탭노트
+    // (fallback 더미) songId 로드되면 AI 노트로 덮어씀
     { lane: 3, timing: 500, type: 'tap', hit: false },
     { lane: 3, timing: 700, type: 'tap', hit: false },
     { lane: 3, timing: 900, type: 'tap', hit: false },
-    { lane: 3, timing: 1100, type: 'tap', hit: false },
-    { lane: 3, timing: 1300, type: 'tap', hit: false },
-    { lane: 3, timing: 1500, type: 'tap', hit: false },
-    { lane: 3, timing: 1700, type: 'tap', hit: false },
-
-    // 2-4초: 롱노트 + 탭노트 혼합
-    { lane: 1, timing: 2000, endTime: 3000, type: 'long', hit: false, holding: false },
-    { lane: 5, timing: 2000, endTime: 3000, type: 'long', hit: false, holding: false },
-    { lane: 3, timing: 2500, type: 'tap', hit: false },
-    { lane: 0, timing: 3200, type: 'tap', hit: false },
-    { lane: 6, timing: 3400, type: 'tap', hit: false },
-
-    // 4-6초: 연속 탭노트
-    { lane: 0, timing: 4000, type: 'tap', hit: false },
-    { lane: 1, timing: 4200, type: 'tap', hit: false },
-    { lane: 2, timing: 4400, type: 'tap', hit: false },
-    { lane: 3, timing: 4600, type: 'tap', hit: false },
-    { lane: 4, timing: 4800, type: 'tap', hit: false },
-    { lane: 5, timing: 5000, type: 'tap', hit: false },
-    { lane: 6, timing: 5200, type: 'tap', hit: false },
-    { lane: 3, timing: 5400, type: 'tap', hit: false },
-    { lane: 1, timing: 5600, type: 'tap', hit: false },
-    { lane: 5, timing: 5800, type: 'tap', hit: false },
-
-    // 6-8초: 동시 롱노트
-    { lane: 0, timing: 6000, endTime: 7500, type: 'long', hit: false, holding: false },
-    { lane: 6, timing: 6000, endTime: 7500, type: 'long', hit: false, holding: false },
-    { lane: 3, timing: 6500, type: 'tap', hit: false },
-    { lane: 3, timing: 7000, type: 'tap', hit: false },
-
-    // 8-10초: 마무리 패턴
-    { lane: 2, timing: 8000, type: 'tap', hit: false },
-    { lane: 4, timing: 8200, type: 'tap', hit: false },
-    { lane: 1, timing: 8400, type: 'tap', hit: false },
-    { lane: 5, timing: 8600, type: 'tap', hit: false },
-    { lane: 3, timing: 8800, endTime: 9500, type: 'long', hit: false, holding: false },
-    { lane: 0, timing: 9600, type: 'tap', hit: false },
-    { lane: 6, timing: 9800, type: 'tap', hit: false },
-    { lane: 3, timing: 10000, type: 'tap', hit: false },
   ]);
 
   const [currentTime, setCurrentTime] = useState(0);
@@ -66,24 +30,171 @@ export default function GamePlay() {
     notesRef.current = notes;
   }, [notes]);
 
-  // 타이머
+  // =========================
+  // ✅ UI 최소: Play 버튼만 / songId는 URL에서
+  // =========================
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
+  // ✅ ✅ ✅ songId는 URL 쿼리로 받음: /game/play?songId=7
+  const getSongIdFromUrl = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('songId') || '1'; // 기본값 1
+  };
+
+  // ✅ diff는 URL 쿼리로 받음: /game/play?songId=7&diff=hard
+  const getDiffFromUrl = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('diff') || 'unknown';
+  };
+
+  const [songId, setSongId] = useState(getSongIdFromUrl());
+  const [diff, setDiff] = useState(getDiffFromUrl());
+
+  const [audioUrl, setAudioUrl] = useState('');
+  const audioRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const normalizeNotesFromApi = (payload) => {
+    const list = Array.isArray(payload) ? payload : (payload?.notes || payload?.data || []);
+    if (!Array.isArray(list)) return [];
+
+    return list.map((n) => {
+      const tSec = Number(n.time ?? n.noteTime ?? n.note_time ?? n.timing ?? 0);
+      const lane = Number(n.lane ?? n.laneIndex ?? n.key ?? 0);
+      const type = (n.type ?? n.noteType ?? 'tap') === 'long' ? 'long' : 'tap';
+
+      const startMs = Math.round(tSec * 1000);
+      const endSec = n.endTime ?? n.end_time ?? n.end ?? null;
+      const endMs = endSec != null ? Math.round(Number(endSec) * 1000) : undefined;
+
+      if (type === 'long') {
+        return {
+          lane,
+          timing: startMs,
+          endTime: endMs ?? startMs + 1000,
+          type: 'long',
+          hit: false,
+          holding: false,
+        };
+      }
+      return { lane, timing: startMs, type: 'tap', hit: false };
+    });
+  };
+
+  const resetGame = () => {
+    setIsPlaying(false);
+    setScore(0);
+    setCombo(0);
+    setEffects([]);
+    setPressedKeys(new Set());
+    setCurrentTime(0);
+    currentTimeRef.current = 0;
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+  };
+
+  const loadSongById = async (sidRaw) => {
+    const sid = String(sidRaw).trim();
+    if (!sid) return false;
+
+    // 오디오 URL 세팅
+    setAudioUrl(`${API_BASE}/api/ai/song/${sid}/audio`);
+
+    // 노트 로드
+    const notesRes = await fetch(`${API_BASE}/api/ai/song/${sid}/notes`);
+    if (!notesRes.ok) return false;
+
+    const notesJson = await notesRes.json();
+    const mapped = normalizeNotesFromApi(notesJson);
+    if (!mapped.length) return false;
+
+    resetGame();
+    setNotes(mapped);
+    return true;
+  };
+
+  // ✅ 주소창 songId/diff가 바뀌면 자동으로 로드되게(popstate 대응)
+  useEffect(() => {
+    const onPopState = () => {
+      const sid = getSongIdFromUrl();
+      const d = getDiffFromUrl();
+      setSongId(sid);
+      setDiff(d);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  // ✅ songId가 바뀌면 노트/오디오 자동 로드
+  useEffect(() => {
+    loadSongById(songId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songId]);
+
+  const togglePlay = async () => {
+    const el = audioRef.current;
+    if (!el) return;
+
+    try {
+      // audioUrl이 아직 없으면 먼저 로드
+      if (!audioUrl) {
+        const ok = await loadSongById(songId);
+        if (!ok) return;
+      }
+
+      if (el.paused) {
+        await el.play();
+        setIsPlaying(true);
+      } else {
+        el.pause();
+        setIsPlaying(false);
+      }
+    } catch {
+      setIsPlaying(false);
+    }
+  };
+
+  // 오디오 시간 -> 게임 시간(ms) 동기화
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+
+    const onTime = () => {
+      const ms = Math.floor((el.currentTime || 0) * 1000);
+      currentTimeRef.current = ms;
+      setCurrentTime(ms);
+    };
+    const onEnded = () => setIsPlaying(false);
+
+    el.addEventListener('timeupdate', onTime);
+    el.addEventListener('ended', onEnded);
+    return () => {
+      el.removeEventListener('timeupdate', onTime);
+      el.removeEventListener('ended', onEnded);
+    };
+  }, [audioUrl]);
+
+  // =========================
+  // 기존 로직 (최대한 유지)
+  // =========================
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTime(prev => {
+      setCurrentTime((prev) => {
         const newTime = prev + 16;
         currentTimeRef.current = newTime;
 
-        setNotes(prevNotes =>
-          prevNotes.map(note => {
+        setNotes((prevNotes) =>
+          prevNotes.map((note) => {
             if (note.type === 'long' && note.holding && newTime > note.endTime) {
-              setEffects(prevEffects =>
+              setEffects((prevEffects) =>
                 prevEffects.filter(
-                  e =>
-                    !(e.type === 'long' &&
-                      e.noteId === `${note.timing}-${note.lane}`) // ★ FIX
+                  (e) => !(e.type === 'long' && e.noteId === `${note.timing}-${note.lane}`)
                 )
               );
-              return { ...note, holding: false, released: true }; // ★ FIX
+              return { ...note, holding: false, released: true };
             }
             return note;
           })
@@ -96,15 +207,14 @@ export default function GamePlay() {
     return () => clearInterval(interval);
   }, []);
 
-  // Miss 자동 감지
   useEffect(() => {
     const interval = setInterval(() => {
       const now = currentTimeRef.current;
 
-      setNotes(prev => {
+      setNotes((prev) => {
         let missOccurred = false;
 
-        const newNotes = prev.map(note => {
+        const newNotes = prev.map((note) => {
           if (note.hit) return note;
 
           if (note.type === 'long') {
@@ -114,34 +224,23 @@ export default function GamePlay() {
             }
             if (note.holding && now > note.endTime + GAME_CONFIG.JUDGEMENT.MISS) {
               missOccurred = true;
-
-              setEffects(prevEffects =>
+              setEffects((prevEffects) =>
                 prevEffects.filter(
-                  e =>
-                    !(e.type === 'long' &&
-                      e.noteId === `${note.timing}-${note.lane}`) // ★ FIX
+                  (e) => !(e.type === 'long' && e.noteId === `${note.timing}-${note.lane}`)
                 )
               );
-
               return { ...note, hit: true, holding: false, released: true, judgement: 'MISS' };
             }
           } else {
             if (now > note.timing + GAME_CONFIG.JUDGEMENT.MISS) {
               missOccurred = true;
-              setEffects(prev => [
-                ...prev,
-                {
-                  type: 'judge',
-                  lane: note.lane,
-                  judgement: 'MISS',
-                  id: crypto.randomUUID(),
-                },
+              setEffects((prevEff) => [
+                ...prevEff,
+                { type: 'judge', lane: note.lane, judgement: 'MISS', id: crypto.randomUUID() },
               ]);
-
               return { ...note, hit: true, judgement: 'MISS' };
             }
           }
-
           return note;
         });
 
@@ -153,26 +252,18 @@ export default function GamePlay() {
     return () => clearInterval(interval);
   }, []);
 
-  // 롱노트 홀딩 보너스
   useEffect(() => {
     const interval = setInterval(() => {
-      const holdingNotes = notesRef.current.filter(n => n.holding && !n.released);
+      const holdingNotes = notesRef.current.filter((n) => n.holding && !n.released);
       if (holdingNotes.length > 0) {
         const bonus = holdingNotes.length * GAME_CONFIG.SCORE.LONG_BONUS;
-        setScore(prev => prev + bonus);
-        setCombo(prev => {
+        setScore((prev) => prev + bonus);
+        setCombo((prev) => {
           const next = prev + 1;
-
-          setEffects(effects => [
-            ...effects,
-            {
-              type: 'judge',
-              judgement: '',
-              combo: next,
-              id: crypto.randomUUID(),
-            },
+          setEffects((eff) => [
+            ...eff,
+            { type: 'judge', judgement: '', combo: next, id: crypto.randomUUID() },
           ]);
-
           return next;
         });
       }
@@ -182,57 +273,41 @@ export default function GamePlay() {
   }, []);
 
   useEffect(() => {
-    const handleKeyPress = laneIndex => {
-      setPressedKeys(prev => new Set(prev).add(laneIndex));
+    const handleKeyPress = (laneIndex) => {
+      setPressedKeys((prev) => new Set(prev).add(laneIndex));
 
       const result = NoteCalculator.judgeNote(
         laneIndex,
         currentTimeRef.current,
         notesRef.current
       );
-
       if (!result) return;
 
       if (result.judgement === 'MISS') {
         setCombo(0);
-        setEffects(effects => [
-          ...effects,
-          {
-            type: 'judge',
-            lane: laneIndex,
-            judgement: 'MISS',
-            combo: 0,
-            id: crypto.randomUUID(),
-          },
+        setEffects((eff) => [
+          ...eff,
+          { type: 'judge', lane: laneIndex, judgement: 'MISS', combo: 0, id: crypto.randomUUID() },
         ]);
         return;
       }
 
       if (result.note.type === 'long') {
-        setNotes(prev =>
-          prev.map(note =>
-            note === result.note
-              ? { ...note, holding: true, hit: true }
-              : note
-          )
+        setNotes((prev) =>
+          prev.map((note) => (note === result.note ? { ...note, holding: true, hit: true } : note))
         );
-        setCombo(prev => {
+
+        setCombo((prev) => {
           const next = prev + 1;
 
-          setEffects(prev =>
-            prev.some(
-              e =>
-                e.type === 'long' &&
-                e.noteId === `${result.note.timing}-${result.note.lane}`
+          setEffects((prevEff) =>
+            prevEff.some(
+              (e) => e.type === 'long' && e.noteId === `${result.note.timing}-${result.note.lane}`
             )
-              ? prev
+              ? prevEff
               : [
-                  ...prev,
-                  {
-                    type: 'long',
-                    lane: laneIndex,
-                    noteId: `${result.note.timing}-${result.note.lane}`,
-                  },
+                  ...prevEff,
+                  { type: 'long', lane: laneIndex, noteId: `${result.note.timing}-${result.note.lane}` },
                   {
                     type: 'judge',
                     lane: laneIndex,
@@ -246,39 +321,27 @@ export default function GamePlay() {
           return next;
         });
       } else {
-        setNotes(prev =>
-          prev.map(note => (note === result.note ? { ...note, hit: true } : note))
+        setNotes((prev) =>
+          prev.map((note) => (note === result.note ? { ...note, hit: true } : note))
         );
 
-        setCombo(prev => {
+        setCombo((prev) => {
           const next = prev + 1;
-
-          setEffects(effects => [
-            ...effects,
-            {
-              type: 'tap',
-              lane: laneIndex,
-              id: crypto.randomUUID(),
-            },
-            {
-              type: 'judge',
-              lane: laneIndex,
-              judgement: result.judgement,
-              combo: next,
-              id: crypto.randomUUID(),
-            },
+          setEffects((eff) => [
+            ...eff,
+            { type: 'tap', lane: laneIndex, id: crypto.randomUUID() },
+            { type: 'judge', lane: laneIndex, judgement: result.judgement, combo: next, id: crypto.randomUUID() },
           ]);
-
           return next;
         });
       }
 
       const addScore = GAME_CONFIG.SCORE[result.judgement];
-      setScore(prev => prev + addScore);
+      setScore((prev) => prev + addScore);
     };
 
-    const handleKeyRelease = laneIndex => {
-      setPressedKeys(prev => {
+    const handleKeyRelease = (laneIndex) => {
+      setPressedKeys((prev) => {
         const newSet = new Set(prev);
         newSet.delete(laneIndex);
         return newSet;
@@ -291,32 +354,27 @@ export default function GamePlay() {
       );
 
       if (result) {
-        setNotes(prev =>
-          prev.map(note =>
-            note === result.note
-              ? { ...note, hit: true, holding: false, released: true } // ★ FIX
-              : note
+        setNotes((prev) =>
+          prev.map((note) =>
+            note === result.note ? { ...note, hit: true, holding: false, released: true } : note
           )
         );
 
-        setEffects(prev =>
+        setEffects((prev) =>
           prev.filter(
-            e =>
-              !(e.type === 'long' &&
-                e.noteId === `${result.note.timing}-${result.note.lane}`) // ★ FIX
+            (e) => !(e.type === 'long' && e.noteId === `${result.note.timing}-${result.note.lane}`)
           )
         );
-        setScore(prev => prev + GAME_CONFIG.SCORE[result.judgement]);
+
+        setScore((prev) => prev + GAME_CONFIG.SCORE[result.judgement]);
       } else {
-        setNotes(prev =>
-          prev.map(note => {
+        setNotes((prev) =>
+          prev.map((note) => {
             if (note.lane === laneIndex && note.holding) {
               setCombo(0);
-              setEffects(prevEffects =>
+              setEffects((prevEffects) =>
                 prevEffects.filter(
-                  e =>
-                    !(e.type === 'long' &&
-                      e.noteId === `${note.timing}-${note.lane}`)
+                  (e) => !(e.type === 'long' && e.noteId === `${note.timing}-${note.lane}`)
                 )
               );
               return { ...note, holding: false, released: true };
@@ -342,6 +400,23 @@ export default function GamePlay() {
         justifyContent: 'center',
       }}
     >
+      {/* ✅ UI는 Play 버튼 + 난이도 표시만 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px' }}>
+        <button
+          onClick={togglePlay}
+          style={{ padding: '8px 14px', cursor: 'pointer' }}
+        >
+          {isPlaying ? 'Pause' : 'Play'}
+        </button>
+
+        <div style={{ color: '#aaa', fontSize: '14px' }}>
+          Difficulty: <b style={{ color: '#fff' }}>{String(diff).toUpperCase()}</b>
+        </div>
+      </div>
+
+      {/* ✅ 빈 문자열 src 경고 방지 */}
+      <audio ref={audioRef} src={audioUrl || null} />
+
       <div
         style={{
           color: 'white',
@@ -363,7 +438,7 @@ export default function GamePlay() {
         }}
       >
         <GameCanvas
-          notes={notes.filter(n => {
+          notes={notes.filter((n) => {
             if (!n.hit || (n.type === 'long' && n.holding)) return true;
             if (n.type === 'long') {
               const t = (GAME_CONFIG.CANVAS.HEIGHT + 100) / GAME_CONFIG.SPEED;
