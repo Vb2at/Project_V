@@ -84,7 +84,7 @@ public class AiAnalyzeService {
 		JsonNode notesNode = root.get("notes");
 		
 		if(notesNode == null || !notesNode.isArray()) {
-			throw new IllegalAccessException("Flask에 notes 배열 없음");
+			throw new IllegalStateException("Flask에 notes 배열 없음");
 		}
 		
 		//song 테이블 저장
@@ -96,7 +96,7 @@ public class AiAnalyzeService {
 		Long songId = song.getId();
 		
 		//파일 저장
-		String uploadDir = "D:/VBeat/upload";
+		String uploadDir = "C:/VBeat/upload";
 		File dir = new File(uploadDir);
 		if(!dir.exists()) dir.mkdirs();
 		
