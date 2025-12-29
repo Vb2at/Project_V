@@ -389,9 +389,10 @@ public class MemberService {
 	/*
 	 * 대결 초대 수락
 	 *
-	 * - DuelInvite status=1(수락)로 변경
+	 * - DuelInvite status=1(수락)로 변경 (⚠️ status=0 대기인 것만 변경되게 SQL 조건 필수)
 	 * - channelId는 inviteId를 그대로 사용
 	 * - BattleSessionService에 두 플레이어 등록
+	 * - 게임 시작 플래그 ON (수락=즉시 시작 정책일 때)
 	 * - 초대한 사람에게 "DUEL_ACCEPT" 알림
 	 * - 수락한 본인에게 "DUEL_START" 알림 (프론트 단순화용)
 	 */
@@ -402,23 +403,27 @@ public class MemberService {
 	    p.setToUserId(myId);
 	    p.setDuelInviteId(inviteId);
 
-	    // 대기 상태인 초대만 수락 가능 + 초대한 사람 찾기
+	    // 1) 대기 상태인 초대만 수락 가능 + 초대한 사람 찾기
 	    Integer inviterId = memberDao.findDuelInviterId(p);
 	    if (inviterId == null) return "fail";
 
+	    // 2) 수락 처리
+	    // ⚠️ DAO SQL에서 status=0(대기) 조건이 꼭 있어야 중복 수락 방지됨
 	    int ok = memberDao.acceptDuelInvite(p);
 	    if (ok != 1) return "fail";
 
 	    int channelId = inviteId;
 
-	    // 방 세션 등록 (수락 순간 두 명을 방에 올려둠)
+	    // 3) 방 세션 등록 (수락 순간 두 명을 방에 올려둠)
 	    battleSessionService.addUser(channelId, inviterId);
 	    battleSessionService.addUser(channelId, myId);
-	    
+
+	    // 4) 수락 = 즉시 게임 시작 정책이면 여기서 ON
 	    battleSessionService.startGame(channelId);
 
 	    Member me = memberDao.findById(myId);
 
+	    // 5) 초대한 사람에게 수락 알림
 	    Map<String, Object> payloadA = new HashMap<>();
 	    payloadA.put("type", "DUEL_ACCEPT");
 	    payloadA.put("inviteId", inviteId);
@@ -428,6 +433,7 @@ public class MemberService {
 
 	    messagingTemplate.convertAndSend("/topic/user." + inviterId, payloadA);
 
+	    // 6) 수락한 본인에게 시작 알림
 	    Map<String, Object> payloadMe = new HashMap<>();
 	    payloadMe.put("type", "DUEL_START");
 	    payloadMe.put("inviteId", inviteId);
@@ -439,9 +445,9 @@ public class MemberService {
 	}
 
 	/*
-	 * 대결 초대 거절
+	 * ✅ 대결 초대 거절
 	 *
-	 * - DuelInvite status=2(거절)로 변경
+	 * - DuelInvite status=2(거절)로 변경 (⚠️ status=0 대기인 것만 변경되게 SQL 조건 필수)
 	 * - 초대한 사람에게 "DUEL_REJECT" 알림
 	 */
 	public String rejectDuelInvite(int myId, int inviteId) {
@@ -451,12 +457,15 @@ public class MemberService {
 	    p.setToUserId(myId);
 	    p.setDuelInviteId(inviteId);
 
+	    // 1) 대기 상태인 초대만 거절 가능 + 초대한 사람 찾기
 	    Integer inviterId = memberDao.findDuelInviterId(p);
 	    if (inviterId == null) return "fail";
 
+	    // 2) 거절 처리 (DAO SQL에서 status=0 조건 필수)
 	    int ok = memberDao.rejectDuelInvite(p);
 	    if (ok != 1) return "fail";
 
+	    // 3) 초대한 사람에게 알림
 	    Member me = memberDao.findById(myId);
 
 	    Map<String, Object> payload = new HashMap<>();
@@ -469,6 +478,4 @@ public class MemberService {
 
 	    return "success";
 	}
-
-
 }

@@ -29,88 +29,135 @@ import jakarta.servlet.http.HttpSession;
 @EnableWebSocketMessageBroker // STOMP 프로토콜을 사용한 WebSocket 메시지 브로커 활성화
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-	// 접속자 관리 서비스 (DI)
+	// =========================
+	// 접속자 / 관전자 / 플레이어 관리 서비스 (DI)
+	// =========================
 	private final OnlineUserService onlineUserService;
 	private final BattleSessionService battleSessionService;
 
+<<<<<<< HEAD
 	public WebSocketConfig(OnlineUserService onlineUserService, BattleSessionService battleSessionService) {
+=======
+	public WebSocketConfig(
+	        OnlineUserService onlineUserService,
+	        BattleSessionService battleSessionService) {
+>>>>>>> 5d4baf5 (init)
 		this.onlineUserService = onlineUserService;
 		this.battleSessionService = battleSessionService;
 	}
 
+	// =========================
 	// 메시지 브로커 설정
-	// 클라이언트가 구독할 경로와 메시지를 보낼 경로 정의
+	// =========================
 	@Override
 	public void configureMessageBroker(MessageBrokerRegistry config) {
-		// 클라이언트가 구독하는 경로 접두사 (예: /topic/chat, /topic/online-users)
+
+		// 클라이언트 구독 prefix
+		// 예: /topic/channel/{id}, /topic/user.{id}
 		config.enableSimpleBroker("/topic");
 
-		// 클라이언트가 메시지를 보낼 경로 접두사 (예: /app/chat)
+		// 클라이언트 → 서버 전송 prefix
+		// 예: /app/chat, /app/channel/join
 		config.setApplicationDestinationPrefixes("/app");
 	}
 
+	// =========================
 	// WebSocket 엔드포인트 등록
-	// 클라이언트가 연결할 경로와 HTTP 세션 → WebSocket 세션 데이터 전달 설정
+	// =========================
 	@Override
 	public void registerStompEndpoints(StompEndpointRegistry registry) {
-		registry.addEndpoint("/ws") // WebSocket 연결 경로: ws://localhost:8080/ws
+
+		registry.addEndpoint("/ws") // ws://localhost:8080/ws
 				.addInterceptors(new HandshakeInterceptor() {
 
-					// WebSocket 핸드셰이크 직전 실행
-					// HTTP 세션에서 로그인 정보(loginMember)를 가져와 WebSocket 세션에 저장
+					/**
+					 * WebSocket 핸드셰이크 직전 실행
+					 * - HTTP Session → WebSocket Session으로 로그인 정보 전달
+					 */
 					@Override
-					public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
-							WebSocketHandler wsHandler, Map<String, Object> attributes) throws Exception {
+					public boolean beforeHandshake(
+					        ServerHttpRequest request,
+					        ServerHttpResponse response,
+					        WebSocketHandler wsHandler,
+					        Map<String, Object> attributes) throws Exception {
 
-						// ServerHttpRequest를 ServletServerHttpRequest로 캐스팅하여 HttpSession 접근
-						if (request instanceof ServletServerHttpRequest) {
-							ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
-							HttpSession session = servletRequest.getServletRequest().getSession();
+						// Servlet 환경에서만 HttpSession 접근 가능
+						if (request instanceof ServletServerHttpRequest servletRequest) {
 
-							// HTTP 세션에서 loginMember 추출
+							// 세션이 없으면 새로 만들지 않음
+							HttpSession session =
+							        servletRequest.getServletRequest().getSession(false);
+
+							if (session == null) return true;
+
+							// HTTP 세션에서 로그인 유저 꺼내기
 							Object loginMember = session.getAttribute("loginMember");
+<<<<<<< HEAD
 							if (loginMember instanceof Member) {
 								Member member = (Member) loginMember;
 								// WebSocket 세션 속성에 userId 저장 (CONNECT/DISCONNECT에서 사용)
+=======
+							if (loginMember instanceof Member member) {
+								// WebSocket 세션 속성에 userId 저장
+>>>>>>> 5d4baf5 (init)
 								attributes.put("userId", member.getId());
 							}
 						}
-						return true; // 핸드셰이크 계속 진행
+						return true;
 					}
 
-					// 핸드셰이크 완료 후 실행 (현재는 미사용)
 					@Override
-					public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
-							WebSocketHandler wsHandler, Exception exception) {
-						// 추가 처리 없음
+					public void afterHandshake(
+					        ServerHttpRequest request,
+					        ServerHttpResponse response,
+					        WebSocketHandler wsHandler,
+					        Exception exception) {
 					}
-				}).setAllowedOriginPatterns("localhost:*") // 모든 Origin 허용 (프로덕션에서는 특정 도메인만 허용 권장)
-				.withSockJS(); // SockJS 폴백 옵션 활성화 (WebSocket 미지원 브라우저 대응)
+				})
+				// =========================
+				// CORS / Origin 허용 (개발환경)
+				// =========================
+				.setAllowedOriginPatterns(
+						"http://localhost:*",
+						"http://127.0.0.1:*"
+				)
+				.withSockJS();
 	}
 
-	// 클라이언트 → 서버로 들어오는 메시지 채널 인터셉터 등록
-	// CONNECT: 접속자 추가
-	// DISCONNECT: 접속자 제거
+	// =========================
+	// 클라이언트 → 서버 Inbound 인터셉터
+	// =========================
 	@Override
 	public void configureClientInboundChannel(ChannelRegistration registration) {
+
 		registration.interceptors(new ChannelInterceptor() {
 
-			// 메시지 전송 직전 실행
-			// STOMP 커맨드(CONNECT/DISCONNECT)를 감지하여 접속자 관리
+			/**
+			 * STOMP 메시지 수신 직전 실행
+			 * - CONNECT: 접속자 추가
+			 * - DISCONNECT: 접속자 제거 + 관전자/플레이어 상태 정리
+			 */
 			@Override
 			public Message<?> preSend(Message<?> message, MessageChannel channel) {
-				// STOMP 헤더 접근자로 메시지 래핑
+
 				StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
 
+<<<<<<< HEAD
 				// CONNECT 커맨드: 사용자 접속 시
+=======
+				// 세션 속성 null 방어
+				Map<String, Object> attrs = accessor.getSessionAttributes();
+				Integer userId = (attrs != null) ? (Integer) attrs.get("userId") : null;
+
+				// 로그인 유저가 아니면 할 일 없음
+				if (userId == null) return message;
+
+				// CONNECT
+>>>>>>> 5d4baf5 (init)
 				if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-					// WebSocket 세션 속성에서 userId 추출 (HandshakeInterceptor에서 저장한 값)
-					Integer userId = (Integer) accessor.getSessionAttributes().get("userId");
-					if (userId != null) {
-						// 접속자 목록에 추가 → 이벤트 발행 → 모든 클라이언트에게 브로드캐스트
-						onlineUserService.addUser(userId);
-					}
+					onlineUserService.addUser(userId);
 				}
+<<<<<<< HEAD
 
 				// DISCONNECT 커맨드: 사용자 접속 종료 시
 				if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
@@ -125,6 +172,22 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 				}
 
 				return message; // 메시지 계속 전달
+=======
+				// DISCONNECT
+				else if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
+
+					onlineUserService.removeUser(userId);
+
+					// 탭 종료/네트워크 끊김 대비 정리
+					// 1) 관전자 전부 제거
+					battleSessionService.spectatorLeaveAll(userId);
+
+					// 2) 플레이어도 전부 제거 (대결방 자동 퇴장)
+					battleSessionService.playerLeaveAll(userId);
+				}
+
+				return message;
+>>>>>>> 5d4baf5 (init)
 			}
 		});
 	}
