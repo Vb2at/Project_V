@@ -5,7 +5,6 @@ import { InputHandler } from '../engine/InputHandler';
 import { NoteCalculator } from '../engine/NoteCalculator';
 import { GAME_CONFIG } from '../constants/GameConfig';
 import PixiEffects from '../components/Game/PixiEffects';
-import { addTapEffect } from '../util/EffectsHelpers';
 
 export default function GamePlay() {
   const [notes, setNotes] = useState([
@@ -60,7 +59,6 @@ export default function GamePlay() {
   const [pressedKeys, setPressedKeys] = useState(new Set());
   const [effects, setEffects] = useState([]);
 
-  // ✅ 최신 값 참조용 ref (InputHandler를 1회만 만들기 위해 필수)
   const notesRef = useRef(notes);
   const currentTimeRef = useRef(0);
 
@@ -79,9 +77,13 @@ export default function GamePlay() {
           prevNotes.map(note => {
             if (note.type === 'long' && note.holding && newTime > note.endTime) {
               setEffects(prevEffects =>
-                prevEffects.filter(e => !(e.type === 'long' && e.lane === note.lane))
+                prevEffects.filter(
+                  e =>
+                    !(e.type === 'long' &&
+                      e.noteId === `${note.timing}-${note.lane}`) // ★ FIX
+                )
               );
-              return { ...note, holding: false };
+              return { ...note, holding: false, released: true }; // ★ FIX
             }
             return note;
           })
@@ -113,16 +115,29 @@ export default function GamePlay() {
             if (note.holding && now > note.endTime + GAME_CONFIG.JUDGEMENT.MISS) {
               missOccurred = true;
 
-              // 롱노트 임펙트 제거
               setEffects(prevEffects =>
-                prevEffects.filter(e => !(e.type === 'long' && e.lane === note.lane))
+                prevEffects.filter(
+                  e =>
+                    !(e.type === 'long' &&
+                      e.noteId === `${note.timing}-${note.lane}`) // ★ FIX
+                )
               );
 
-              return { ...note, hit: true, holding: false, judgement: 'MISS' };
+              return { ...note, hit: true, holding: false, released: true, judgement: 'MISS' };
             }
           } else {
             if (now > note.timing + GAME_CONFIG.JUDGEMENT.MISS) {
               missOccurred = true;
+              setEffects(prev => [
+                ...prev,
+                {
+                  type: 'judge',
+                  lane: note.lane,
+                  judgement: 'MISS',
+                  id: crypto.randomUUID(),
+                },
+              ]);
+
               return { ...note, hit: true, judgement: 'MISS' };
             }
           }
@@ -131,7 +146,6 @@ export default function GamePlay() {
         });
 
         if (missOccurred) setCombo(0);
-
         return missOccurred ? newNotes : prev;
       });
     }, 50);
@@ -142,23 +156,35 @@ export default function GamePlay() {
   // 롱노트 홀딩 보너스
   useEffect(() => {
     const interval = setInterval(() => {
-      const holdingNotes = notesRef.current.filter(n => n.holding && !n.hit);
+      const holdingNotes = notesRef.current.filter(n => n.holding && !n.released);
       if (holdingNotes.length > 0) {
         const bonus = holdingNotes.length * GAME_CONFIG.SCORE.LONG_BONUS;
         setScore(prev => prev + bonus);
-        setCombo(prev => prev + 1);
+        setCombo(prev => {
+          const next = prev + 1;
+
+          setEffects(effects => [
+            ...effects,
+            {
+              type: 'judge',
+              judgement: '',
+              combo: next,
+              id: crypto.randomUUID(),
+            },
+          ]);
+
+          return next;
+        });
       }
     }, 100);
 
     return () => clearInterval(interval);
   }, []);
 
-  // ✅ 입력 처리 (반드시 1회만 등록)
   useEffect(() => {
     const handleKeyPress = laneIndex => {
       setPressedKeys(prev => new Set(prev).add(laneIndex));
 
-      // ✅ 최신 값은 ref에서 읽기
       const result = NoteCalculator.judgeNote(
         laneIndex,
         currentTimeRef.current,
@@ -167,32 +193,88 @@ export default function GamePlay() {
 
       if (!result) return;
 
-      if (result.note.type === 'long') {
-        setNotes(prev =>
-          prev.map(note => (note === result.note ? { ...note, holding: true } : note))
-        );
-
-        // ✅ 롱노트 임펙트 추가 (id 포함)
-        setEffects(prev => [
-          ...prev,
+      if (result.judgement === 'MISS') {
+        setCombo(0);
+        setEffects(effects => [
+          ...effects,
           {
-            type: 'long',
+            type: 'judge',
             lane: laneIndex,
-            id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+            judgement: 'MISS',
+            combo: 0,
+            id: crypto.randomUUID(),
           },
         ]);
+        return;
+      }
+
+      if (result.note.type === 'long') {
+        setNotes(prev =>
+          prev.map(note =>
+            note === result.note
+              ? { ...note, holding: true, hit: true }
+              : note
+          )
+        );
+        setCombo(prev => {
+          const next = prev + 1;
+
+          setEffects(prev =>
+            prev.some(
+              e =>
+                e.type === 'long' &&
+                e.noteId === `${result.note.timing}-${result.note.lane}`
+            )
+              ? prev
+              : [
+                  ...prev,
+                  {
+                    type: 'long',
+                    lane: laneIndex,
+                    noteId: `${result.note.timing}-${result.note.lane}`,
+                  },
+                  {
+                    type: 'judge',
+                    lane: laneIndex,
+                    judgement: result.judgement,
+                    combo: next,
+                    id: crypto.randomUUID(),
+                  },
+                ]
+          );
+
+          return next;
+        });
       } else {
         setNotes(prev =>
           prev.map(note => (note === result.note ? { ...note, hit: true } : note))
         );
 
-        // ✅ 탭노트 임펙트 추가 (유니크 id 보장)
-        addTapEffect(setEffects, laneIndex);
+        setCombo(prev => {
+          const next = prev + 1;
+
+          setEffects(effects => [
+            ...effects,
+            {
+              type: 'tap',
+              lane: laneIndex,
+              id: crypto.randomUUID(),
+            },
+            {
+              type: 'judge',
+              lane: laneIndex,
+              judgement: result.judgement,
+              combo: next,
+              id: crypto.randomUUID(),
+            },
+          ]);
+
+          return next;
+        });
       }
 
       const addScore = GAME_CONFIG.SCORE[result.judgement];
       setScore(prev => prev + addScore);
-      setCombo(prev => prev + 1);
     };
 
     const handleKeyRelease = laneIndex => {
@@ -202,7 +284,6 @@ export default function GamePlay() {
         return newSet;
       });
 
-      // ✅ 최신 값은 ref에서 읽기
       const result = NoteCalculator.judgeNoteRelease(
         laneIndex,
         currentTimeRef.current,
@@ -212,26 +293,32 @@ export default function GamePlay() {
       if (result) {
         setNotes(prev =>
           prev.map(note =>
-            note === result.note ? { ...note, hit: true, holding: false } : note
+            note === result.note
+              ? { ...note, hit: true, holding: false, released: true } // ★ FIX
+              : note
           )
         );
 
-        // 롱노트 임펙트 제거
-        setEffects(prev => prev.filter(e => !(e.type === 'long' && e.lane === laneIndex)));
-
-        const addScore = GAME_CONFIG.SCORE[result.judgement];
-        setScore(prev => prev + addScore);
+        setEffects(prev =>
+          prev.filter(
+            e =>
+              !(e.type === 'long' &&
+                e.noteId === `${result.note.timing}-${result.note.lane}`) // ★ FIX
+          )
+        );
+        setScore(prev => prev + GAME_CONFIG.SCORE[result.judgement]);
       } else {
         setNotes(prev =>
           prev.map(note => {
             if (note.lane === laneIndex && note.holding) {
               setCombo(0);
-
-              // 롱노트 임펙트 제거
               setEffects(prevEffects =>
-                prevEffects.filter(e => !(e.type === 'long' && e.lane === laneIndex))
+                prevEffects.filter(
+                  e =>
+                    !(e.type === 'long' &&
+                      e.noteId === `${note.timing}-${note.lane}`)
+                )
               );
-
               return { ...note, holding: false, released: true };
             }
             return note;
@@ -277,14 +364,11 @@ export default function GamePlay() {
       >
         <GameCanvas
           notes={notes.filter(n => {
-            if (!n.hit) return true;
-
-            // 롱노트는 released여도 endTime까지 표시
+            if (!n.hit || (n.type === 'long' && n.holding)) return true;
             if (n.type === 'long') {
-              const timeToDisappear = (GAME_CONFIG.CANVAS.HEIGHT + 100) / GAME_CONFIG.SPEED;
-              return currentTime < n.endTime + timeToDisappear;
+              const t = (GAME_CONFIG.CANVAS.HEIGHT + 100) / GAME_CONFIG.SPEED;
+              return currentTime < n.endTime + t;
             }
-
             return false;
           })}
           currentTime={currentTime}

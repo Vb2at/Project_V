@@ -4,6 +4,9 @@ import { Application, Assets } from 'pixi.js';
 import { GAME_CONFIG } from '../../constants/GameConfig';
 import LightEffect from './LightEffect';
 import LaneStreamEffect from './LaneStreamEffect';
+import JudgmentText from './JudgmentText';
+import ComboText from './ComboText';
+
 
 const LONG_PULSE_INTERVAL_MS = 140;
 const LONG_MISSING_GRACE_MS = 60;
@@ -70,6 +73,11 @@ export default function PixiEffects({ effects }) {
   const processedTapQueueRef = useRef([]);
   const TAP_KEY_MAX = 1500;
   const lastTapCreatedAtByLaneRef = useRef(new Map());
+  const judgeTextsRef = useRef([]);
+  const consumedEffectIdsRef = useRef(new Set());
+  const comboTextRef = useRef(null);;
+
+
 
   useEffect(() => {
     effectsRef.current = effects || [];
@@ -78,6 +86,16 @@ export default function PixiEffects({ effects }) {
   useEffect(() => {
     let mounted = true;
     let tickerFn = null;
+
+    const container = containerRef.current;
+    const alive = aliveRef.current;
+    const tapEffects = tapEffectsRef.current;
+    const tapStream = tapStreamRef.current;
+    const longStream = longStreamRef.current;
+    const processedTapSet = processedTapSetRef.current;
+    const processedTapQueue = processedTapQueueRef.current;
+    const lastTapCreatedAtByLane = lastTapCreatedAtByLaneRef.current;
+
 
     (async () => {
       const textures = await loadEffectTextures();
@@ -90,7 +108,7 @@ export default function PixiEffects({ effects }) {
       });
 
       if (!mounted) {
-        try { app.destroy(true); } catch (_) { }
+        try { app.destroy(true); } catch {/* ignore */ }
         return;
       }
 
@@ -102,6 +120,15 @@ export default function PixiEffects({ effects }) {
       tickerFn = () => {
         const now = performance.now();
         const currentEffects = effectsRef.current || [];
+
+        if (comboTextRef.current) {
+          comboTextRef.current.update(now);
+          if (comboTextRef.current.dead) {
+            app.stage.removeChild(comboTextRef.current.container);
+            comboTextRef.current.destroy();
+            comboTextRef.current = null;
+          }
+        }
 
         for (const effect of currentEffects) {
           if (effect.type !== 'long') continue;
@@ -116,18 +143,23 @@ export default function PixiEffects({ effects }) {
           const lane = effect.lane;
           if (lane == null) continue;
 
-          const { LANE_WIDTH, HIT_LINE_Y } = GAME_CONFIG.CANVAS;
-          const laneLeft = lane * LANE_WIDTH;
-          const laneRight = (lane + 1) * LANE_WIDTH;
-          const x = applyPerspective((laneLeft + laneRight) / 2, HIT_LINE_Y);
-          
           if (longStreamRef.current.has(key)) {
             longStreamRef.current.get(key).reset(now);
           }
         }
+        judgeTextsRef.current = judgeTextsRef.current.filter(inst => {
+          inst.update(now);
+          if (inst.dead) {
+            app.stage.removeChild(inst.container);
+            inst.destroy();
+            return false;
+          }
+          return true;
+        });
 
         const presentLongKeys = new Set();
         for (const e of currentEffects) {
+          if (e.type !== 'long') continue;
           const k = makeLongKey(e);
           if (k) presentLongKeys.add(k);
         }
@@ -188,29 +220,28 @@ export default function PixiEffects({ effects }) {
       initReadyRef.current = false;
       const app = appRef.current;
       if (app && tickerFn) {
-        try { app.ticker.remove(tickerFn); } catch (_) { }
+        try { app.ticker.remove(tickerFn); } catch {/* ignore */ }
       }
-      aliveRef.current.forEach(inst => { try { inst.destroy(); } catch (_) { } });
-      aliveRef.current.clear();
-      tapEffectsRef.current.forEach(inst => { try { inst.destroy(); } catch (_) { } });
-      tapEffectsRef.current = [];
-      tapStreamRef.current.forEach(inst => { try { inst.destroy(); } catch (_) { } });
-      tapStreamRef.current.clear();
-      longStreamRef.current.forEach(inst => { try { inst.destroy(); } catch (_) { } });
-      longStreamRef.current.clear();
-      processedTapSetRef.current.clear();
-      processedTapQueueRef.current = [];
-      lastTapCreatedAtByLaneRef.current.clear();
+      alive.forEach(inst => { try { inst.destroy(); } catch { /* ignore */ } });
+      alive.clear();
+      tapEffects.forEach(inst => { try { inst.destroy(); } catch { /* ignore */ } });
+      tapStream.forEach(inst => { try { inst.destroy(); } catch { /* ignore */ } });
+      tapStream.clear();
+      longStream.forEach(inst => { try { inst.destroy(); } catch { /* ignore */ } });
+      longStream.clear();
+      processedTapSet.clear();  // 여기서 사용
+      processedTapQueue.length = 0;  // 여기서 사용
+      lastTapCreatedAtByLane.clear();  // 여기서 사용
       if (app) {
         try {
           app.ticker.stop();
           app.stage.removeChildren();
           app.destroy(true);
-        } catch (_) { }
+        } catch {/* ignore */ }
       }
       appRef.current = null;
       texturesRef.current = null;
-      if (containerRef.current) containerRef.current.innerHTML = '';
+      if (container) container.innerHTML = '';
     };
   }, []);
 
@@ -223,8 +254,9 @@ export default function PixiEffects({ effects }) {
     const now = performance.now();
 
     (effects || []).forEach(effect => {
-      const lane = effect.lane ?? -1;
-      if (lane < 0) return;
+      if (effect.id && consumedEffectIdsRef.current.has(effect.id)) return;
+      const lane = effect.type === 'judge' ? null : effect.lane; if (lane < 0) return
+      if (effect.type !== 'judge' && lane < 0) return;
 
       const laneLeft = lane * LANE_WIDTH;
       const laneRight = (lane + 1) * LANE_WIDTH;
@@ -239,6 +271,40 @@ export default function PixiEffects({ effects }) {
       const cx0 = applyPerspective((laneLeft + laneRight) / 2, y0);
       const cx1 = applyPerspective((laneLeft + laneRight) / 2, y1);
       const angle = Math.atan2(y1 - y0, cx1 - cx0);
+
+      if (effect.type === 'judge') {
+        judgeTextsRef.current.forEach(old => {
+          app.stage.removeChild(old.container);
+          old.destroy();
+        });
+        judgeTextsRef.current.length = 0;
+
+        const inst = new JudgmentText({ text: effect.judgement });
+
+        inst.container.x = GAME_CONFIG.CANVAS.WIDTH / 2;
+        inst.container.y = GAME_CONFIG.CANVAS.HEIGHT * 0.65;
+
+        app.stage.addChild(inst.container);
+        judgeTextsRef.current.push(inst);
+
+        if (effect.combo && effect.combo > 1) {
+          if (comboTextRef.current) {
+            app.stage.removeChild(comboTextRef.current.container);
+            comboTextRef.current.destroy();
+            comboTextRef.current = null;
+          }
+
+          const comboInst = new ComboText({ combo: effect.combo });
+          comboInst.container.x = inst.container.x;
+          comboInst.container.y = inst.container.y - 28;
+
+          app.stage.addChild(comboInst.container);
+          comboTextRef.current = comboInst;
+        }
+
+
+        consumedEffectIdsRef.current.add(effect.id);
+      }
 
       if (effect.type === 'tap') {
         const tapKey = makeTapKey(effect);
@@ -268,6 +334,8 @@ export default function PixiEffects({ effects }) {
           app.stage.addChild(inst.container);
           tapEffectsRef.current.push(inst);
 
+          consumedEffectIdsRef.current.add(effect.id);
+
           if (tapStreamRef.current.has(lane)) {
             tapStreamRef.current.get(lane).reset(now);
           } else {
@@ -293,7 +361,6 @@ export default function PixiEffects({ effects }) {
             const inst = new LightEffect({
               textures,
               type: 'long',
-              duration: 800,
               startTime: now,
             });
             inst.container.x = x;
@@ -301,6 +368,8 @@ export default function PixiEffects({ effects }) {
             inst.lastSeen = now;
             app.stage.addChild(inst.container);
             aliveRef.current.set(key, inst);
+
+            consumedEffectIdsRef.current.add(effect.id);
 
             if (!longStreamRef.current.has(key)) {
               const stream = new LaneStreamEffect({

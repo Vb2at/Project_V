@@ -21,7 +21,7 @@ export const GAME_CONFIG = {
     WIDTH: 700,
     HEIGHT: 650,
     LANE_WIDTH: 100,
-    NOTE_HEIGHT: 30,
+    NOTE_HEIGHT: 40,
     HIT_LINE_Y: 550
   },
   
