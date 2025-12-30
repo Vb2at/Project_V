@@ -29,30 +29,31 @@ SEED = 42               # 고정 패턴 원하면 정수로: 42
 
 PRESET = {
     "easy": {
-        "HARD_PCT": 85, "VERY_HARD_PCT": 91,
+        "HARD_PCT": 87, "VERY_HARD_PCT": 93,
         "SUBDIV_HARD": 1, "SUBDIV_VERY_HARD": 1,
-        "MIN_GAP_EASY": 0.10, "MIN_GAP_HARD": 0.09, "MIN_GAP_VERY_HARD": 0.075,
-        "CHORD_PROB_EASY": 0.00, "CHORD_PROB_HARD": 0.02, "CHORD_PROB_VERY_HARD": 0.04,
-        "CHORD_MIN_DIST": 2, "LONG_THR_PCT": 45, "LONG_MIN_SEC": 0.80, "LONG_SNAP_MIN_SEC": 0.35,
-        "JUMP_STRENGTH_EASY": 0.10, "JUMP_STRENGTH_HARD": 0.15, "JUMP_STRENGTH_VERY_HARD": 0.20,
+        "MIN_GAP_EASY": 0.10, "MIN_GAP_HARD": 0.092, "MIN_GAP_VERY_HARD": 0.084,
+        "CHORD_PROB_EASY": 0.01, "CHORD_PROB_HARD": 0.018, "CHORD_PROB_VERY_HARD": 0.021,
+        "CHORD_MIN_DIST": 2, 
+        "LONG_THR_PCT": 45, "LONG_MIN_SEC": 0.7, "LONG_SNAP_MIN_SEC": 0.35,
+        "JUMP_STRENGTH_EASY": 0.15, "JUMP_STRENGTH_HARD": 0.25, "JUMP_STRENGTH_VERY_HARD": 0.28,
     },
     "normal": {
-        "HARD_PCT": 70, "VERY_HARD_PCT": 85,
+        "HARD_PCT": 70, "VERY_HARD_PCT": 81,
         "SUBDIV_HARD": 2, "SUBDIV_VERY_HARD": 2,
-        "MIN_GAP_EASY": 0.10, "MIN_GAP_HARD": 0.08, "MIN_GAP_VERY_HARD": 0.06,
-        "CHORD_PROB_EASY": 0.01, "CHORD_PROB_HARD": 0.04, "CHORD_PROB_VERY_HARD": 0.08,
+        "MIN_GAP_EASY": 0.09, "MIN_GAP_HARD": 0.08, "MIN_GAP_VERY_HARD": 0.075,
+        "CHORD_PROB_EASY": 0.015, "CHORD_PROB_HARD": 0.025, "CHORD_PROB_VERY_HARD": 0.033,
         "CHORD_MIN_DIST": 2,
-        "LONG_THR_PCT": 55, "LONG_MIN_SEC": 0.65, "LONG_SNAP_MIN_SEC": 0.35,
-        "JUMP_STRENGTH_EASY": 0.15, "JUMP_STRENGTH_HARD": 0.40, "JUMP_STRENGTH_VERY_HARD": 0.60,
+        "LONG_THR_PCT": 53, "LONG_MIN_SEC": 0.45, "LONG_SNAP_MIN_SEC": 0.35,
+        "JUMP_STRENGTH_EASY": 0.25, "JUMP_STRENGTH_HARD": 0.35, "JUMP_STRENGTH_VERY_HARD": 0.38,
     },
     "hard": {
-        "HARD_PCT": 55, "VERY_HARD_PCT": 79,
-        "SUBDIV_HARD": 2, "SUBDIV_VERY_HARD": 4,
-        "MIN_GAP_EASY": 0.07, "MIN_GAP_HARD": 0.065, "MIN_GAP_VERY_HARD": 0.05,
-        "CHORD_PROB_EASY": 0.02, "CHORD_PROB_HARD": 0.12, "CHORD_PROB_VERY_HARD": 0.22,
+        "HARD_PCT": 60, "VERY_HARD_PCT": 70,
+        "SUBDIV_HARD": 2, "SUBDIV_VERY_HARD": 2,
+        "MIN_GAP_EASY": 0.072, "MIN_GAP_HARD": 0.062, "MIN_GAP_VERY_HARD": 0.060,
+        "CHORD_PROB_EASY": 0.019, "CHORD_PROB_HARD": 0.037, "CHORD_PROB_VERY_HARD": 0.045,
         "CHORD_MIN_DIST": 3,
-        "LONG_THR_PCT": 70, "LONG_MIN_SEC": 0.75, "LONG_SNAP_MIN_SEC": 0.35,
-        "JUMP_STRENGTH_EASY": 0.30, "JUMP_STRENGTH_HARD": 0.65, "JUMP_STRENGTH_VERY_HARD": 0.80,
+        "LONG_THR_PCT": 55, "LONG_MIN_SEC": 0.388, "LONG_SNAP_MIN_SEC": 0.35,
+        "JUMP_STRENGTH_EASY": 0.30, "JUMP_STRENGTH_HARD": 0.51, "JUMP_STRENGTH_VERY_HARD": 0.59,
     },
 }
 
@@ -63,36 +64,6 @@ def apply_preset(diff: str):
     globals().update(cfg)
     return diff
     
-# 에너지(빵빵) 구간 판정 (상위 퍼센타일)
-HARD_PCT = 75
-VERY_HARD_PCT = 90
-
-# 하드 구간에서 스냅 그리드 촘촘함
-SUBDIV_HARD = 2           # 2 => 1/2박 (8비트 느낌)
-SUBDIV_VERY_HARD = 4      # 4 => 1/4박 (16비트 느낌)
-
-# 노트 밀도(최소 간격)
-MIN_GAP_EASY = 0.10
-MIN_GAP_HARD = 0.07
-MIN_GAP_VERY_HARD = 0.05
-
-# 동시노트(2키) 확률
-CHORD_PROB_EASY = 0.01     #에너지 낮음 (벌스, 인트로)
-CHORD_PROB_HARD = 0.04     #에너지 중간
-CHORD_PROB_VERY_HARD = 0.08    #에너지 높음 (후렴)
-CHORD_MIN_DIST = 2        # 동시에 눌릴 때 lane 간 최소 거리(0~6)
-
-# 롱노트
-LONG_THR_PCT = 65         # RMS 퍼센타일 (낮추면 롱 많아짐, 올리면 롱 줄어듦)
-LONG_MIN_SEC = 0.65       # RMS 연속 구간 최소 길이
-LONG_SNAP_MIN_SEC = 0.35  # 스냅 후 최소 길이
-
-# 점프(멀리 lane) 성향 (0~1 가까울수록 점프 약, 멀수록 점프 강)
-JUMP_STRENGTH_EASY = 0.15
-JUMP_STRENGTH_HARD = 0.45
-JUMP_STRENGTH_VERY_HARD = 0.65
-
-
 def clamp_time(t: float) -> float:
     return 0.0 if t < 0.0 else t
 
