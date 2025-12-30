@@ -5,11 +5,9 @@ import PixiEffects from './effects/PixiEffects';
 import { InputHandler } from '../../core/input/InputHandler';
 import { NoteCalculator } from '../../core/judge/NoteCalculator';
 import { GAME_CONFIG } from '../../constants/GameConfig';
-import { playTap, playLongStart, stopLong } from './SFXManager';
+import { playTapNormal, playTapAccent } from './SFXManager';
 
-export default function GamePlay() {
-
-
+export default function GameSession() {
 
   const [notes, setNotes] = useState([
     // (fallback 더미) songId 로드되면 AI 노트로 덮어씀
@@ -229,7 +227,6 @@ export default function GamePlay() {
         setNotes((prevNotes) =>
           prevNotes.map((note) => {
             if (note.type === 'long' && note.holding && newTime > note.endTime) {
-              stopLong();
               setEffects((prevEffects) =>
                 prevEffects.filter(
                   (e) => !(e.type === 'long' && e.noteId === `${note.timing}-${note.lane}`)
@@ -313,121 +310,121 @@ export default function GamePlay() {
     return () => clearInterval(interval);
   }, []);
 
-useEffect(() => {
-  const handleKeyPress = (laneIndex) => {
-    // ★ 중복 입력 차단
-    if (pressedKeys.has(laneIndex)) return;
-    setPressedKeys(prev => new Set(prev).add(laneIndex));
+  useEffect(() => {
+    const handleKeyPress = (laneIndex) => {
+      if (pressedKeys.has(laneIndex)) return;
+      setPressedKeys(prev => new Set(prev).add(laneIndex));
 
-    const result = NoteCalculator.judgeNote(
-      laneIndex,
-      currentTimeRef.current,
-      notesRef.current
-    );
-    if (!result || !result.note) return;
+      const ACCENT_LANES = new Set([1, 3, 5]);
 
-    const note = result.note;
-    const noteId = `${note.timing}-${note.lane}`;
+      if (ACCENT_LANES.has(laneIndex)) {
+        playTapAccent();
+      } else {
+        playTapNormal();
+      }
 
-    if (result.judgement === 'MISS') {
-      setCombo(0);
-      setEffects(eff => [...eff, {
-        type: 'judge', lane: laneIndex, judgement: 'MISS', combo: 0, id: crypto.randomUUID()
-      }]);
-      return;
-    }
-
-    // ★ 롱 시작: 딱 1회
-    if (note.type === 'long' && !note.holding) {
-      playLongStart();
-
-      setNotes(prev =>
-        prev.map(n => n === note ? { ...n, hit: true, holding: true } : n)
+      const result = NoteCalculator.judgeNote(
+        laneIndex,
+        currentTimeRef.current,
+        notesRef.current
       );
+      if (!result || !result.note) return;
 
-      setCombo(prev => {
-        const next = prev + 1;
-        setEffects(pe =>
-          pe.some(e => e.type === 'long' && e.noteId === noteId)
-            ? pe
-            : [...pe,
-                { type: 'long', lane: laneIndex, noteId },
-                { type: 'judge', lane: laneIndex, judgement: result.judgement, combo: next, id: crypto.randomUUID() }
-              ]
-        );
-        return next;
-      });
-
-      return; // ★ 중요
-    }
-
-    // ★ 탭
-    setNotes(prev => prev.map(n => n === note ? { ...n, hit: true } : n));
-    playTap();
-
-    setCombo(prev => {
-      const next = prev + 1;
-      setEffects(eff => [...eff,
-        { type: 'tap', lane: laneIndex, id: crypto.randomUUID() },
-        { type: 'judge', lane: laneIndex, judgement: result.judgement, combo: next, id: crypto.randomUUID() }
-      ]);
-      return next;
-    });
-
-    setScore(prev => prev + GAME_CONFIG.SCORE[result.judgement]);
-  };
-
-  const handleKeyRelease = (laneIndex) => {
-    setPressedKeys(prev => {
-      const s = new Set(prev); s.delete(laneIndex); return s;
-    });
-
-    const result = NoteCalculator.judgeNoteRelease(
-      laneIndex, currentTimeRef.current, notesRef.current
-    );
-
-    if (result && result.note) {
       const note = result.note;
       const noteId = `${note.timing}-${note.lane}`;
 
-      setNotes(prev =>
-        prev.map(n => n === note ? { ...n, hit: true, holding: false, released: true } : n)
-      );
-      setEffects(prev => prev.filter(e => !(e.type === 'long' && e.noteId === noteId)));
-      stopLong(); // ★ 롱 종료
-      setScore(prev => prev + GAME_CONFIG.SCORE[result.judgement]);
-    } else {
-      // holding 중 강제 종료
-      setNotes(prev => prev.map(n => {
-        if (n.lane === laneIndex && n.holding) {
-          stopLong(); // ★ 롱 종료
-          setCombo(0);
-          setEffects(eff => eff.filter(e => !(e.type === 'long' && e.noteId === `${n.timing}-${n.lane}`)));
-          return { ...n, holding: false, released: true };
-        }
-        return n;
-      }));
-    }
-  };
+      if (result.judgement === 'MISS') {
+        setCombo(0);
+        setEffects(eff => [...eff, {
+          type: 'judge', lane: laneIndex, judgement: 'MISS', combo: 0, id: crypto.randomUUID()
+        }]);
+        return;
+      }
 
-  const ih = new InputHandler(handleKeyPress, handleKeyRelease);
-  return () => ih.destroy();
-}, [pressedKeys]);
+      // ★ 롱 시작: 딱 1회
+      if (note.type === 'long' && !note.holding) {
+        setNotes(prev =>
+          prev.map(n => n === note ? { ...n, hit: true, holding: true } : n)
+        );
+
+        setCombo(prev => {
+          const next = prev + 1;
+          setEffects(pe =>
+            pe.some(e => e.type === 'long' && e.noteId === noteId)
+              ? pe
+              : [...pe,
+              { type: 'long', lane: laneIndex, noteId },
+              { type: 'judge', lane: laneIndex, judgement: result.judgement, combo: next, id: crypto.randomUUID() }
+              ]
+          );
+          return next;
+        });
+
+        return; // ★ 중요
+      }
+
+      // ★ 탭
+      setNotes(prev => prev.map(n => n === note ? { ...n, hit: true } : n));
+
+      setCombo(prev => {
+        const next = prev + 1;
+        setEffects(eff => [...eff,
+        { type: 'tap', lane: laneIndex, id: crypto.randomUUID() },
+        { type: 'judge', lane: laneIndex, judgement: result.judgement, combo: next, id: crypto.randomUUID() }
+        ]);
+        return next;
+      });
+
+      setScore(prev => prev + GAME_CONFIG.SCORE[result.judgement]);
+    };
+
+    const handleKeyRelease = (laneIndex) => {
+      setPressedKeys(prev => {
+        const s = new Set(prev); s.delete(laneIndex); return s;
+      });
+
+      const result = NoteCalculator.judgeNoteRelease(
+        laneIndex, currentTimeRef.current, notesRef.current
+      );
+
+      if (result && result.note) {
+        const note = result.note;
+        const noteId = `${note.timing}-${note.lane}`;
+
+        setNotes(prev =>
+          prev.map(n => n === note ? { ...n, hit: true, holding: false, released: true } : n)
+        );
+        setEffects(prev => prev.filter(e => !(e.type === 'long' && e.noteId === noteId)));
+        setScore(prev => prev + GAME_CONFIG.SCORE[result.judgement]);
+      } else {
+        setNotes(prev => prev.map(n => {
+          if (n.lane === laneIndex && n.holding) {
+            setCombo(0);
+            setEffects(eff => eff.filter(e => !(e.type === 'long' && e.noteId === `${n.timing}-${n.lane}`)));
+            return { ...n, holding: false, released: true };
+          }
+          return n;
+        }));
+      }
+    };
+
+    const ih = new InputHandler(handleKeyPress, handleKeyRelease);
+    return () => ih.destroy();
+  }, [pressedKeys]);
 
 
   return (
     <div
       style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
+        paddingTop: '64px', // ✅ 헤더 높이만큼
+        width: GAME_CONFIG.CANVAS.WIDTH + 'px',
+        height: GAME_CONFIG.CANVAS.HEIGHT + 'px',
+        position: 'relative',
         background: '#000',
-        minHeight: '100vh',
-        justifyContent: 'center',
       }}
     >
       {/* ✅ UI는 Play 버튼 + 난이도 표시만 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px' }}>
+      <div style={{ display: 'flex', height: '1px', alignItems: 'center', gap: '5px', marginBottom: '12px' }}>
         <button
           onClick={togglePlay}
           style={{ padding: '8px 14px', cursor: 'pointer' }}
@@ -453,7 +450,6 @@ useEffect(() => {
         }}
       >
         <div>점수: {score}</div>
-        <div>콤보: {combo}</div>
       </div>
 
       <div

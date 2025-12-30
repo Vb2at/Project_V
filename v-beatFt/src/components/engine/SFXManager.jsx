@@ -1,36 +1,20 @@
-// src/components/engine/SFXManager.js
+const BASE_VOLUME = {
+  normal: 1.0,
+  accent: 1.0,
+};
 
-let tapSfx = null;
-let longSfx = null;
-
-const BASE_VOLUME = {tap: 1.0, long: 0.65,};
-
-function playOnce(src, volume) {
+function playOnce(src, volume = 1.0) {
   const audio = new Audio(src);
   audio.volume = volume;
   audio.play().catch(() => {});
-  return audio;
 }
 
-// 탭 사운드: 탭끼리만 덮어씀
-export function playTap() {
-  if (tapSfx) {
-    tapSfx.pause();
-    tapSfx.currentTime = 0;
-  }
-  tapSfx = playOnce('/sound/hit_tap.wav', BASE_VOLUME.tap);
+// 일반 레인
+export function playTapNormal() {
+  playOnce('/sound/hit_tap.wav', BASE_VOLUME.normal);
 }
 
-// 롱 시작: 1회만 재생 (loop ❌)
-export function playLongStart() {
-  if (longSfx) return; // 이미 재생 중이면 무시
-  longSfx = playOnce('/sound/hit_long.wav', BASE_VOLUME.long);
-}
-
-// 롱 종료
-export function stopLong() {
-  if (!longSfx) return;
-  longSfx.pause();
-  longSfx.currentTime = 0;
-  longSfx = null;
+// 강조 레인 (2,4,6)
+export function playTapAccent() {
+  playOnce('/sound/hit_tap_accent.wav', BASE_VOLUME.accent);
 }

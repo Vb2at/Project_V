@@ -170,7 +170,7 @@ function drawKeyLabels(ctx, pressedKeys, keyFlashRef) {
     const laneLeft = getLaneLeftX(i);
     const laneRight = getLaneRightX(i);
     const bottomY = hitLineY + 80;
-    const topY = bottomY - 700;
+    const topY = bottomY - 850;
 
     const textY = hitLineY + 54;  // 텍스트 고정 기준
 

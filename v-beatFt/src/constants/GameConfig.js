@@ -31,9 +31,9 @@ export const GAME_CONFIG = {
 
   CANVAS: {
     WIDTH: 680,   // ← LANE_WIDTHS 합계 (90*6 + 140)
-    HEIGHT: 700,
+    HEIGHT: 720,
     NOTE_HEIGHT: 40,
-    HIT_LINE_Y: 600,
+    HIT_LINE_Y: 650,
   },
 
   PERSPECTIVE: {
