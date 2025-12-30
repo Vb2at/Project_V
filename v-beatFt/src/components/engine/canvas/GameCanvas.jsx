@@ -1,6 +1,6 @@
 // src/components/Game/GameCanvas.jsx
 import { useEffect, useRef } from 'react';
-import { GAME_CONFIG } from '../../constants/GameConfig';
+import { GAME_CONFIG } from "../../../constants/GameConfig";
 
 // 게임 캔버스 컴포넌트
 export default function GameCanvas({ notes, currentTime, pressedKeys = new Set() }) {

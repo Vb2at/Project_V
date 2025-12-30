@@ -1,4 +1,4 @@
-// src/engine/InputHandler.js
+// src/core/InputHandler.js
 export class InputHandler {
   constructor(onKeyPress, onKeyRelease) {
     this.keys = ['a', 's', 'd', ' ', 'j', 'k', 'l'];

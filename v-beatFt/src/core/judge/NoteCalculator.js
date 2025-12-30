@@ -1,5 +1,5 @@
 // src/engine/NoteCalculator.js
-import { GAME_CONFIG } from '../constants/GameConfig';;
+import { GAME_CONFIG } from '../../constants/GameConfig';;
 
 export class NoteCalculator {
   static judgeNote(laneIndex, currentTime, notes) {

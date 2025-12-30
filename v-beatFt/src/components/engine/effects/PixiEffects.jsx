@@ -1,11 +1,11 @@
 // PixiEffects.jsx
 import { useEffect, useRef } from 'react';
 import { Application, Assets } from 'pixi.js';
-import { GAME_CONFIG } from '../../constants/GameConfig';
+import { GAME_CONFIG } from '../../../constants/GameConfig';
 import LightEffect from './LightEffect';
 import LaneStreamEffect from './LaneStreamEffect';
-import JudgmentText from './JudgmentText';
-import ComboText from './ComboText';
+import JudgmentText from '../ui/JudgmentText';
+import ComboText from '../ui/ComboText';
 
 function getLaneLeftX(lane) {
   return GAME_CONFIG.LANE_WIDTHS
