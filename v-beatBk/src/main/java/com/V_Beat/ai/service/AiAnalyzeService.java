@@ -117,7 +117,7 @@ public class AiAnalyzeService {
 		Long songId = song.getId();
 		
 		//파일 저장
-		String uploadDir = "D:/VBeat/upload";
+		String uploadDir = "C:/VBeat/upload";
 		File dir = new File(uploadDir);
 		if(!dir.exists()) dir.mkdirs();
 		
