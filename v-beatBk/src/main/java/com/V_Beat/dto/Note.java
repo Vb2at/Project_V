@@ -2,6 +2,8 @@ package com.V_Beat.dto;
 
 import java.math.BigDecimal;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -14,4 +16,6 @@ public class Note {
 	private long songId;
 	private BigDecimal noteTime;
 	private int lane;
+	private String type;
+	private BigDecimal endTime;
 }

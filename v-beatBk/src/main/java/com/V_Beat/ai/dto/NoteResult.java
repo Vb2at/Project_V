@@ -12,4 +12,6 @@ import lombok.NoArgsConstructor;
 public class NoteResult {
 	private BigDecimal time;
 	private int lane;
+	private String type;
+	private BigDecimal endTime;
 }
