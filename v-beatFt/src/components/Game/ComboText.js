@@ -5,19 +5,22 @@ export default class ComboText {
     this.container = new Container();
 
     const style = new TextStyle({
-      fontSize: 28,
-      fill: '#ffffff',
+      fontSize: 60,
+      fill: '#f0f0f0ff',
+       fillAlpha: 0.65,
       fontWeight: 'bold',
       align: 'center',
       dropShadow: true,
       dropShadowColor: '#000000',
-      dropShadowBlur: 4,
+      dropShadowBlur: 3,
       dropShadowDistance: 2,
     });
 
     this.text = new Text(`${combo}`, style);
     this.text.anchor.set(0.5);
     this.container.addChild(this.text);
+    this.container.x = window.innerWidth / 2;
+    this.container.y = 180;
 
     this.start = performance.now();
     this.life = 350;

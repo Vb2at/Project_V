@@ -7,14 +7,53 @@ import { GAME_CONFIG } from '../constants/GameConfig';
 import PixiEffects from '../components/Game/PixiEffects';
 
 export default function GamePlay() {
-  // =========================
-  // 기존 상태
-  // =========================
+
+
+
   const [notes, setNotes] = useState([
     // (fallback 더미) songId 로드되면 AI 노트로 덮어씀
     { lane: 3, timing: 500, type: 'tap', hit: false },
     { lane: 3, timing: 700, type: 'tap', hit: false },
     { lane: 3, timing: 900, type: 'tap', hit: false },
+    { lane: 3, timing: 1100, type: 'tap', hit: false },
+    { lane: 3, timing: 1300, type: 'tap', hit: false },
+    { lane: 3, timing: 1500, type: 'tap', hit: false },
+    { lane: 3, timing: 1700, type: 'tap', hit: false },
+
+    // 2-4초: 롱노트 + 탭노트 혼합
+    { lane: 1, timing: 2000, endTime: 3000, type: 'long', hit: false, holding: false },
+    { lane: 5, timing: 2000, endTime: 3000, type: 'long', hit: false, holding: false },
+    { lane: 3, timing: 2500, type: 'tap', hit: false },
+    { lane: 0, timing: 3200, type: 'tap', hit: false },
+    { lane: 6, timing: 3400, type: 'tap', hit: false },
+
+    // 4-6초: 연속 탭노트
+    { lane: 0, timing: 4000, type: 'tap', hit: false },
+    { lane: 1, timing: 4200, type: 'tap', hit: false },
+    { lane: 2, timing: 4400, type: 'tap', hit: false },
+    { lane: 3, timing: 4600, type: 'tap', hit: false },
+    { lane: 4, timing: 4800, type: 'tap', hit: false },
+    { lane: 5, timing: 5000, type: 'tap', hit: false },
+    { lane: 6, timing: 5200, type: 'tap', hit: false },
+    { lane: 3, timing: 5400, type: 'tap', hit: false },
+    { lane: 1, timing: 5600, type: 'tap', hit: false },
+    { lane: 5, timing: 5800, type: 'tap', hit: false },
+
+    // 6-8초: 동시 롱노트
+    { lane: 0, timing: 6000, endTime: 7500, type: 'long', hit: false, holding: false },
+    { lane: 6, timing: 6000, endTime: 7500, type: 'long', hit: false, holding: false },
+    { lane: 3, timing: 6500, type: 'tap', hit: false },
+    { lane: 3, timing: 7000, type: 'tap', hit: false },
+
+    // 8-10초: 마무리 패턴
+    { lane: 2, timing: 8000, type: 'tap', hit: false },
+    { lane: 4, timing: 8200, type: 'tap', hit: false },
+    { lane: 1, timing: 8400, type: 'tap', hit: false },
+    { lane: 5, timing: 8600, type: 'tap', hit: false },
+    { lane: 3, timing: 8800, endTime: 9500, type: 'long', hit: false, holding: false },
+    { lane: 0, timing: 9600, type: 'tap', hit: false },
+    { lane: 6, timing: 9800, type: 'tap', hit: false },
+    { lane: 3, timing: 10000, type: 'tap', hit: false },
   ]);
 
   const [currentTime, setCurrentTime] = useState(0);
@@ -31,17 +70,17 @@ export default function GamePlay() {
   }, [notes]);
 
   // =========================
-  // ✅ UI 최소: Play 버튼만 / songId는 URL에서
+  // UI 최소: Play 버튼만 / songId는 URL에서
   // =========================
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
-  // ✅ ✅ ✅ songId는 URL 쿼리로 받음: /game/play?songId=7
+  //songId는 URL 쿼리로 받음: /game/play?songId=7
   const getSongIdFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
     return params.get('songId') || '1'; // 기본값 1
   };
 
-  // ✅ diff는 URL 쿼리로 받음: /game/play?songId=7&diff=hard
+  //diff는 URL 쿼리로 받음: /game/play?songId=7&diff=hard
   const getDiffFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
     return params.get('diff') || 'unknown';
@@ -116,7 +155,7 @@ export default function GamePlay() {
     return true;
   };
 
-  // ✅ 주소창 songId/diff가 바뀌면 자동으로 로드되게(popstate 대응)
+  // 주소창 songId/diff가 바뀌면 자동으로 로드되게(popstate 대응)
   useEffect(() => {
     const onPopState = () => {
       const sid = getSongIdFromUrl();
@@ -128,7 +167,7 @@ export default function GamePlay() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  // ✅ songId가 바뀌면 노트/오디오 자동 로드
+  // songId가 바뀌면 노트/오디오 자동 로드
   useEffect(() => {
     loadSongById(songId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -306,16 +345,16 @@ export default function GamePlay() {
             )
               ? prevEff
               : [
-                  ...prevEff,
-                  { type: 'long', lane: laneIndex, noteId: `${result.note.timing}-${result.note.lane}` },
-                  {
-                    type: 'judge',
-                    lane: laneIndex,
-                    judgement: result.judgement,
-                    combo: next,
-                    id: crypto.randomUUID(),
-                  },
-                ]
+                ...prevEff,
+                { type: 'long', lane: laneIndex, noteId: `${result.note.timing}-${result.note.lane}` },
+                {
+                  type: 'judge',
+                  lane: laneIndex,
+                  judgement: result.judgement,
+                  combo: next,
+                  id: crypto.randomUUID(),
+                },
+              ]
           );
 
           return next;

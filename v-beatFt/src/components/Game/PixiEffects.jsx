@@ -7,6 +7,15 @@ import LaneStreamEffect from './LaneStreamEffect';
 import JudgmentText from './JudgmentText';
 import ComboText from './ComboText';
 
+function getLaneLeftX(lane) {
+  return GAME_CONFIG.LANE_WIDTHS
+    .slice(0, lane)
+    .reduce((a, b) => a + b, 0);
+}
+
+function getLaneRightX(lane) {
+  return getLaneLeftX(lane) + GAME_CONFIG.LANE_WIDTHS[lane];
+}
 
 const LONG_PULSE_INTERVAL_MS = 140;
 const LONG_MISSING_GRACE_MS = 60;
@@ -245,148 +254,133 @@ export default function PixiEffects({ effects }) {
     };
   }, []);
 
-  useEffect(() => {
-    const app = appRef.current;
-    const textures = texturesRef.current;
-    if (!initReadyRef.current || !app || !textures) return;
+useEffect(() => {
+  const app = appRef.current;
+  const textures = texturesRef.current;
+  if (!initReadyRef.current || !app || !textures) return;
 
-    const { LANE_WIDTH, HIT_LINE_Y } = GAME_CONFIG.CANVAS;
-    const now = performance.now();
+  const { HIT_LINE_Y } = GAME_CONFIG.CANVAS;
+  const now = performance.now();
 
-    (effects || []).forEach(effect => {
-      if (effect.id && consumedEffectIdsRef.current.has(effect.id)) return;
-      const lane = effect.type === 'judge' ? null : effect.lane; if (lane < 0) return
-      if (effect.type !== 'judge' && lane < 0) return;
+  (effects || []).forEach(effect => {
+    if (effect.id && consumedEffectIdsRef.current.has(effect.id)) return;
 
-      const laneLeft = lane * LANE_WIDTH;
-      const laneRight = (lane + 1) * LANE_WIDTH;
-      const x = applyPerspective((laneLeft + laneRight) / 2, HIT_LINE_Y);
+    const lane = effect.type === 'judge' ? null : effect.lane;
+    if (effect.type !== 'judge' && lane < 0) return;
 
-      const leftX = applyPerspective(laneLeft, HIT_LINE_Y);
-      const rightX = applyPerspective(laneRight, HIT_LINE_Y);
-      const widthPx = Math.abs(rightX - leftX);
+    /* ================= 판정 텍스트 ================= */
+    if (effect.type === 'judge') {
+      judgeTextsRef.current.forEach(old => {
+        app.stage.removeChild(old.container);
+        old.destroy();
+      });
+      judgeTextsRef.current.length = 0;
 
-      const y0 = HIT_LINE_Y;
-      const y1 = HIT_LINE_Y - 40;
-      const cx0 = applyPerspective((laneLeft + laneRight) / 2, y0);
-      const cx1 = applyPerspective((laneLeft + laneRight) / 2, y1);
-      const angle = Math.atan2(y1 - y0, cx1 - cx0);
+      const inst = new JudgmentText({ text: effect.judgement });
+      inst.container.x = GAME_CONFIG.CANVAS.WIDTH / 2;
+      inst.container.y = GAME_CONFIG.CANVAS.HEIGHT * 0.65;
+      app.stage.addChild(inst.container);
+      judgeTextsRef.current.push(inst);
 
-      if (effect.type === 'judge') {
-        judgeTextsRef.current.forEach(old => {
-          app.stage.removeChild(old.container);
-          old.destroy();
-        });
-        judgeTextsRef.current.length = 0;
-
-        const inst = new JudgmentText({ text: effect.judgement });
-
-        inst.container.x = GAME_CONFIG.CANVAS.WIDTH / 2;
-        inst.container.y = GAME_CONFIG.CANVAS.HEIGHT * 0.65;
-
-        app.stage.addChild(inst.container);
-        judgeTextsRef.current.push(inst);
-
-        if (effect.combo && effect.combo > 1) {
-          if (comboTextRef.current) {
-            app.stage.removeChild(comboTextRef.current.container);
-            comboTextRef.current.destroy();
-            comboTextRef.current = null;
-          }
-
-          const comboInst = new ComboText({ combo: effect.combo });
-          comboInst.container.x = inst.container.x;
-          comboInst.container.y = inst.container.y - 28;
-
-          app.stage.addChild(comboInst.container);
-          comboTextRef.current = comboInst;
+      if (effect.combo && effect.combo > 1) {
+        if (comboTextRef.current) {
+          app.stage.removeChild(comboTextRef.current.container);
+          comboTextRef.current.destroy();
         }
+        const comboInst = new ComboText({ combo: effect.combo });
+        comboInst.container.x = inst.container.x;
+        app.stage.addChild(comboInst.container);
+        comboTextRef.current = comboInst;
+      }
 
+      consumedEffectIdsRef.current.add(effect.id);
+      return;
+    }
+
+    /* ================= tap / long 공통 ================= */
+    const laneLeft = getLaneLeftX(lane);
+    const laneRight = getLaneRightX(lane);
+
+    const x = applyPerspective((laneLeft + laneRight) / 2, HIT_LINE_Y);
+
+    const leftX = applyPerspective(laneLeft, HIT_LINE_Y);
+    const rightX = applyPerspective(laneRight, HIT_LINE_Y);
+    const widthPx = Math.abs(rightX - leftX);
+
+    const y0 = HIT_LINE_Y;
+    const y1 = HIT_LINE_Y - 40;
+    const cx0 = applyPerspective((laneLeft + laneRight) / 2, y0);
+    const cx1 = applyPerspective((laneLeft + laneRight) / 2, y1);
+    const angle = Math.atan2(y1 - y0, cx1 - cx0);
+
+    /* ================= TAP ================= */
+    if (effect.type === 'tap') {
+      const tapKey = makeTapKey(effect);
+      let allowTap = true;
+
+      if (tapKey) {
+        if (processedTapSetRef.current.has(tapKey)) {
+          allowTap = false;
+        } else {
+          processedTapSetRef.current.add(tapKey);
+          processedTapQueueRef.current.push(tapKey);
+        }
+      }
+
+      if (!allowTap) return;
+
+      const inst = new LightEffect({ textures, type: 'tap' });
+      inst.container.x = x;
+      inst.container.y = HIT_LINE_Y;
+      app.stage.addChild(inst.container);
+      tapEffectsRef.current.push(inst);
+
+      if (!tapStreamRef.current.has(lane)) {
+        const stream = new LaneStreamEffect({
+          texture: textures.laneStream,
+          laneWidth: widthPx,
+        });
+        stream.sprite.rotation = angle + Math.PI / 2;
+        stream.container.x = x;
+        stream.container.y = HIT_LINE_Y;
+        app.stage.addChild(stream.container);
+        tapStreamRef.current.set(lane, stream);
+      }
+
+      consumedEffectIdsRef.current.add(effect.id);
+    }
+
+    /* ================= LONG ================= */
+    if (effect.type === 'long') {
+      const key = makeLongKey(effect);
+
+      if (!aliveRef.current.has(key)) {
+        const inst = new LightEffect({
+          textures,
+          type: 'long',
+          startTime: now,
+        });
+        inst.container.x = x;
+        inst.container.y = HIT_LINE_Y;
+        inst.lastSeen = now;
+        app.stage.addChild(inst.container);
+        aliveRef.current.set(key, inst);
+
+        const stream = new LaneStreamEffect({
+          texture: textures.laneStream,
+          laneWidth: widthPx,
+        });
+        stream.sprite.rotation = angle + Math.PI / 2;
+        stream.container.x = x;
+        stream.container.y = HIT_LINE_Y;
+        app.stage.addChild(stream.container);
+        longStreamRef.current.set(key, stream);
 
         consumedEffectIdsRef.current.add(effect.id);
       }
-
-      if (effect.type === 'tap') {
-        const tapKey = makeTapKey(effect);
-        let allowTap = true;
-
-        if (tapKey) {
-          if (processedTapSetRef.current.has(tapKey)) {
-            allowTap = false;
-          } else {
-            processedTapSetRef.current.add(tapKey);
-            processedTapQueueRef.current.push(tapKey);
-            while (processedTapQueueRef.current.length > TAP_KEY_MAX) {
-              const old = processedTapQueueRef.current.shift();
-              if (old) processedTapSetRef.current.delete(old);
-            }
-          }
-        } else {
-          const lastAt = lastTapCreatedAtByLaneRef.current.get(lane) ?? -Infinity;
-          if (now - lastAt < TAP_DEDUPE_WINDOW_MS) allowTap = false;
-          lastTapCreatedAtByLaneRef.current.set(lane, now);
-        }
-
-        if (allowTap) {
-          const inst = new LightEffect({ textures, type: 'tap' });
-          inst.container.x = x;
-          inst.container.y = HIT_LINE_Y;
-          app.stage.addChild(inst.container);
-          tapEffectsRef.current.push(inst);
-
-          consumedEffectIdsRef.current.add(effect.id);
-
-          if (tapStreamRef.current.has(lane)) {
-            tapStreamRef.current.get(lane).reset(now);
-          } else {
-            const stream = new LaneStreamEffect({
-              texture: textures.laneStream,
-              laneWidth: widthPx,
-            });
-            stream.sprite.rotation = angle + Math.PI / 2;
-            stream.container.x = x;
-            stream.container.y = HIT_LINE_Y;
-            app.stage.addChild(stream.container);
-            tapStreamRef.current.set(lane, stream);
-          }
-        }
-      }
-
-      if (effect.type === 'long') {
-        const key = makeLongKey(effect);
-        if (key) {
-          if (aliveRef.current.has(key)) {
-            aliveRef.current.get(key).lastSeen = now;
-          } else {
-            const inst = new LightEffect({
-              textures,
-              type: 'long',
-              startTime: now,
-            });
-            inst.container.x = x;
-            inst.container.y = HIT_LINE_Y;
-            inst.lastSeen = now;
-            app.stage.addChild(inst.container);
-            aliveRef.current.set(key, inst);
-
-            consumedEffectIdsRef.current.add(effect.id);
-
-            if (!longStreamRef.current.has(key)) {
-              const stream = new LaneStreamEffect({
-                texture: textures.laneStream,
-                laneWidth: widthPx,
-              });
-              stream.sprite.rotation = angle + Math.PI / 2;
-              stream.container.x = x;
-              stream.container.y = HIT_LINE_Y;
-              app.stage.addChild(stream.container);
-              longStreamRef.current.set(key, stream);
-            }
-          }
-        }
-      }
-    });
-  }, [effects]);
+    }
+  });
+}, [effects]);
 
   return (
     <div
