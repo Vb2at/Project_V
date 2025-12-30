@@ -2,33 +2,40 @@
 import { useEffect, useRef } from 'react';
 import { GAME_CONFIG } from '../../constants/GameConfig';
 
+/**
+ * 게임 캔버스 컴포넌트
+ * - 리듬 게임의 모든 시각 요소(레인, 노트, 판정라인 등)를 렌더링
+ * - Canvas 2D API를 사용한 60fps 게임 루프 실행
+ */
 export default function GameCanvas({ notes, currentTime, pressedKeys = new Set() }) {
   const canvasRef = useRef(null);
+  
+  // props를 ref로 관리 (게임 루프 내부에서 최신 값 접근용)
   const notesRef = useRef(notes);
   const timeRef = useRef(currentTime);
   const keysRef = useRef(pressedKeys);
 
+  // props가 변경될 때마다 ref 업데이트
   useEffect(() => { notesRef.current = notes; }, [notes]);
   useEffect(() => { timeRef.current = currentTime; }, [currentTime]);
   useEffect(() => { keysRef.current = pressedKeys; }, [pressedKeys]);
 
-
-
+  // 게임 루프 초기화 및 실행
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     let animationId;
 
-    // 게임 루프 (60fps)
+    // 60fps 게임 루프
     function gameLoop() {
       // 캔버스 초기화
       ctx.clearRect(0, 0, GAME_CONFIG.CANVAS.WIDTH, GAME_CONFIG.CANVAS.HEIGHT);
-
+      
       // 배경 그리기
       ctx.fillStyle = '#1a1a1a';
       ctx.fillRect(0, 0, GAME_CONFIG.CANVAS.WIDTH, GAME_CONFIG.CANVAS.HEIGHT);
 
-      // 순서대로 그리기
+      // 렌더링 순서: 레인 → 판정라인 → 노트 → 키 표시
       drawLanes(ctx);
       drawHitLine(ctx);
       drawNotes(ctx, notesRef.current, timeRef.current);
@@ -46,7 +53,7 @@ export default function GameCanvas({ notes, currentTime, pressedKeys = new Set()
       ref={canvasRef}
       width={GAME_CONFIG.CANVAS.WIDTH}
       height={GAME_CONFIG.CANVAS.HEIGHT}
-      style={{ display: 'block', position: 'absolute', top: 0, left: 0 }}
+      style= {{display: 'block', position: 'absolute', top: 0, left: 0 }}
     />
   );
 }
@@ -59,6 +66,8 @@ function getPerspectiveScale(y) {
   return SCALE_MIN + (y / HEIGHT) * (SCALE_MAX - SCALE_MIN);
 }
 
+//원근법 적용한 X 좌표 및 스케일 반환
+
 function applyPerspective(x, y) {
   const { WIDTH } = GAME_CONFIG.CANVAS;
   const centerX = WIDTH / 2;
@@ -69,22 +78,23 @@ function applyPerspective(x, y) {
 
 // ===== 레인 그리기 =====
 
+//게임 레인 배경 및 구분선 렌더링
 function drawLanes(ctx) {
   const { LANES, CANVAS } = GAME_CONFIG;
   const { LANE_WIDTH } = CANVAS;
 
-  // 1. 레인 배경 먼저 그리기 (홀짝 구분)
+  // 1. 레인 배경
   for (let i = 0; i < LANES; i++) {
     const laneLeft = i * LANE_WIDTH;
     const laneRight = (i + 1) * LANE_WIDTH;
 
-    // 레인의 4개 꼭짓점 계산 (원근법 적용)
+    // 레인의 4개 꼭짓점 계산
     const topLeft = applyPerspective(laneLeft, 0);
     const topRight = applyPerspective(laneRight, 0);
     const bottomLeft = applyPerspective(laneLeft, CANVAS.HEIGHT);
     const bottomRight = applyPerspective(laneRight, CANVAS.HEIGHT);
 
-    // 홀짝 레인 다른 색상 (사다리꼴)
+    // 홀짝 레인 다른 색상으로 사다리꼴
     ctx.fillStyle = i % 2 === 0 ? 'rgba(82, 82, 82, 0.3)' : 'rgba(116, 4, 4, 0.18)';
     ctx.beginPath();
     ctx.moveTo(topLeft.x, 0);
@@ -118,7 +128,6 @@ function drawLanes(ctx) {
 }
 
 // ===== 판정 라인 그리기 =====
-
 function drawHitLine(ctx) {
   const { CANVAS } = GAME_CONFIG;
   const centerX = CANVAS.WIDTH / 2;
@@ -139,7 +148,6 @@ function drawHitLine(ctx) {
 }
 
 // ===== 키 표시 그리기 =====
-
 function drawKeyLabels(ctx, pressedKeys) {
   const { CANVAS } = GAME_CONFIG;
   const { LANE_WIDTH } = CANVAS;
@@ -168,11 +176,9 @@ function drawKeyLabels(ctx, pressedKeys) {
 
     // 키박스를 사다리꼴로 그리기
     if (pressedKeys.has(i)) {
-      // 키 눌렸을 때
-      ctx.fillStyle = '#00ffffff';
+      ctx.fillStyle = '#00ffffff'; // 키 눌렸을 때
     } else {
-      // 키 안 눌렸을 때
-      ctx.fillStyle = 'transparent';
+      ctx.fillStyle = 'transparent'; // 키 안 눌렸을 때
     }
 
     ctx.beginPath();
@@ -202,72 +208,68 @@ function drawNotes(ctx, notes, currentTime) {
     const laneRight = (note.lane + 1) * LANE_WIDTH;
 
     if (note.type === 'long') {
+      // ===== 롱노트 =====
+      const totalDuration = note.endTime - note.timing;
+      const SEGMENT_MS = 40; // 40ms 단위로 세그먼트 분할
+      const segmentCount = Math.ceil(totalDuration / SEGMENT_MS);
 
-      const startDiff = note.timing - currentTime;
-      const endDiff = note.endTime - currentTime;
+      // 각 세그먼트를 개별 사다리꼴로 렌더링
+      for (let i = 0; i < segmentCount; i++) {
+        const segStartTime = note.timing + i * SEGMENT_MS;
+        const segEndTime = Math.min(segStartTime + SEGMENT_MS, note.endTime);
 
-      const startY = HIT_LINE_Y - (startDiff * SPEED);
-      const endY = HIT_LINE_Y - (endDiff * SPEED);
+        // 현재 시간 기준 세그먼트 Y 위치 계산
+        const segStartDiff = segStartTime - currentTime;
+        const segEndDiff = segEndTime - currentTime;
+        const segStartY = HIT_LINE_Y - (segStartDiff * SPEED);
+        const segEndY = HIT_LINE_Y - (segEndDiff * SPEED);
 
-      const headHeight = NOTE_HEIGHT * applyPerspective(laneLeft, startY).scale;
-      const headTopY = Math.round(startY - headHeight);
+        // 원근법 적용한 세그먼트 높이 계산
+        const segHeadHeight = NOTE_HEIGHT * applyPerspective(laneLeft, segStartY).scale;
+        const segHeadTopY = Math.round(segStartY - segHeadHeight);
+        const segTailHeight = NOTE_HEIGHT * applyPerspective(laneLeft, segEndY).scale;
+        const segTailBottomY = Math.round(segEndY + segTailHeight);
 
-      const tailHeight = NOTE_HEIGHT * applyPerspective(laneLeft, endY).scale;
-      const tailBottomY = Math.round(endY + tailHeight);
+        // 화면 밖이면 스킵
+        if (segTailBottomY < -1 || segHeadTopY > GAME_CONFIG.CANVAS.HEIGHT + 1) continue;
 
-      // ✅ 그리기용 좌표만 클램프
-      const drawTopY = Math.max(headTopY, 0);
-      const drawBottomY = Math.min(tailBottomY, GAME_CONFIG.CANVAS.HEIGHT);
+        // 화면 범위 내로 클리핑
+        const drawTopY = Math.max(segHeadTopY, 0);
+        const drawBottomY = Math.min(segTailBottomY, GAME_CONFIG.CANVAS.HEIGHT);
 
-      if (tailBottomY >= -1 || headTopY <= GAME_CONFIG.CANVAS.HEIGHT + 1) {
+        // 4개 꼭짓점 계산
+        const topLeft = applyPerspective(laneLeft, drawTopY);
+        const topRight = applyPerspective(laneRight, drawTopY);
+        const bottomLeft = applyPerspective(laneLeft, drawBottomY);
+        const bottomRight = applyPerspective(laneRight, drawBottomY);
 
-        const drawTopLeft = applyPerspective(laneLeft, drawTopY);
-        const drawTopRight = applyPerspective(laneRight, drawTopY);
+        // 홀딩 중이면 초록색, 아니면 기본 롱노트 색상
+        ctx.fillStyle = note.holding ? '#22c55e' : GAME_CONFIG.LONG_NOTE_COLOR;
 
-        const drawBottomLeft = applyPerspective(laneLeft, drawBottomY);
-        const drawBottomRight = applyPerspective(laneRight, drawBottomY);
-
-        const longNoteColor = note.holding
-          ? '#22c55e'
-          : GAME_CONFIG.LONG_NOTE_COLOR;
-
-        ctx.fillStyle = longNoteColor;
         ctx.beginPath();
-        ctx.moveTo(drawTopLeft.x + 5 * drawTopLeft.scale, drawTopY);
-        ctx.lineTo(drawTopRight.x - 5 * drawTopRight.scale, drawTopY);
-        ctx.lineTo(drawBottomRight.x - 5 * drawBottomRight.scale, drawBottomY);
-        ctx.lineTo(drawBottomLeft.x + 5 * drawBottomLeft.scale, drawBottomY);
+        ctx.moveTo(topLeft.x + 5 * topLeft.scale, drawTopY);
+        ctx.lineTo(topRight.x - 5 * topRight.scale, drawTopY);
+        ctx.lineTo(bottomRight.x - 5 * bottomRight.scale, drawBottomY);
+        ctx.lineTo(bottomLeft.x + 5 * bottomLeft.scale, drawBottomY);
         ctx.closePath();
         ctx.fill();
-
-        ctx.save();
-        ctx.translate(0.5, 0.5);
-
-        // ✅ stroke는 완전히 화면 안에 있을 때만
-        if (headTopY >= 0 && tailBottomY <= GAME_CONFIG.CANVAS.HEIGHT) {
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        }
-
-        ctx.restore();
       }
-
-    }
-    else {
+    } else {
       // ===== 탭노트 =====
       const timeDiff = note.timing - currentTime;
       const y = HIT_LINE_Y - (timeDiff * SPEED);
 
+      // 화면 범위 내에 있을 때만 렌더링
       if (y > -NOTE_HEIGHT && y < HIT_LINE_Y + 100) {
+        // 4개 꼭짓점 계산
         const noteTopLeft = applyPerspective(laneLeft, y);
         const noteTopRight = applyPerspective(laneRight, y);
         const noteHeight = NOTE_HEIGHT * noteTopLeft.scale;
-
         const noteBottomY = y + noteHeight;
         const noteBottomLeft = applyPerspective(laneLeft, noteBottomY);
         const noteBottomRight = applyPerspective(laneRight, noteBottomY);
 
+        // 노트 사다리꼴 그리기 (흰색 테두리)
         ctx.fillStyle = GAME_CONFIG.TAP_NOTE_COLOR;
         ctx.beginPath();
         ctx.moveTo(noteTopLeft.x + 5 * noteTopLeft.scale, y);
@@ -277,6 +279,7 @@ function drawNotes(ctx, notes, currentTime) {
         ctx.closePath();
         ctx.fill();
 
+        // 흰색 테두리
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.stroke();
