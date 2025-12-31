@@ -43,8 +43,8 @@ export default function GameCanvas({ notes, currentTime, pressedKeys = new Set()
       ctx.clearRect(0, 0, GAME_CONFIG.CANVAS.WIDTH, GAME_CONFIG.CANVAS.HEIGHT);
 
       // 배경
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(0, 0, GAME_CONFIG.CANVAS.WIDTH, GAME_CONFIG.CANVAS.HEIGHT);
+      // ctx.fillStyle = 'rgba(26, 26, 26, 0.6)';
+      // ctx.fillRect(0, 0, GAME_CONFIG.CANVAS.WIDTH, GAME_CONFIG.CANVAS.HEIGHT);
 
       // 렌더 순서
       drawLanes(ctx);
@@ -78,6 +78,7 @@ function getPerspectiveScale(y) {
 
 function applyPerspective(x, y) {
   const { WIDTH } = GAME_CONFIG.CANVAS;
+  const VISIBLE_WIDTH = WIDTH * 0.1;
   const centerX = WIDTH / 2;
   const scale = getPerspectiveScale(y);
   return {
@@ -102,7 +103,7 @@ function drawLanes(ctx) {
 
     ctx.fillStyle = i % 2 === 0
       ? 'rgba(82,82,82,0.3)'
-      : 'rgba(116,4,4,0.18)';
+      : 'rgba(179, 0, 0, 0.18)';
 
     ctx.beginPath();
     ctx.moveTo(tl.x, 0);
@@ -120,14 +121,24 @@ function drawLanes(ctx) {
 
     const top = applyPerspective(x, 0);
     const bottom = applyPerspective(x, CANVAS.HEIGHT);
-
-    ctx.strokeStyle = (i === 0 || i === LANES) ? '#ff4c20ff' : '#00ffffff';
-    ctx.lineWidth = (i === 0 || i === LANES) ? 3 : 2;
+    if (i === 0 || i === LANES) {
+      ctx.strokeStyle = '#ff3355';
+      ctx.shadowColor = 'rgba(255, 80, 140, 1)';
+      ctx.shadowBlur = 22;
+      ctx.lineWidth = 3;
+    } else {
+      ctx.strokeStyle = '#7df9ff';
+      ctx.shadowColor = 'rgba(125, 249, 255, 0.9)';
+      ctx.shadowBlur = 14;
+      ctx.lineWidth = 2;
+    }
 
     ctx.beginPath();
     ctx.moveTo(top.x, 0);
     ctx.lineTo(bottom.x, CANVAS.HEIGHT);
     ctx.stroke();
+    ctx.shadowBlur = 0;
+
   }
 }
 
@@ -221,6 +232,22 @@ function drawKeyLabels(ctx, pressedKeys, keyFlashRef) {
   });
 }
 
+function drawNeonBorder(ctx, points, color, glow, width) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = glow;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i].x, points[i].y);
+  }
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
 // 노트 렌더링
 
 function drawNotes(ctx, notes, currentTime) {
@@ -232,36 +259,54 @@ function drawNotes(ctx, notes, currentTime) {
     const right = getLaneRightX(note.lane);
 
     if (note.type === 'long') {
-      const SEG = 20;
-      const count = Math.ceil((note.endTime - note.timing) / SEG);
+      const yStart = HIT_LINE_Y - (note.timing - currentTime) * SPEED;
+      const yEnd = HIT_LINE_Y - (note.endTime - currentTime) * SPEED;
 
-      for (let i = 0; i < count; i++) {
-        const s = note.timing + i * SEG;
-        const e = Math.min(s + SEG, note.endTime);
+      const fullTopY = Math.min(yStart, yEnd) - NOTE_HEIGHT;
+      const fullBottomY = Math.max(yStart, yEnd) + NOTE_HEIGHT;
 
-        const sy = HIT_LINE_Y - (s - currentTime) * SPEED;
-        const ey = HIT_LINE_Y - (e - currentTime) * SPEED;
+      if (fullBottomY < 0 || fullTopY > GAME_CONFIG.CANVAS.HEIGHT) return;
 
-        const topY = Math.max(sy - NOTE_HEIGHT, 0);
-        const bottomY = Math.min(ey + NOTE_HEIGHT, GAME_CONFIG.CANVAS.HEIGHT);
+      const topY = Math.max(fullTopY, 0);
+      const bottomY = Math.min(fullBottomY, GAME_CONFIG.CANVAS.HEIGHT);
 
-        if (bottomY < 0 || topY > GAME_CONFIG.CANVAS.HEIGHT) continue;
+      const tl = applyPerspective(left, topY);
+      const tr = applyPerspective(right, topY);
+      const bl = applyPerspective(left, bottomY);
+      const br = applyPerspective(right, bottomY);
 
-        const tl = applyPerspective(left, topY);
-        const tr = applyPerspective(right, topY);
-        const bl = applyPerspective(left, bottomY);
-        const br = applyPerspective(right, bottomY);
+      const grad = ctx.createLinearGradient(0, topY, 0, bottomY);
+      grad.addColorStop(0.0, 'rgba(20, 20, 25, 0.62)');
+      grad.addColorStop(0.5, 'rgba(220, 20, 60, 0.64)');
+      grad.addColorStop(1.0, 'rgba(255, 69, 0, 0.79)');
 
-        ctx.fillStyle = note.holding ? '#22c55e' : GAME_CONFIG.LONG_NOTE_COLOR;
-        ctx.beginPath();
-        ctx.moveTo(tl.x + 5 * tl.scale, topY);
-        ctx.lineTo(tr.x - 5 * tr.scale, topY);
-        ctx.lineTo(br.x - 5 * br.scale, bottomY);
-        ctx.lineTo(bl.x + 5 * bl.scale, bottomY);
-        ctx.closePath();
-        ctx.fill();
-      }
-    } else {
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(tl.x + 5 * tl.scale, topY);
+      ctx.lineTo(tr.x - 5 * tr.scale, topY);
+      ctx.lineTo(br.x - 5 * br.scale, bottomY);
+      ctx.lineTo(bl.x + 5 * bl.scale, bottomY);
+      ctx.closePath();
+      ctx.fill();
+
+      drawNeonBorder(
+        ctx,
+        [
+          { x: tl.x + 5 * tl.scale, y: topY },
+          { x: tr.x - 5 * tr.scale, y: topY },
+          { x: br.x - 5 * br.scale, y: bottomY },
+          { x: bl.x + 5 * bl.scale, y: bottomY },
+        ],
+        note.holding ? '#7CFF7C' : '#FF4C4C',
+        18 * tl.scale,
+        5 * tl.scale
+      );
+
+      return;
+    }
+
+    // === 탭 노트는 기존 그대로 ===
+    else {
       const y = HIT_LINE_Y - (note.timing - currentTime) * SPEED;
       if (y < -NOTE_HEIGHT || y > HIT_LINE_Y + 100) return;
 
@@ -273,7 +318,7 @@ function drawNotes(ctx, notes, currentTime) {
       const bl = applyPerspective(left, by);
       const br = applyPerspective(right, by);
 
-      ctx.fillStyle = GAME_CONFIG.TAP_NOTE_COLOR;
+      ctx.fillStyle = 'rgba(0, 225, 255, 0.5)';
       ctx.beginPath();
       ctx.moveTo(tl.x + 5 * tl.scale, y);
       ctx.lineTo(tr.x - 5 * tr.scale, y);
@@ -281,6 +326,19 @@ function drawNotes(ctx, notes, currentTime) {
       ctx.lineTo(bl.x + 5 * bl.scale, by);
       ctx.closePath();
       ctx.fill();
+
+      drawNeonBorder(
+        ctx,
+        [
+          { x: tl.x + 5 * tl.scale, y },
+          { x: tr.x - 5 * tr.scale, y },
+          { x: br.x - 5 * br.scale, y: by },
+          { x: bl.x + 5 * bl.scale, y: by },
+        ],
+        '#00e1ffff',
+        18 * tl.scale,
+        2.2 * tl.scale
+      );
     }
   });
 }

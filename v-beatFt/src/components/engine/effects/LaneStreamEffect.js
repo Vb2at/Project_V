@@ -27,6 +27,8 @@ export default class LaneStreamEffect {
     this.container = new Container();
     this.sprite = new Sprite(texture);
 
+    this.sprite.tint = '#ffffffff';
+
     this.sprite.anchor.set(0.5, 0.8); // 판정선 기준
     this.sprite.blendMode = 'add';
 

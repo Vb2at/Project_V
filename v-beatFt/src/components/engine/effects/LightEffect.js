@@ -24,6 +24,10 @@ export default class LightEffect {
     this.bloom = new Sprite(textures.bloom);
     this.flare = new Sprite(textures.flare);
 
+    this.core.tint = '#b5eeff36';
+    this.bloom.tint = '#b5eeff5b';
+    this.flare.tint = '#b5eeffff';
+
     [this.core, this.bloom, this.flare].forEach(s => {
       s.anchor.set(0.5);
       s.blendMode = 'add';
@@ -41,7 +45,7 @@ export default class LightEffect {
   update(now) {
     if (this.dead) return;
 
-       //TAP
+    //TAP
     if (this.type === 'tap') {
       const t = (now - this.startTime) / TAP_LIFE_MS;
       if (t >= 1) {
@@ -53,8 +57,8 @@ export default class LightEffect {
       const a = 1 - t;
       this.container.alpha = a;
 
-      this.core.alpha = a * 0.45;
-      this.bloom.alpha = a * 0.65;
+      this.core.alpha = a * 0.25;
+      this.bloom.alpha = a * 0.35;
       this.flare.alpha = a;
 
       this.core.scale.set(0.2 + t * 0.1);
@@ -63,7 +67,7 @@ export default class LightEffect {
       return;
     }
 
-       //LONG
+    //LONG
     if (this.type === 'long') {
       if (!this.ending) {
         const progress = Math.min(1, (now - this.startTime) / this.duration);

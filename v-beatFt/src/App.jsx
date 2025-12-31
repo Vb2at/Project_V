@@ -1,6 +1,6 @@
 // src/App.jsx
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import GamePlay from './pages/GamePlay';
+import GamePlay from './pages/gameplay/GamePlay';
 
 function App() {
   return (

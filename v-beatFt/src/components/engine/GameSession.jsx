@@ -7,7 +7,8 @@ import { NoteCalculator } from '../../core/judge/NoteCalculator';
 import { GAME_CONFIG } from '../../constants/GameConfig';
 import { playTapNormal, playTapAccent } from './SFXManager';
 
-export default function GameSession() {
+export default function GameSession({ onState }) {
+
 
   const [notes, setNotes] = useState([
     // (fallback 더미) songId 로드되면 AI 노트로 덮어씀
@@ -88,9 +89,18 @@ export default function GameSession() {
   const [songId, setSongId] = useState(getSongIdFromUrl());
   const [diff, setDiff] = useState(getDiffFromUrl());
 
+  useEffect(() => {
+    if (typeof onState === 'function') {
+      onState({
+        score,
+        combo,
+        diff,
+      });
+    }
+  }, [score, combo, diff, onState]);
+
   const [audioUrl, setAudioUrl] = useState('');
   const audioRef = useRef(null);
-  const [isPlaying, setIsPlaying] = useState(false);
 
   const normalizeNotesFromApi = (payload) => {
     const list = Array.isArray(payload) ? payload : (payload?.notes || payload?.data || []);
@@ -120,7 +130,6 @@ export default function GameSession() {
   };
 
   const resetGame = () => {
-    setIsPlaying(false);
     setScore(0);
     setCombo(0);
     setEffects([]);
@@ -172,47 +181,11 @@ export default function GameSession() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songId]);
 
-  const togglePlay = async () => {
-    const el = audioRef.current;
-    if (!el) return;
-
-    try {
-      // audioUrl이 아직 없으면 먼저 로드
-      if (!audioUrl) {
-        const ok = await loadSongById(songId);
-        if (!ok) return;
-      }
-
-      if (el.paused) {
-        await el.play();
-        setIsPlaying(true);
-      } else {
-        el.pause();
-        setIsPlaying(false);
-      }
-    } catch {
-      setIsPlaying(false);
-    }
-  };
-
   // 오디오 시간 -> 게임 시간(ms) 동기화
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
 
-    const onTime = () => {
-      const ms = Math.floor((el.currentTime || 0) * 1000);
-      currentTimeRef.current = ms;
-      setCurrentTime(ms);
-    };
-    const onEnded = () => setIsPlaying(false);
-
-    el.addEventListener('timeupdate', onTime);
-    el.addEventListener('ended', onEnded);
-    return () => {
-      el.removeEventListener('timeupdate', onTime);
-      el.removeEventListener('ended', onEnded);
-    };
   }, [audioUrl]);
 
   // =========================
@@ -412,68 +385,30 @@ export default function GameSession() {
     return () => ih.destroy();
   }, [pressedKeys]);
 
-
   return (
     <div
       style={{
-        paddingTop: '64px', // ✅ 헤더 높이만큼
         width: GAME_CONFIG.CANVAS.WIDTH + 'px',
         height: GAME_CONFIG.CANVAS.HEIGHT + 'px',
         position: 'relative',
-        background: '#000',
+        marginTop: '80px', // ← 헤더 높이
+        overflow: 'hidden',
+        // outline: '5px solid rgba(255, 0, 0, 0.08)',
       }}
     >
-      {/* ✅ UI는 Play 버튼 + 난이도 표시만 */}
-      <div style={{ display: 'flex', height: '1px', alignItems: 'center', gap: '5px', marginBottom: '12px' }}>
-        <button
-          onClick={togglePlay}
-          style={{ padding: '8px 14px', cursor: 'pointer' }}
-        >
-          {isPlaying ? 'Pause' : 'Play'}
-        </button>
+      <GameCanvas
+        notes={notes.filter((n) => {
+          if (n.type === 'long') {
+            const t = (GAME_CONFIG.CANVAS.HEIGHT + 100) / GAME_CONFIG.SPEED;
+            return currentTime < n.endTime + t;
+          }
+          return !n.hit;
+        })}
+        currentTime={currentTime}
+        pressedKeys={pressedKeys}
+      />
 
-        <div style={{ color: '#aaa', fontSize: '14px' }}>
-          Difficulty: <b style={{ color: '#fff' }}>{String(diff).toUpperCase()}</b>
-        </div>
-      </div>
-
-      {/* ✅ 빈 문자열 src 경고 방지 */}
-      <audio ref={audioRef} src={audioUrl || null} />
-
-      <div
-        style={{
-          color: 'white',
-          fontSize: '24px',
-          marginBottom: '20px',
-          display: 'flex',
-          gap: '40px',
-        }}
-      >
-        <div>점수: {score}</div>
-      </div>
-
-      <div
-        style={{
-          position: 'relative',
-          width: GAME_CONFIG.CANVAS.WIDTH + 'px',
-          height: GAME_CONFIG.CANVAS.HEIGHT + 'px',
-        }}
-      >
-        <GameCanvas
-          notes={notes.filter((n) => {
-            if (!n.hit || (n.type === 'long' && n.holding)) return true;
-            if (n.type === 'long') {
-              const t = (GAME_CONFIG.CANVAS.HEIGHT + 100) / GAME_CONFIG.SPEED;
-              return currentTime < n.endTime + t;
-            }
-            return false;
-          })}
-          currentTime={currentTime}
-          pressedKeys={pressedKeys}
-        />
-
-        <PixiEffects effects={effects} />
-      </div>
+      <PixiEffects effects={effects} />
     </div>
   );
 }
