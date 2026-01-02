@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import Header from '../../components/common/Header';
+import Header from '../../components/Common/Header';
 import GameSession from '../../components/engine/GameSession';
-import Background from '../../components/common/Background';
+import Background from '../../components/Common/Background';
 import LeftSidebar from './LeftSidebar';
 import RightSidebar from './RightSidebar';
 import HUD from './HUD.jsx';
@@ -46,7 +46,7 @@ function GamePlay() {
         // songProgress={songProgress}
         // classProgress={classProgress}
         songProgress={1}
-        classProgress={1}
+        classProgress={0.5}
       />
       </HUDFrame>
       <div
