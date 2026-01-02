@@ -4,13 +4,21 @@ import GameSession from '../../components/engine/GameSession';
 import Background from '../../components/common/Background';
 import LeftSidebar from './LeftSidebar';
 import RightSidebar from './RightSidebar';
+import HUD from './HUD.jsx';
+import HUDFrame from './HUDFrame.jsx'
+import { useNavigate } from 'react-router-dom';
 import { GAME_CONFIG } from "../../constants/GameConfig";
+
 function GamePlay() {
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [diff, setDiff] = useState(
     new URLSearchParams(window.location.search).get('diff') || 'unknown'
   );
+  const [songProgress, setSongProgress] = useState(0);
+  const [classProgress, setClassProgress] = useState(0);
+  const navigate = useNavigate();
+  const [finished, setFinished] = useState(false);
   const HEADER_HEIGHT = 25;
   return (
     <div
@@ -30,21 +38,48 @@ function GamePlay() {
         combo={combo}
         diff={diff}
       />
-      <RightSidebar/>
+      <RightSidebar />
+      <HUDFrame>
+      <HUD
+        score={score}
+        combo={combo}
+        // songProgress={songProgress}
+        // classProgress={classProgress}
+        songProgress={1}
+        classProgress={1}
+      />
+      </HUDFrame>
       <div
         style={{
           position: 'absolute',
-          top:  `calc(48% + ${HEADER_HEIGHT / 2}px)`,
+          top: `calc(48% + ${HEADER_HEIGHT / 2}px)`,
           left: '50%',
           transform: 'translate(-50%, -50%)',
         }}
       >
         <GameSession
-          onState={({ score, combo, diff }) => {
+          onState={({ score, combo, diff, currentTime, duration, maxScore }) => {
+
             setScore(score);
             setCombo(combo);
             setDiff(diff);
-            
+            setSongProgress(
+              duration > 0
+                ? Math.min(1, Math.max(0, currentTime / duration))
+                : 0
+            );
+            setClassProgress(
+              maxScore > 0
+                ? Math.min(1, Math.max(0, score / maxScore))
+                : 0
+            );
+          }}
+          onFinish={({ score, maxScore }) => {
+            if (finished) return;
+            setFinished(true);
+            navigate('/game/result', {
+              state: { score, maxScore },
+            });
           }}
         />
       </div>

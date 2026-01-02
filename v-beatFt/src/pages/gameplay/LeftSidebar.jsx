@@ -1,5 +1,5 @@
 // src/components/common/LeftSidebar.jsx
-export default function LeftSidebar({ score, combo, diff }) {
+export default function LeftSidebar({diff }) {
   const HEADER_HEIGHT = 64;
   return (
     <div
@@ -52,14 +52,6 @@ export default function LeftSidebar({ score, combo, diff }) {
       </div>
       <div style={{ marginTop: '6px', fontSize: '14px', opacity: 0.8 }}>
         난이도: {String(diff).toUpperCase()}
-      </div>
-
-      <div style={{ marginTop: '32px', fontSize: '18px' }}>
-        점수: {score}
-      </div>
-
-      <div style={{ marginTop: '12px', fontSize: '14px', opacity: 0.7 }}>
-        콤보: {combo}
       </div>
     </div>
   );

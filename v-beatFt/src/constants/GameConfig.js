@@ -32,7 +32,7 @@ export const GAME_CONFIG = {
   CANVAS: {
     WIDTH: 1200,
     HEIGHT: 890,
-    NOTE_HEIGHT: 40,
+    NOTE_HEIGHT: 60,
     HIT_LINE_Y: 800,
   },
 
