@@ -8,8 +8,6 @@ import { GAME_CONFIG } from '../../constants/GameConfig';
 import { playTapNormal, playTapAccent } from './SFXManager';
 
 export default function GameSession({ onState }) {
-
-
   const [notes, setNotes] = useState([
     // (fallback 더미) songId 로드되면 AI 노트로 덮어씀
     { lane: 3, timing: 500, type: 'tap', hit: false },
@@ -181,12 +179,28 @@ export default function GameSession({ onState }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songId]);
 
-  // 오디오 시간 -> 게임 시간(ms) 동기화
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
+  // 오디오 시간 -> 게임 시간(ms) 동기화 (현재 비워둔 상태 유지)
+  // useEffect(() => {
+  //   const el = audioRef.current;
+  //   if (!el) return;
+  // }, [audioUrl]);
 
-  }, [audioUrl]);
+  // 
+  useEffect(() => {
+  const audio = audioRef.current;
+  if (!audio || !audioUrl) return;
+
+  audio.src = audioUrl;
+  audio.currentTime = 0;
+
+  const p = audio.play();
+  if (p && typeof p.catch === 'function') {
+    p.catch((err) => {
+      console.warn('audio autoplay blocked:', err);
+      // 자동재생 막히면, 첫 키 입력 때 play() 다시 시키면 됨
+    });
+  }
+}, [audioUrl]);
 
   // =========================
   // 기존 로직 (최대한 유지)
@@ -285,8 +299,14 @@ export default function GameSession({ onState }) {
 
   useEffect(() => {
     const handleKeyPress = (laneIndex) => {
+
+      //첫 입력 때 오디오 재생 보장(자동재생 막힘 대응)
+      if (audioRef.current && audioRef.current.paused) {
+        audioRef.current.play().catch(() => {});
+      }
+      
       if (pressedKeys.has(laneIndex)) return;
-      setPressedKeys(prev => new Set(prev).add(laneIndex));
+      setPressedKeys((prev) => new Set(prev).add(laneIndex));
 
       const ACCENT_LANES = new Set([1, 3, 5]);
 
@@ -296,11 +316,7 @@ export default function GameSession({ onState }) {
         playTapNormal();
       }
 
-      const result = NoteCalculator.judgeNote(
-        laneIndex,
-        currentTimeRef.current,
-        notesRef.current
-      );
+      const result = NoteCalculator.judgeNote(laneIndex, currentTimeRef.current, notesRef.current);
       if (!result || !result.note) return;
 
       const note = result.note;
@@ -308,27 +324,33 @@ export default function GameSession({ onState }) {
 
       if (result.judgement === 'MISS') {
         setCombo(0);
-        setEffects(eff => [...eff, {
-          type: 'judge', lane: laneIndex, judgement: 'MISS', combo: 0, id: crypto.randomUUID()
-        }]);
+        setEffects((eff) => [
+          ...eff,
+          { type: 'judge', lane: laneIndex, judgement: 'MISS', combo: 0, id: crypto.randomUUID() },
+        ]);
         return;
       }
 
       // ★ 롱 시작: 딱 1회
       if (note.type === 'long' && !note.holding) {
-        setNotes(prev =>
-          prev.map(n => n === note ? { ...n, hit: true, holding: true } : n)
-        );
+        setNotes((prev) => prev.map((n) => (n === note ? { ...n, hit: true, holding: true } : n)));
 
-        setCombo(prev => {
+        setCombo((prev) => {
           const next = prev + 1;
-          setEffects(pe =>
-            pe.some(e => e.type === 'long' && e.noteId === noteId)
+          setEffects((pe) =>
+            pe.some((e) => e.type === 'long' && e.noteId === noteId)
               ? pe
-              : [...pe,
-              { type: 'long', lane: laneIndex, noteId },
-              { type: 'judge', lane: laneIndex, judgement: result.judgement, combo: next, id: crypto.randomUUID() }
-              ]
+              : [
+                  ...pe,
+                  { type: 'long', lane: laneIndex, noteId },
+                  {
+                    type: 'judge',
+                    lane: laneIndex,
+                    judgement: result.judgement,
+                    combo: next,
+                    id: crypto.randomUUID(),
+                  },
+                ]
           );
           return next;
         });
@@ -337,47 +359,62 @@ export default function GameSession({ onState }) {
       }
 
       // ★ 탭
-      setNotes(prev => prev.map(n => n === note ? { ...n, hit: true } : n));
+      setNotes((prev) => prev.map((n) => (n === note ? { ...n, hit: true } : n)));
 
-      setCombo(prev => {
+      setCombo((prev) => {
         const next = prev + 1;
-        setEffects(eff => [...eff,
-        { type: 'tap', lane: laneIndex, id: crypto.randomUUID() },
-        { type: 'judge', lane: laneIndex, judgement: result.judgement, combo: next, id: crypto.randomUUID() }
+        setEffects((eff) => [
+          ...eff,
+          { type: 'tap', lane: laneIndex, id: crypto.randomUUID() },
+          {
+            type: 'judge',
+            lane: laneIndex,
+            judgement: result.judgement,
+            combo: next,
+            id: crypto.randomUUID(),
+          },
         ]);
         return next;
       });
 
-      setScore(prev => prev + GAME_CONFIG.SCORE[result.judgement]);
+      setScore((prev) => prev + GAME_CONFIG.SCORE[result.judgement]);
     };
 
     const handleKeyRelease = (laneIndex) => {
-      setPressedKeys(prev => {
-        const s = new Set(prev); s.delete(laneIndex); return s;
+      setPressedKeys((prev) => {
+        const s = new Set(prev);
+        s.delete(laneIndex);
+        return s;
       });
 
       const result = NoteCalculator.judgeNoteRelease(
-        laneIndex, currentTimeRef.current, notesRef.current
+        laneIndex,
+        currentTimeRef.current,
+        notesRef.current
       );
 
       if (result && result.note) {
         const note = result.note;
         const noteId = `${note.timing}-${note.lane}`;
 
-        setNotes(prev =>
-          prev.map(n => n === note ? { ...n, hit: true, holding: false, released: true } : n)
+        setNotes((prev) =>
+          prev.map((n) => (n === note ? { ...n, hit: true, holding: false, released: true } : n))
         );
-        setEffects(prev => prev.filter(e => !(e.type === 'long' && e.noteId === noteId)));
-        setScore(prev => prev + GAME_CONFIG.SCORE[result.judgement]);
+        setEffects((prev) => prev.filter((e) => !(e.type === 'long' && e.noteId === noteId)));
+        setScore((prev) => prev + GAME_CONFIG.SCORE[result.judgement]);
       } else {
-        setNotes(prev => prev.map(n => {
-          if (n.lane === laneIndex && n.holding) {
-            setCombo(0);
-            setEffects(eff => eff.filter(e => !(e.type === 'long' && e.noteId === `${n.timing}-${n.lane}`)));
-            return { ...n, holding: false, released: true };
-          }
-          return n;
-        }));
+        setNotes((prev) =>
+          prev.map((n) => {
+            if (n.lane === laneIndex && n.holding) {
+              setCombo(0);
+              setEffects((eff) =>
+                eff.filter((e) => !(e.type === 'long' && e.noteId === `${n.timing}-${n.lane}`))
+              );
+              return { ...n, holding: false, released: true };
+            }
+            return n;
+          })
+        );
       }
     };
 
@@ -393,7 +430,6 @@ export default function GameSession({ onState }) {
         position: 'relative',
         marginTop: '80px', // ← 헤더 높이
         overflow: 'hidden',
-        // outline: '5px solid rgba(255, 0, 0, 0.08)',
       }}
     >
       <GameCanvas
@@ -409,6 +445,7 @@ export default function GameSession({ onState }) {
       />
 
       <PixiEffects effects={effects} />
+      <audio ref={audioRef} />
     </div>
   );
 }

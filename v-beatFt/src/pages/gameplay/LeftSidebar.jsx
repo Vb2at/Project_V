@@ -1,6 +1,56 @@
-// src/components/common/LeftSidebar.jsx
-export default function LeftSidebar({diff }) {
+import { useEffect, useState } from 'react';
+
+export default function LeftSidebar({ songId, diff }) {
   const HEADER_HEIGHT = 64;
+
+  console.log('LeftSidebar RENDERED', { songId, diff });
+
+  const [song, setSong] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    console.log('[LeftSidebar effect] songId =', songId);
+
+    if (!songId) {
+      setSong(null);
+      setLoading(false);
+      return;
+    }
+
+    let alive = true;
+    setLoading(true);
+
+    fetch(`/api/ai/song/${songId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('song fetch failed');
+        return res.json();
+      })
+      .then((data) => {
+        if (!alive) return;
+        setSong(data);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (!alive) return;
+        setSong(null);
+      })
+      .finally(() => {
+        if (!alive) return;
+        setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [songId]);
+
+  //.mp3 제거
+  const stripMP3 = (name) => (name ? name.replace(/\.mp3$/i, '') : '');
+  //제목 표시할 때 적용
+  const titleText = song?.title ? stripMP3(song.title) : 'LOADING...';
+  //난이도는 서버값 우선
+  const diffText = String(song?.diff ?? diff ?? 'UNKNOWN').toUpperCase();
+
   return (
     <div
       style={{
@@ -13,8 +63,6 @@ export default function LeftSidebar({diff }) {
         position: 'fixed',
         top: HEADER_HEIGHT + 'px',
         left: 0,
-        maskImage: 'linear-gradient(to bottom, black 78%, transparent 100%)',
-        WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
       }}
     >
       <div
@@ -25,14 +73,36 @@ export default function LeftSidebar({diff }) {
           width: '5px',
           height: '100%',
           background: 'linear-gradient(to bottom, #ff0000ff, #ff00eaff, #5aeaff)',
-          boxShadow: `0 0 6px rgba(255,80,80,0.8),0 0 12px rgba(255,80,200,0.6),0 0 20px rgba(90,234,255,0.5)`,
+          boxShadow: `0 0 6px rgba(255,80,80,0.8),
+                      0 0 12px rgba(255,80,200,0.6),
+                      0 0 20px rgba(90,234,255,0.5)`,
           pointerEvents: 'none',
         }}
       />
+
       <div style={{ fontSize: '20px', fontWeight: 700 }}>
-        곡 제목
+        {titleText}
+        {loading && (
+          <span style={{ marginLeft: '8px', fontSize: '12px', opacity: 0.6 }}>
+            LOADING...
+          </span>
+        )}
       </div>
-        <div style={{ marginTop: '12px' }}>
+
+      <div style={{ marginTop: '12px' }}>
+        {song?.coverPath ? (
+          <img
+            src={`/api/ai/song/${songId}/cover`}
+            alt="cover"
+            style={{
+              width: '200px',
+              height: '200px',
+              borderRadius: '6px',
+              objectFit: 'cover',
+              border: '2px solid rgba(255,255,255,0.2)',
+            }}
+          />
+        ) : (
           <div
             style={{
               width: '200px',
@@ -47,11 +117,13 @@ export default function LeftSidebar({diff }) {
               opacity: 0.7,
             }}
           >
-            앨범커버
+            NO COVER
           </div>
+        )}
       </div>
+
       <div style={{ marginTop: '6px', fontSize: '14px', opacity: 0.8 }}>
-        난이도: {String(diff).toUpperCase()}
+        난이도: {diffText}
       </div>
     </div>
   );

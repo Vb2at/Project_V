@@ -1,8 +1,14 @@
 package com.V_Beat.ai.service;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
+import org.jaudiotagger.audio.AudioFile;
+import org.jaudiotagger.audio.AudioFileIO;
+import org.jaudiotagger.tag.Tag;
+import org.jaudiotagger.tag.images.Artwork;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
@@ -111,8 +117,11 @@ public class AiAnalyzeService {
 		//song 테이블 저장
 		Song song = new Song();
 		song.setTitle(file.getOriginalFilename());
-		song.setFilePath(null); //추후 수정
-		
+		song.setFilePath(null); //file 저장 후 update
+		song.setArtist("unknown");  //프론트에서 입력받거나, 메타 태그 파싱해서 업데이트 가능
+		song.setDuration("0"); 
+		song.setDiff(diff);  //PathVariavble로 받은 diff 저장
+		song.setCoverPath(null);   //아직 업로드 전이면 null
 		this.aiAnalyzeDao.insertSong(song);
 		Long songId = song.getId();
 		
@@ -134,6 +143,13 @@ public class AiAnalyzeService {
 		song.setFilePath(savedPath);
 		this.aiAnalyzeDao.updateSongFilePath(song);
 		
+		//커버 추출
+		String coverPath = extractAndSaveCover(savedPath, songId);
+		if (coverPath != null) {
+		    song.setCoverPath(coverPath);
+		    this.aiAnalyzeDao.updateSongCoverPath(song);
+		}
+
 		//note 테이블 저장
 		for(JsonNode noteNode : notesNode) {
 			
@@ -168,4 +184,34 @@ public class AiAnalyzeService {
 	public Song getSong(Long songId) {
 		return this.aiAnalyzeDao.getSong(songId);
 	}
+	
+	//커버 추출
+	private String extractAndSaveCover(String mp3Path, Long songId) {
+	    try {
+	        AudioFile audioFile = AudioFileIO.read(new File(mp3Path));
+	        Tag tag = audioFile.getTag();
+	        if (tag == null) return null;
+
+	        Artwork artwork = tag.getFirstArtwork();
+	        if (artwork == null) return null;
+
+	        byte[] imageData = artwork.getBinaryData();
+	        if (imageData == null || imageData.length == 0) return null;
+
+	        String ext = "jpg";
+	        String mime = artwork.getMimeType();
+	        if (mime != null && mime.contains("png")) ext = "png";
+
+	        String coverDir = "C:/VBeat/upload/covers";
+	        Files.createDirectories(Path.of(coverDir));
+
+	        String coverPath = coverDir + "/" + songId + "." + ext;
+	        Files.write(Path.of(coverPath), imageData);
+
+	        return coverPath;
+	    } catch (Exception e) {
+	        // 커버 없는 mp3도 많음 → 정상 케이스
+	        return null;
+	    }
+    }
 }

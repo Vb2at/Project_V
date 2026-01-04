@@ -82,5 +82,35 @@ public class AiAnalyzeController {
 	public ResponseEntity<SongNotesResult> getNotes(@PathVariable Long songId) {
 		return ResponseEntity.ok(this.aiAnalyzeService.getSongNotes(songId));
 	}
+	
+	@GetMapping("/song/{songId}/cover")
+	public ResponseEntity<Resource> getCover(@PathVariable Long songId) {
+	    Song song = this.aiAnalyzeService.getSong(songId);
+	    if (song == null) return ResponseEntity.notFound().build();
 
+	    String path = song.getCoverPath();
+	    if (path == null || path.isBlank()) return ResponseEntity.notFound().build();
+
+	    File file = new File(path);
+	    if (!file.exists()) return ResponseEntity.notFound().build();
+
+	    MediaType type = path.endsWith(".png")
+	            ? MediaType.IMAGE_PNG
+	            : MediaType.IMAGE_JPEG;
+
+	    Resource resource = new FileSystemResource(file);
+	    return ResponseEntity.ok()
+	            .contentType(type)
+	            .contentLength(file.length())
+	            .body(resource);
+	}
+	
+	@GetMapping("/song/{songId}")
+	public ResponseEntity<Song> getSongInfo(@PathVariable Long songId) {
+	    Song song = this.aiAnalyzeService.getSong(songId);
+	    if (song == null) {
+	        return ResponseEntity.notFound().build();
+	    }
+	    return ResponseEntity.ok(song);
+	}
 }

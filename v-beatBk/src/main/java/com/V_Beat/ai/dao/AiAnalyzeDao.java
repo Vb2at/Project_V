@@ -16,8 +16,8 @@ import com.V_Beat.dto.Song;
 public interface AiAnalyzeDao {
 	
 	@Insert("""
-			INSERT INTO song(title, file_path)
-			VALUES (#{title}, #{filePath})
+			INSERT INTO song(title, artist, duration, diff, file_path, cover_path)
+			VALUES (#{title}, #{artist}, #{duration}, #{diff}, #{filePath}, #{coverPath})
 			""")
 	@Options(useGeneratedKeys = true, keyProperty = "id")
 	//DB에서 자동으로 생성된 PK를 INSERT 직후 id 필드에 다시 채워주는 옵션
@@ -45,10 +45,24 @@ public interface AiAnalyzeDao {
 	void updateSongFilePath(Song song);
 	
 	@Select("""
-			SELECT id, title, file_path AS filePath
-				FROM song
-				WHERE id = #{songId}
-			""")
+		    SELECT id,
+		           title,
+		           artist,
+		           duration,
+		           diff,
+		           file_path AS filePath,
+		           cover_path AS coverPath,
+		           create_date AS createDate
+		      FROM song
+		     WHERE id = #{songId}
+		""")
 	Song getSong(Long songId);
+	
+	@Update("""
+		    UPDATE song
+		       SET cover_path = #{coverPath}
+		     WHERE id = #{id}
+		""")
+	void updateSongCoverPath(Song song);
 	
 }
