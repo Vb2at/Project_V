@@ -20,7 +20,7 @@ export default function LeftSidebar({ songId, diff }) {
     let alive = true;
     setLoading(true);
 
-    fetch(`/api/ai/song/${songId}`)
+    fetch(`/api/songs/${songId}`)
       .then((res) => {
         if (!res.ok) throw new Error('song fetch failed');
         return res.json();
@@ -89,10 +89,14 @@ export default function LeftSidebar({ songId, diff }) {
         )}
       </div>
 
+      <div style={{ fontSize: '14px', fontWeight: 400, marginTop: '5px'}}>
+        {song?.artist || "UNKNOWN ARTIST"} 
+      </div>
+
       <div style={{ marginTop: '12px' }}>
         {song?.coverPath ? (
           <img
-            src={`/api/ai/song/${songId}/cover`}
+            src={`/api/songs/${songId}/cover`}
             alt="cover"
             style={{
               width: '200px',

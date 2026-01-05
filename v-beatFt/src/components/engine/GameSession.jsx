@@ -146,10 +146,10 @@ export default function GameSession({ onState }) {
     if (!sid) return false;
 
     // 오디오 URL 세팅
-    setAudioUrl(`${API_BASE}/api/ai/song/${sid}/audio`);
+    setAudioUrl(`${API_BASE}/api/songs/${sid}/audio`);
 
     // 노트 로드
-    const notesRes = await fetch(`${API_BASE}/api/ai/song/${sid}/notes`);
+    const notesRes = await fetch(`${API_BASE}/api/songs/${sid}/notes`);
     if (!notesRes.ok) return false;
 
     const notesJson = await notesRes.json();

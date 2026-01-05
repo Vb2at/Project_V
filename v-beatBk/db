@@ -35,11 +35,14 @@ CREATE TABLE song(
     diff ENUM('easy','normal','hard') NOT NULL DEFAULT 'normal',
     file_path VARCHAR(500) NULL,
     create_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    cover_path VARCHAR(500) NULL
+    cover_path VARCHAR(500) NULL,
+    is_public BOOLEAN NOT NULL DEFAULT FALSE
 );
-
 SELECT * FROM song;
-
+DROP TABLE song;
+UPDATE song
+   SET is_public = TRUE
+ WHERE id = 6; 
 
 CREATE TABLE note(
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

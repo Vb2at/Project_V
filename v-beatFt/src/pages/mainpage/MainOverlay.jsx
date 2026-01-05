@@ -19,6 +19,74 @@ export default function MainOverlay() {
 
   const [selectedIndex, setSelectedIndex] = useState(0);
 
+  //loading / errorMsg 상태 (지금 코드에서 setLoading/setErrorMsg 쓰고 있어서 필수)
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  //서버에서 받아온 공개곡을 여기에 덮어씀 (없으면 dummySongs 사용)
+  const [songs, setSongs] = useState(dummySongs);
+
+  //공개곡 목록: GET /api/songs
+  useEffect(() => {
+    let mounted = true;
+
+    const loadPublicSongs = async () => {
+      try {
+        setLoading(true);
+        setErrorMsg('');
+
+        const res = await fetch('/api/songs', {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          credentials: 'include',
+        });
+
+        if (!res.ok) throw new Error(`곡 목록 요청 실패 (${res.status})`);
+
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : [];
+
+        // UI에서 쓰는 형태로 최소 가공 (title/artist/cover)
+        const mapped = list.map((s) => ({
+          id: s.id,
+          title: (s.title ?? '(no title)').replace(/\.mp3$/i, ''),
+          artist: s.artist ?? 'unknown',
+          // coverPath가 있든 없든, 커버는 엔드포인트로 가져오는 구조니까 url만 만들어주면 됨
+          cover: s.coverPath ? `/api/songs/${s.id}/cover` : null,
+        }));
+
+        if (!mounted) return;
+
+        // 서버에서 곡이 오면 dummySongs 대신 덮어씀
+        if (mapped.length > 0) {
+          setSongs(mapped);
+          setSelectedIndex(0);
+        }
+      } catch (err) {
+        if (!mounted) return;
+        setErrorMsg(err?.message ?? '곡 목록 불러오기 실패');
+        // 실패해도 dummySongs로 화면은 유지
+      } finally {
+        if (!mounted) return;
+        setLoading(false);
+      }
+    };
+
+    loadPublicSongs();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // songs 길이가 바뀌면 selectedIndex 범위 보정
+  useEffect(() => {
+    if (!songs.length) {
+      setSelectedIndex(0);
+      return;
+    }
+    setSelectedIndex((prev) => Math.max(0, Math.min(songs.length - 1, prev)));
+  }, [songs.length]);
+
   /* ===============================
      Wheel: 한 번에 한 칸
   =============================== */
@@ -26,13 +94,12 @@ export default function MainOverlay() {
     e.preventDefault();
     if (wheelLockRef.current) return;
 
+    if (!songs.length) return;
+
     const dir = Math.sign(e.deltaY);
     if (dir === 0) return;
 
-    const nextIndex = Math.max(
-      0,
-      Math.min(dummySongs.length - 1, selectedIndex + dir)
-    );
+    const nextIndex = Math.max(0, Math.min(songs.length - 1, selectedIndex + dir));
     if (nextIndex === selectedIndex) return;
 
     wheelLockRef.current = true;
@@ -53,12 +120,10 @@ export default function MainOverlay() {
       // ↑ ↓ 이동
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
+        if (!songs.length) return; 
 
         const dir = e.key === 'ArrowDown' ? 1 : -1;
-        const nextIndex = Math.max(
-          0,
-          Math.min(dummySongs.length - 1, selectedIndex + dir)
-        );
+        const nextIndex = Math.max(0, Math.min(songs.length - 1, selectedIndex + dir));
         if (nextIndex === selectedIndex) return;
 
         keyLockRef.current = true;
@@ -72,16 +137,18 @@ export default function MainOverlay() {
       // Enter 확정
       if (e.key === 'Enter') {
         e.preventDefault();
-        console.log('선택 확정:', dummySongs[selectedIndex]);
+        if (!songs.length) return; 
+
+        console.log('선택 확정:', songs[selectedIndex]);
         // TODO: 게임 시작 / 라우팅
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIndex]);
+  }, [selectedIndex, songs]);
 
-  const selectedSong = dummySongs[selectedIndex];
+  const selectedSong = songs[selectedIndex];
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -126,7 +193,7 @@ export default function MainOverlay() {
               flexShrink: 0,
             }}
           >
-            {!selectedSong?.cover && 'ALBUM'}
+            {!selectedSong?.cover && (loading ? 'LOADING...' : 'ALBUM')}
           </div>
 
           {/* Game List */}
@@ -139,6 +206,7 @@ export default function MainOverlay() {
               perspective: '900px',
             }}
           >
+
             {/* 고정 포커스 라인 */}
             <div
               style={{
@@ -162,13 +230,11 @@ export default function MainOverlay() {
                 top: '50%',
                 left: 0,
                 right: 0,
-                transform: `translateY(calc(-${selectedIndex * ITEM_HEIGHT}px - ${
-                  ITEM_HEIGHT / 2
-                }px))`,
+                transform: `translateY(calc(-${selectedIndex * ITEM_HEIGHT}px - ${ITEM_HEIGHT / 2}px))`,
                 transition: 'transform 0.25s ease-out',
               }}
             >
-              {dummySongs.map((song, index) => {
+              {songs.map((song, index) => {
                 const d = index - selectedIndex;
                 const a = Math.abs(d);
 
@@ -189,20 +255,11 @@ export default function MainOverlay() {
                       flexDirection: 'column',
                       justifyContent: 'center',
                       borderBottom: '1px solid rgba(255,255,255,0.1)',
-
-                      transform: `
-                        translateY(${y}px)
-                        translateZ(${z}px)
-                        scale(${scale})
-                      `,
+                      transform: `translateY(${y}px) translateZ(${z}px) scale(${scale})`,
                       opacity,
                       transition: 'transform 0.2s, opacity 0.2s',
                       cursor: 'pointer',
-
-                      background:
-                        index === selectedIndex
-                          ? 'rgba(255,255,255,0.08)'
-                          : 'transparent',
+                      background: index === selectedIndex ? 'rgba(255,255,255,0.08)' : 'transparent',
                     }}
                   >
                     <div
@@ -217,8 +274,7 @@ export default function MainOverlay() {
                     <div
                       style={{
                         fontSize: '14px',
-                        color:
-                          index === selectedIndex ? '#cfd8e3' : '#7f8fa6',
+                        color: index === selectedIndex ? '#cfd8e3' : '#7f8fa6',
                       }}
                     >
                       {song.artist}

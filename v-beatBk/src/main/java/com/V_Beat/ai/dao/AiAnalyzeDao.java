@@ -5,10 +5,8 @@ import java.util.List;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
-import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
-import com.V_Beat.ai.dto.NoteResult;
 import com.V_Beat.dto.Note;
 import com.V_Beat.dto.Song;
 
@@ -28,14 +26,6 @@ public interface AiAnalyzeDao {
 			VALUES (#{songId}, #{type}, #{endTime}, #{noteTime}, #{lane})
 			""")
 	void insertNote(Note note);
-	
-	@Select("""
-			SELECT note_time AS time, lane, `type`, end_time AS endTime
-				FROM note
-				WHERE song_id = #{songId}
-				ORDER BY note_time ASC
-			""")
-	List<NoteResult> getSongNotes(Long songId);
 
 	@Update("""
 			UPDATE song
@@ -44,25 +34,18 @@ public interface AiAnalyzeDao {
 			""")
 	void updateSongFilePath(Song song);
 	
-	@Select("""
-		    SELECT id,
-		           title,
-		           artist,
-		           duration,
-		           diff,
-		           file_path AS filePath,
-		           cover_path AS coverPath,
-		           create_date AS createDate
-		      FROM song
-		     WHERE id = #{songId}
-		""")
-	Song getSong(Long songId);
-	
 	@Update("""
 		    UPDATE song
 		       SET cover_path = #{coverPath}
-		     WHERE id = #{id}
+			   WHERE id = #{id}
 		""")
 	void updateSongCoverPath(Song song);
-	
+
+	@Update("""
+			UPDATE song
+				SET artist = #{artist},
+					duration = #{duration}
+				WHERE id = #{id}
+			""")
+	void updateSongMeta(Song s);
 }
