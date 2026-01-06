@@ -1,6 +1,8 @@
 // pages/mainpage/MainOverlay.jsx
 import { useRef, useState, useEffect } from 'react';
 import Header from '../../components/Common/Header';
+import { useNavigate } from 'react-router-dom';
+
 
 const dummySongs = [
   { id: 1, title: 'Song A', artist: 'Artist A', cover: null },
@@ -14,6 +16,7 @@ const ITEM_HEIGHT = 72;
 const INPUT_LOCK_MS = 50;
 
 export default function MainOverlay() {
+  const navigate = useNavigate();
   const wheelLockRef = useRef(false);
   const keyLockRef = useRef(false);
 
@@ -51,8 +54,11 @@ export default function MainOverlay() {
           id: s.id,
           title: (s.title ?? '(no title)').replace(/\.mp3$/i, ''),
           artist: s.artist ?? 'unknown',
-          // coverPath가 있든 없든, 커버는 엔드포인트로 가져오는 구조니까 url만 만들어주면 됨
           cover: s.coverPath ? `/api/songs/${s.id}/cover` : null,
+
+          bpm: typeof s.bpm === 'number' ? s.bpm : null,
+          lengthSec: typeof s.length === 'number' ? s.length : null,
+          difficulties: Array.isArray(s.difficulties) ? s.difficulties : [],
         }));
 
         if (!mounted) return;
@@ -120,7 +126,7 @@ export default function MainOverlay() {
       // ↑ ↓ 이동
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
-        if (!songs.length) return; 
+        if (!songs.length) return;
 
         const dir = e.key === 'ArrowDown' ? 1 : -1;
         const nextIndex = Math.max(0, Math.min(songs.length - 1, selectedIndex + dir));
@@ -137,10 +143,10 @@ export default function MainOverlay() {
       // Enter 확정
       if (e.key === 'Enter') {
         e.preventDefault();
-        if (!songs.length) return; 
+        if (!songs.length) return;
 
         console.log('선택 확정:', songs[selectedIndex]);
-        // TODO: 게임 시작 / 라우팅
+        navigate(`/game/play?songId=${songs[selectedIndex].id}`);
       }
     };
 
@@ -167,7 +173,7 @@ export default function MainOverlay() {
           style={{
             position: 'absolute',
             left: '15%',
-            top: '50%',
+            top: '40%',
             transform: 'translateY(-50%)',
             width: '48%',
             height: '62%',
@@ -175,25 +181,123 @@ export default function MainOverlay() {
             gap: '24px',
           }}
         >
-          {/* Album Cover */}
+
+
+          {/* Album + Detail Column */}
           <div
             style={{
-              width: '500px',
-              aspectRatio: '1 / 1',
-              borderRadius: '12px',
-              background: selectedSong?.cover
-                ? `url(${selectedSong.cover}) center / cover no-repeat`
-                : 'linear-gradient(135deg, #2a2f3a, #1c2028)',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
+              width: '400px',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#9aa6b2',
-              fontSize: '12px',
+              flexDirection: 'column',
+              gap: '14px',
               flexShrink: 0,
             }}
           >
-            {!selectedSong?.cover && (loading ? 'LOADING...' : 'ALBUM')}
+            {/* Album Cover */}
+            <div
+              style={{
+                aspectRatio: '1 / 1',
+                borderRadius: '12px',
+                background: selectedSong?.cover
+                  ? `url(${selectedSong.cover}) center / cover no-repeat`
+                  : 'linear-gradient(135deg, #2a2f3a, #1c2028)',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#9aa6b2',
+                fontSize: '12px',
+              }}
+            >
+              {!selectedSong?.cover && (loading ? 'LOADING...' : 'ALBUM')}
+            </div>
+
+            {/* Detail Area (하단) */}
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: '10px',
+                background: 'rgba(20,22,28,0.65)',
+                boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}
+            >
+              {selectedSong ? (
+                <>
+                  {/* Title */}
+                  <div
+                    style={{
+                      fontSize: '18px',
+                      fontWeight: 600,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {selectedSong.title}
+                  </div>
+
+                  {/* Artist */}
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      color: '#9aa6b2',
+                    }}
+                  >
+                    {selectedSong.artist}
+                  </div>
+
+                  {/* Divider */}
+                  <div
+                    style={{
+                      height: '1px',
+                      background: 'rgba(255,255,255,0.1)',
+                      margin: '4px 0',
+                    }}
+                  />
+
+                  {/* Meta Inline Row */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '12px',
+                      color: '#9aa6b2',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+
+                    {/* Length */}
+                    <span>
+                      <strong style={{ color: '#cfd8e3' }}>LENGTH</strong> --:--
+                    </span>
+
+                    <span style={{ opacity: 0.4 }}>•</span>
+
+                    {/* Difficulty */}
+                    <span style={{ display: 'flex', gap: '6px' }}>
+                      {['EASY', 'NORMAL', 'HARD', 'EXPERT'].map((d) => (
+                        <span
+                          key={d}
+                          style={{
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            background: 'rgba(255,255,255,0.08)',
+                            fontSize: '11px',
+                            opacity: 0.7,
+                          }}
+                        >
+                          {d}
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div style={{ opacity: 0.6 }}>곡을 선택해주세요</div>
+              )}
+            </div>
           </div>
 
           {/* Game List */}

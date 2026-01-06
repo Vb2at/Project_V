@@ -1,13 +1,12 @@
-import { getClassByRatio } from '../../util/scoreClass';
 
 // 클래스별 기준 및 색상 정의
 const CLASS_STEPS = [
-  { key: 'F', at: 0.00, color: '#555555' },
-  { key: 'D', at: 0.40, color: '#3f7cff' },
-  { key: 'C', at: 0.60, color: '#00e5ff' },
-  { key: 'B', at: 0.70, color: '#00ff6a' },
-  { key: 'A', at: 0.90, color: '#ffb300' },
-  { key: 'S', at: 1, color: '#ff1f8f' },
+  { key: 'F', at: 0.00, color: '#ff6b6b' },
+  { key: 'D', at: 0.40, color: '#b38cff' },
+  { key: 'C', at: 0.60, color: '#6fa8ff' },
+  { key: 'B', at: 0.70, color: '#7dff9a' },
+  { key: 'A', at: 0.90, color: '#6ffcff' },
+  { key: 'S', at: 1, color: '#ffd75e' },
 ];
 
 function getClassGradient(ratio) {

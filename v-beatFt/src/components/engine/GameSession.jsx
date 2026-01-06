@@ -7,7 +7,7 @@ import { NoteCalculator } from '../../core/judge/NoteCalculator';
 import { GAME_CONFIG } from '../../constants/GameConfig';
 import { playTapNormal, playTapAccent } from './SFXManager';
 
-export default function GameSession({ onState }) {
+export default function GameSession({ onState, paused, onReady, onFinish }) {
   const [notes, setNotes] = useState([
     // (fallback 더미) songId 로드되면 AI 노트로 덮어씀
     { lane: 3, timing: 500, type: 'tap', hit: false },
@@ -58,6 +58,9 @@ export default function GameSession({ onState }) {
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [pressedKeys, setPressedKeys] = useState(new Set());
+
+  const readyCalledRef = useRef(false);
+
   const [effects, setEffects] = useState([]);
 
   const notesRef = useRef(notes);
@@ -65,6 +68,10 @@ export default function GameSession({ onState }) {
 
   useEffect(() => {
     notesRef.current = notes;
+  }, [notes]);
+
+  useEffect(() => {
+    maxScoreRef.current = Math.max(1, calcMaxScore(notes));
   }, [notes]);
 
   // =========================
@@ -99,6 +106,80 @@ export default function GameSession({ onState }) {
 
   const [audioUrl, setAudioUrl] = useState('');
   const audioRef = useRef(null);
+  const finishedRef = useRef(false);
+  const scoreRef = useRef(0);
+  const maxScoreRef = useRef(1);
+
+  const getMaxJudgementScore = () => {
+    const vals = Object.values(GAME_CONFIG.SCORE).filter(
+      (v) => typeof v === 'number'
+    );
+    return vals.length ? Math.max(...vals) : 0;
+  };
+
+  const calcMaxScore = (list) => {
+    const maxJudge = getMaxJudgementScore();
+    return (Array.isArray(list) ? list : []).reduce((acc, n) => {
+      if (n.type === 'long') {
+        const dur = Math.max(0, (n.endTime ?? n.timing) - n.timing);
+        const ticks = Math.ceil(dur / 100); // 롱 보너스 100ms 기준
+        return acc + (ticks * (GAME_CONFIG.SCORE.LONG_BONUS ?? 0)) + maxJudge;
+      }
+      return acc + maxJudge;
+    }, 0);
+  };
+
+  useEffect(() => {
+    scoreRef.current = score;
+  }, [score]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !audioUrl) return;
+
+    readyCalledRef.current = false;
+    finishedRef.current = false;
+
+    const handleReady = () => {
+      if (readyCalledRef.current) return;
+      readyCalledRef.current = true;
+      onReady?.();
+    };
+
+    const handleEnded = () => {
+      if (finishedRef.current) return;
+      finishedRef.current = true;
+      onFinish?.({
+        score: scoreRef.current,
+        maxScore: maxScoreRef.current,
+      });
+    };
+
+    audio.src = audioUrl;
+    audio.currentTime = 0;
+
+    audio.addEventListener('canplay', handleReady, { once: true });
+    audio.addEventListener('ended', handleEnded);
+
+    const p = audio.play();
+    if (p && typeof p.catch === 'function') {
+      p.catch(() => { });
+    }
+
+    return () => {
+      audio.removeEventListener('canplay', handleReady);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [audioUrl]);
+
+
+
+
+  useEffect(() => {
+    if (!paused) {
+      setPressedKeys(new Set());
+    }
+  }, [paused]);
 
   const normalizeNotesFromApi = (payload) => {
     const list = Array.isArray(payload) ? payload : (payload?.notes || payload?.data || []);
@@ -185,28 +266,11 @@ export default function GameSession({ onState }) {
   //   if (!el) return;
   // }, [audioUrl]);
 
-  // 
-  useEffect(() => {
-  const audio = audioRef.current;
-  if (!audio || !audioUrl) return;
 
-  audio.src = audioUrl;
-  audio.currentTime = 0;
-
-  const p = audio.play();
-  if (p && typeof p.catch === 'function') {
-    p.catch((err) => {
-      console.warn('audio autoplay blocked:', err);
-      // 자동재생 막히면, 첫 키 입력 때 play() 다시 시키면 됨
-    });
-  }
-}, [audioUrl]);
-
-  // =========================
-  // 기존 로직 (최대한 유지)
-  // =========================
   useEffect(() => {
     const interval = setInterval(() => {
+      if (paused) return;
+
       setCurrentTime((prev) => {
         const newTime = prev + 16;
         currentTimeRef.current = newTime;
@@ -230,12 +294,12 @@ export default function GameSession({ onState }) {
     }, 16);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [paused]);
 
   useEffect(() => {
     const interval = setInterval(() => {
+      if (paused) return;
       const now = currentTimeRef.current;
-
       setNotes((prev) => {
         let missOccurred = false;
 
@@ -275,10 +339,11 @@ export default function GameSession({ onState }) {
     }, 50);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [paused]);
 
   useEffect(() => {
     const interval = setInterval(() => {
+      if (paused) return;
       const holdingNotes = notesRef.current.filter((n) => n.holding && !n.released);
       if (holdingNotes.length > 0) {
         const bonus = holdingNotes.length * GAME_CONFIG.SCORE.LONG_BONUS;
@@ -295,16 +360,17 @@ export default function GameSession({ onState }) {
     }, 100);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [paused]);
 
   useEffect(() => {
     const handleKeyPress = (laneIndex) => {
+      if (paused) return;
 
       //첫 입력 때 오디오 재생 보장(자동재생 막힘 대응)
       if (audioRef.current && audioRef.current.paused) {
-        audioRef.current.play().catch(() => {});
+        audioRef.current.play().catch(() => { });
       }
-      
+
       if (pressedKeys.has(laneIndex)) return;
       setPressedKeys((prev) => new Set(prev).add(laneIndex));
 
@@ -341,16 +407,16 @@ export default function GameSession({ onState }) {
             pe.some((e) => e.type === 'long' && e.noteId === noteId)
               ? pe
               : [
-                  ...pe,
-                  { type: 'long', lane: laneIndex, noteId },
-                  {
-                    type: 'judge',
-                    lane: laneIndex,
-                    judgement: result.judgement,
-                    combo: next,
-                    id: crypto.randomUUID(),
-                  },
-                ]
+                ...pe,
+                { type: 'long', lane: laneIndex, noteId },
+                {
+                  type: 'judge',
+                  lane: laneIndex,
+                  judgement: result.judgement,
+                  combo: next,
+                  id: crypto.randomUUID(),
+                },
+              ]
           );
           return next;
         });
@@ -421,6 +487,12 @@ export default function GameSession({ onState }) {
     const ih = new InputHandler(handleKeyPress, handleKeyRelease);
     return () => ih.destroy();
   }, [pressedKeys]);
+
+  useEffect(() => {
+    if (!paused && audioRef.current && audioRef.current.paused) {
+      audioRef.current.play().catch(() => { });
+    }
+  }, [paused]);
 
   return (
     <div

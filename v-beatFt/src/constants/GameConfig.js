@@ -33,7 +33,7 @@ export const GAME_CONFIG = {
     WIDTH: 1200,
     HEIGHT: 890,
     NOTE_HEIGHT: 60,
-    HIT_LINE_Y: 800,
+    HIT_LINE_Y: 760,
   },
 
   PERSPECTIVE: {
@@ -41,7 +41,7 @@ export const GAME_CONFIG = {
     SCALE_MAX: 1,
   },
 
-  SPEED: 0.5,
+  SPEED: 1.2,
 
   TAP_NOTE_COLOR: '#c8ff00ff',
   LONG_NOTE_COLOR: '#e64c4cff',
