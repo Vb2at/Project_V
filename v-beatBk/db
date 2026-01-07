@@ -32,29 +32,45 @@ CREATE TABLE song(
     title VARCHAR(100) NOT NULL,
     artist VARCHAR(100) NOT NULL,
     duration VARCHAR(200) NOT NULL,
-    diff ENUM('easy','normal','hard') NOT NULL DEFAULT 'normal',
+    diff ENUM('easy','normal','hard','hell') NOT NULL DEFAULT 'normal',
     file_path VARCHAR(500) NULL,
     create_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     cover_path VARCHAR(500) NULL,
-    is_public BOOLEAN NOT NULL DEFAULT FALSE
+    is_public boolean not null default false
 );
-SELECT * FROM song;
-DROP TABLE song;
+select * from song;
+
+drop table song;
+
 UPDATE song
    SET is_public = TRUE
- WHERE id = 6; 
+ WHERE id = 9; 
+ 
+SELECT note_time, lane, type, end_time, COUNT(*)
+FROM note
+WHERE song_id = 1
+GROUP BY note_time, lane, type, end_time
+HAVING COUNT(*) > 1;
 
-CREATE TABLE note(
+
+CREATE TABLE note (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     song_id BIGINT UNSIGNED NOT NULL,
-    note_time DECIMAL(10,3) NOT NULL,
+    note_time DECIMAL(10,3) NOT NULL,   -- Flask에서 3자리로 라운딩된 time
     lane TINYINT UNSIGNED NOT NULL,
     `type` ENUM('tap', 'long') NOT NULL DEFAULT 'tap',
-    end_time DECIMAL(10, 3) NULL,
+    end_time DECIMAL(10,3) NULL,        -- long만 사용, tap은 NULL
+    -- tap/end_time NULL 문제 해결용 (중복 방지 핵심)
+    end_time_nn DECIMAL(10,3)
+        GENERATED ALWAYS AS (IFNULL(end_time, -1.000)) STORED,
     create_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
+    -- 조회용 인덱스
     INDEX idx_song_time (song_id, note_time),
-    INDEX idx_song_end (song_id, end_time)
+    INDEX idx_song_end (song_id, end_time),
+    -- 🔒 최종 중복 차단 (같은 시각/레인/타입 노트 절대 불가)
+    UNIQUE KEY uq_note_dedup (song_id, note_time, lane, `type`, end_time_nn)
 );
 
-SELECT * FROM note;
+drop table note
+
+select * from note;

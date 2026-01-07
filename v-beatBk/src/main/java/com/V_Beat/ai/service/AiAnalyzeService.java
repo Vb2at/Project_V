@@ -1,6 +1,9 @@
 package com.V_Beat.ai.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.File;
+import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -31,6 +34,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @Service
 public class AiAnalyzeService {
 
+	private static Logger log = LoggerFactory.getLogger(AiAnalyzeService.class);
+	
 	// Flask 서버 분석 API (배포/분리 시 여기만 변경)
 	private static final String PYTHON_URL = "http://127.0.0.1:5000/analyze";
 
@@ -77,9 +82,22 @@ public class AiAnalyzeService {
 		ObjectMapper mapper = new ObjectMapper();
 		JsonNode root = mapper.readTree(json);
 		JsonNode notesNode = root.get("notes");
+		
+		// ✅ 원문 로그 (필요하면 한 번만)
+		log.info("[AI RAW] {}", json);
 
+		// (선택) signature/diff 같은 메타를 Flask가 내려주면 같이 확인
+		if (root.has("signature")) log.info("[AI SIGNATURE] {}", root.get("signature").asText());
+		if (root.has("diff")) log.info("[AI DIFF_ECHO] {}", root.get("diff").asText());
+
+		// ✅ notes 유효성 먼저 검사
 		if (notesNode == null || !notesNode.isArray()) {
-			throw new IllegalStateException("Flask 응답에 notes 배열이 없습니다.");
+		    throw new IllegalStateException("Flask 응답에 notes 배열이 없습니다.");
+		}
+
+		// ✅ notes 샘플 10개 찍기
+		for (int i = 0; i < Math.min(10, notesNode.size()); i++) {
+		    log.info("[AI NOTE {}] {}", i, notesNode.get(i).toString());
 		}
 
 		//3) song INSERT (id 생성)
@@ -118,26 +136,35 @@ public class AiAnalyzeService {
 			this.aiAnalyzeDao.updateSongCoverPath(song);
 		}
 
-		//8) notes INSERT
+		// 8) notes INSERT
 		for (JsonNode noteNode : notesNode) {
-			Note note = new Note();
-			note.setSongId(songId);
-			note.setNoteTime(noteNode.get("time").decimalValue());
-			note.setLane(noteNode.get("lane").intValue());
+		    Note note = new Note();
+		    note.setSongId(songId);
 
-			String type = (noteNode.has("type") && !noteNode.get("type").isNull()) ? noteNode.get("type").asText() : "tap";
-			note.setType(type);
+		    // ✅ time도 3자리 고정
+		    note.setNoteTime(
+		        noteNode.get("time").decimalValue().setScale(3, RoundingMode.HALF_UP)
+		    );
 
-			if ("long".equals(type)) {
-				if (!noteNode.has("endTime") || noteNode.get("endTime").isNull()) {
-					throw new IllegalArgumentException("long note requires endTime");
-				}
-				note.setEndTime(noteNode.get("endTime").decimalValue());
-			} else {
-				note.setEndTime(null);
-			}
+		    note.setLane(noteNode.get("lane").intValue());
 
-			this.aiAnalyzeDao.insertNote(note);
+		    String type = (noteNode.has("type") && !noteNode.get("type").isNull())
+		            ? noteNode.get("type").asText()
+		            : "tap";
+		    note.setType(type);
+
+		    if ("long".equals(type)) {
+		        if (!noteNode.has("endTime") || noteNode.get("endTime").isNull()) {
+		            throw new IllegalArgumentException("long note requires endTime");
+		        }
+		        note.setEndTime(
+		            noteNode.get("endTime").decimalValue().setScale(3, RoundingMode.HALF_UP)
+		        );
+		    } else {
+		        note.setEndTime(null);
+		    }
+
+		    this.aiAnalyzeDao.insertNote(note);
 		}
 
 		return songId;

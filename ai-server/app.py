@@ -1,318 +1,401 @@
 from flask import Flask, request, jsonify
 import librosa
 import numpy as np
-import os, tempfile
-from collections import deque
-
-print("APP.PY PATH =", os.path.abspath(__file__))
+import tempfile
+import os
+from collections import deque, Counter
 
 app = Flask(__name__)
 
-SPACE_LANE = 3
+# =========================
+# 고정 규칙
+# =========================
+LANES = list(range(7))      # 0~6
+SPACE = 3                   # SPACE lane
+CHORD_EXCLUDE = {SPACE}     # ✅ 동시탭에서 SPACE 무조건 제외
+EPS = 1e-6
 
-# ====== 전역 튜닝 ======
-GLOBAL_OFFSET = -0.096
-SEED = 42
+# =========================
+# 🔧 DB/정밀도 맞춤 (중요)
+# =========================
+TIME_DECIMALS = 3
+DEBUG_DUP = True
 
-# ✅ easy 체감 제어(핵심)
-MAX_NPS_EASY = 2.2     # easy: 1초에 최대 2~3개 정도
-EASY_KEEP = 0.30       # easy: onset 유지 확률
-
+# =========================
+# 난이도 프리셋
+# - post_long_gap: ✅ 롱 끝난 직후 같은 레인 탭 금지 시간(초)
+# - chord_prob: ✅ 동시탭 빈도(전체적으로 낮춤)
+# =========================
 PRESET = {
     "easy": {
-        "HARD_PCT": 87, "VERY_HARD_PCT": 93,
-        "SUBDIV_HARD": 1, "SUBDIV_VERY_HARD": 1,
-        "MIN_GAP_EASY": 0.22, "MIN_GAP_HARD": 0.18, "MIN_GAP_VERY_HARD": 0.16,
-        "CHORD_PROB_EASY": 0.0, "CHORD_PROB_HARD": 0.005, "CHORD_PROB_VERY_HARD": 0.008,
-        "CHORD_MIN_DIST": 2,
-        "LONG_THR_PCT": 45, "LONG_MIN_SEC": 0.7, "LONG_SNAP_MIN_SEC": 0.35,
-        "JUMP_STRENGTH_EASY": 0.25, "JUMP_STRENGTH_HARD": 0.4, "JUMP_STRENGTH_VERY_HARD": 0.45,
+        "grid_div": 1,
+        "keep": 0.33,
+        "max_nps": 2.5,
+        "min_tap_gap": 0.28,
+        "chord_prob": 0.015,      # ✅ 더 낮춤
+        "long_prob": 0.10,
+        "long_min": 0.45, "long_max": 0.95,
+        "long_cooldown": 1.10,
+        "climax_boost": 1.15,
+        "post_long_gap": 0.18,    # ✅ 롱 끝나고 0.18초는 같은 레인 탭 금지
     },
     "normal": {
-        "HARD_PCT": 67, "VERY_HARD_PCT": 73,
-        "SUBDIV_HARD": 2, "SUBDIV_VERY_HARD": 2,
-        "MIN_GAP_EASY": 0.12, "MIN_GAP_HARD": 0.1, "MIN_GAP_VERY_HARD": 0.1,
-        "CHORD_PROB_EASY": 0.005, "CHORD_PROB_HARD": 0.01, "CHORD_PROB_VERY_HARD": 0.015,
-        "CHORD_MIN_DIST": 2,
-        "LONG_THR_PCT": 58, "LONG_MIN_SEC": 0.45, "LONG_SNAP_MIN_SEC": 0.35,
-        "JUMP_STRENGTH_EASY": 0.5, "JUMP_STRENGTH_HARD": 0.6, "JUMP_STRENGTH_VERY_HARD": 0.6,
+        "grid_div": 2,
+        "keep": 0.38,
+        "max_nps": 3.2,
+        "min_tap_gap": 0.22,
+        "chord_prob": 0.020,      # ✅ 더 낮춤
+        "long_prob": 0.12,
+        "long_min": 0.50, "long_max": 1.10,
+        "long_cooldown": 0.95,
+        "climax_boost": 1.22,
+        "post_long_gap": 0.18,
     },
     "hard": {
-        "HARD_PCT": 47, "VERY_HARD_PCT": 53,
-        "SUBDIV_HARD": 2, "SUBDIV_VERY_HARD": 2,
-        "MIN_GAP_EASY": 0.085, "MIN_GAP_HARD": 0.065, "MIN_GAP_VERY_HARD": 0.065,
-        "CHORD_PROB_EASY": 0.015, "CHORD_PROB_HARD": 0.028, "CHORD_PROB_VERY_HARD": 0.029,
-        "CHORD_MIN_DIST": 3,
-        "LONG_THR_PCT": 55, "LONG_MIN_SEC": 0.3, "LONG_SNAP_MIN_SEC": 0.35,
-        "JUMP_STRENGTH_EASY": 0.7, "JUMP_STRENGTH_HARD": 0.8, "JUMP_STRENGTH_VERY_HARD": 0.8,
+        "grid_div": 4,
+        "keep": 0.50,
+        "max_nps": 4.6,
+        "min_tap_gap": 0.18,
+        "chord_prob": 0.045,      # ✅ 더 낮춤
+        "long_prob": 0.14,
+        "long_min": 0.55, "long_max": 1.25,
+        "long_cooldown": 0.85,
+        "climax_boost": 1.30,
+        "post_long_gap": 0.18,
+    },
+    "hell": {
+        "grid_div": 6,
+        "keep": 0.58,
+        "max_nps": 5.4,
+        "min_tap_gap": 0.16,
+        "chord_prob": 0.060,      # ✅ 더 낮춤
+        "long_prob": 0.16,
+        "long_min": 0.60, "long_max": 1.35,
+        "long_cooldown": 0.80,
+        "climax_boost": 1.35,
+        "post_long_gap": 0.18,
     },
 }
 
-def apply_preset(diff: str):
-    diff = (diff or "easy").lower()
-    cfg = PRESET.get(diff, PRESET["easy"])
-    globals().update(cfg)
-    return diff
+# =========================
+# 유틸
+# =========================
+def _safe_diff(s: str) -> str:
+    s = (s or "normal").strip().lower()
+    return s if s in PRESET else "normal"
 
-def clamp_time(t: float) -> float:
-    return 0.0 if t < 0.0 else t
+def _clamp(x, a, b):
+    return a if x < a else b if x > b else x
 
-def make_subgrid(beat_times: np.ndarray, subdiv: int) -> np.ndarray:
-    if beat_times is None or len(beat_times) < 2:
-        return beat_times
-    grid = []
-    for i in range(len(beat_times) - 1):
-        a, b = float(beat_times[i]), float(beat_times[i + 1])
-        for k in range(subdiv):
-            grid.append(a + (b - a) * (k / subdiv))
-    grid.append(float(beat_times[-1]))
-    return np.array(grid, dtype=float)
+def _time_to_idx(t, sr, hop):
+    return int(np.clip(round(t * sr / hop), 0, 10**12))
 
-def snap_to_grid(t: float, grid: np.ndarray) -> float:
-    if grid is None or len(grid) == 0:
-        return t
-    idx = int(np.argmin(np.abs(grid - t)))
-    return float(grid[idx])
+def _norm01(x):
+    if len(x) == 0:
+        return x
+    mn, mx = float(np.min(x)), float(np.max(x))
+    if mx - mn < 1e-9:
+        return np.zeros_like(x, dtype=float)
+    return (x - mn) / (mx - mn)
 
-def cap_by_nps(times: list[float], max_nps: float) -> list[float]:
-    if not times:
-        return times
-    max_cnt = max(1, int(np.floor(max_nps)))  # 2.2 -> 2
-    q = deque()
+def _pick_lane(preferred, banned):
+    cand = [l for l in preferred if l not in banned]
+    if not cand:
+        return None
+    return int(np.random.choice(cand))
+
+def _lane_order(center=SPACE):
+    return sorted(LANES, key=lambda x: (abs(x - center), x))
+
+def _rt(x: float) -> float:
+    return float(round(x, TIME_DECIMALS))
+
+# =========================
+# 중복 제거
+# =========================
+def _dedup_notes(notes):
+    notes.sort(key=lambda x: (x["time"], x["lane"], 0 if x["type"] == "tap" else 1))
+    seen = set()
     out = []
-    for t in times:
-        while q and (t - q[0]) > 1.0:
-            q.popleft()
-        if len(q) >= max_cnt:
+    for n in notes:
+        key = (
+            int(n["lane"]),
+            float(n["time"]),
+            n["type"],
+            float(n["endTime"]) if n.get("endTime") is not None else None
+        )
+        if key in seen:
             continue
-        out.append(t)
-        q.append(t)
+        seen.add(key)
+        out.append(n)
     return out
 
-@app.get("/ping")
-def ping():
-    return jsonify({"ok": True, "version": "2026-01-07-debug"})
+def _debug_dup(notes, tag="AFTER_DEDUP"):
+    if not DEBUG_DUP:
+        return
+    ctr = Counter((n["lane"], n["time"], n["type"], n.get("endTime")) for n in notes)
+    dups = [(k, v) for k, v in ctr.items() if v > 1]
+    print(f"[{tag}] total={len(notes)} dup_keys={len(dups)}")
+    if dups:
+        print(f"[{tag}] sample_dup={dups[:10]}")
+
+# =========================
+# 핵심 생성기
+# =========================
+def generate_notes(audio_path: str, diff: str):
+    cfg = PRESET[diff]
+
+    y, sr = librosa.load(audio_path, sr=None, mono=True)
+    if y is None or len(y) < sr:
+        return [], 0.0
+
+    duration = float(librosa.get_duration(y=y, sr=sr))
+
+    tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr, start_bpm=120)
+    beat_times = librosa.frames_to_time(beat_frames, sr=sr)
+
+    if beat_times is None or len(beat_times) < 8:
+        bpm = float(tempo) if tempo and tempo > 0 else 120.0
+        beat_sec = 60.0 / bpm
+        beat_times = np.arange(0.0, duration, beat_sec)
+
+    hop = 512
+    onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop)
+    rms = librosa.feature.rms(y=y, frame_length=2048, hop_length=hop)[0]
+    onset_env = _norm01(onset_env)
+    rms = _norm01(rms)
+
+    grid_div = int(cfg["grid_div"])
+    grid_times = []
+    for i in range(len(beat_times) - 1):
+        a = float(beat_times[i])
+        b = float(beat_times[i + 1])
+        if b <= a + 0.02:
+            continue
+        step = (b - a) / grid_div
+        for k in range(grid_div):
+            t = a + k * step
+            if 0.0 <= t <= duration - 0.05:
+                grid_times.append(t)
+
+    if len(beat_times) >= 2:
+        tail_step = float(beat_times[-1] - beat_times[-2]) / grid_div
+        t = float(beat_times[-1])
+        for k in range(grid_div):
+            tt = t + k * tail_step
+            if tt <= duration - 0.05:
+                grid_times.append(tt)
+
+    grid_times = sorted({_rt(float(t)) for t in grid_times})
+    if not grid_times:
+        return [], duration
+
+    occupied_until = {l: -1e9 for l in LANES}   # ✅ tap/long 모두 점유 끝 시각(롱은 post_long_gap 포함)
+    last_tap_time = {l: -1e9 for l in LANES}
+    last_long_time = -1e9
+
+    win = 1.0
+    recent_times = deque()
+    notes = []
+
+    np.random.seed(42)
+
+    climax_start = duration * 0.85
+    lane_pref = _lane_order(center=SPACE)
+
+    TAP_OCC = 0.12
+    POST_LONG_GAP = float(cfg.get("post_long_gap", 0.12))  # ✅ 롱 후 여유
+
+    def can_place_tap(lane, time):
+        if (time - last_tap_time[lane]) < cfg["min_tap_gap"] - EPS:
+            return False
+        # ✅ 롱 끝난 직후 탭도 막기(occupied_until에 post_long_gap 반영됨)
+        if time < occupied_until[lane] - EPS:
+            return False
+        return True
+
+    def can_place_long(lane, time, end_time):
+        if time < occupied_until[lane] - EPS:
+            return False
+        if end_time <= time + 0.12:
+            return False
+        return True
+
+    for t in grid_times:
+        while recent_times and recent_times[0] < t - win:
+            recent_times.popleft()
+
+        in_climax = (t >= climax_start)
+        keep = cfg["keep"] * (cfg["climax_boost"] if in_climax else 1.0)
+        max_nps = cfg["max_nps"] * (1.12 if in_climax else 1.0)
+
+        if len(recent_times) >= max_nps - EPS:
+            continue
+
+        idx = _time_to_idx(t, sr, hop)
+        if idx >= len(onset_env):
+            idx = len(onset_env) - 1
+
+        o = float(onset_env[idx])
+        e = float(rms[idx])
+
+        strength = 0.65 * o + 0.35 * e
+        gate = _clamp(keep + 0.35 * strength, 0.0, 0.95)
+
+        if np.random.rand() > gate:
+            continue
+
+        # 타입 결정
+        want_long = False
+        if (t - last_long_time) >= cfg["long_cooldown"]:
+            long_bias = cfg["long_prob"] + 0.18 * e - 0.10 * o
+            if in_climax:
+                long_bias *= 0.92
+            long_bias = _clamp(long_bias, 0.02, 0.35)
+            want_long = (np.random.rand() < long_bias)
+
+        # 레인 선택
+        lane = None
+        chosen_end = None
+
+        for _ in range(24):
+            cand = _pick_lane(lane_pref, banned=set())
+            if cand is None:
+                break
+
+            if want_long:
+                length = float(np.random.uniform(cfg["long_min"], cfg["long_max"]))
+                end_t = _rt(min(duration - 0.02, t + length))
+                if can_place_long(cand, t, end_t):
+                    lane = cand
+                    chosen_end = end_t
+                    break
+            else:
+                if can_place_tap(cand, t):
+                    lane = cand
+                    break
+
+        if lane is None:
+            continue
+
+        # 1개 노트 확정
+        if want_long:
+            end_t = chosen_end
+            if end_t is None:
+                length = float(np.random.uniform(cfg["long_min"], cfg["long_max"]))
+                end_t = _rt(min(duration - 0.02, t + length))
+
+            if not can_place_long(lane, t, end_t):
+                continue
+
+            notes.append({
+                "lane": int(lane),
+                "time": _rt(t),
+                "type": "long",
+                "endTime": _rt(end_t),
+            })
+
+            # ✅ 롱 끝 + post_long_gap 만큼 같은 레인 탭 금지
+            occupied_until[lane] = end_t + POST_LONG_GAP
+            last_long_time = t
+            recent_times.append(t)
+
+        else:
+            notes.append({
+                "lane": int(lane),
+                "time": _rt(t),
+                "type": "tap",
+            })
+            occupied_until[lane] = max(occupied_until[lane], t + TAP_OCC)
+            last_tap_time[lane] = t
+            recent_times.append(t)
+
+        # =========================
+        # 동시탭(최대 2개)
+        # 1) SPACE 제외는 구조적으로 강제
+        # 2) 빈도 자체 낮춤 + 에너지 기반으로만 약간 가중(남발 방지)
+        # =========================
+        chord_p = float(cfg["chord_prob"])
+        # ✅ 강세/에너지 있을 때만 조금 올라가게(하지만 과하지 않게)
+        chord_gate = _clamp(chord_p * (0.65 + 0.35 * strength), 0.0, chord_p * 1.15)
+
+        if np.random.rand() < chord_gate:
+            # long 위에는 chord 더 안 얹음
+            if want_long and np.random.rand() < 0.70:
+                continue
+
+            # ✅ SPACE 무조건 제외 + 이미 쓴 lane 제외
+            banned = set(CHORD_EXCLUDE) | {lane}
+
+            chord_candidates = [l for l in LANES if l not in banned]
+            if not chord_candidates:
+                continue
+
+            chord_pref = sorted(
+                chord_candidates,
+                key=lambda x: (abs(x - lane) < 2, abs(x - SPACE), x)
+            )
+
+            chord_lane = None
+            for _ in range(24):
+                cand2 = _pick_lane(chord_pref, banned=set())
+                if cand2 is None:
+                    break
+                # ✅ tap만
+                if can_place_tap(cand2, t):
+                    chord_lane = cand2
+                    break
+
+            if chord_lane is not None:
+                notes.append({
+                    "lane": int(chord_lane),
+                    "time": _rt(t),
+                    "type": "tap",
+                })
+                occupied_until[chord_lane] = max(occupied_until[chord_lane], t + TAP_OCC)
+                last_tap_time[chord_lane] = t
+                # 동시 2개 카운트 반영
+                if len(recent_times) < max_nps - EPS:
+                    recent_times.append(t)
+
+    notes = _dedup_notes(notes)
+    _debug_dup(notes, "AFTER_DEDUP")
+    return notes, duration
+
+# =========================
+# API
+# =========================
+@app.get("/health")
+def health():
+    return jsonify({"ok": True})
 
 @app.post("/analyze")
 def analyze():
     if "file" not in request.files:
         return jsonify({"error": "file is required"}), 400
 
-    file = request.files["file"]
+    f = request.files["file"]
+    diff = _safe_diff(request.form.get("diff") or request.args.get("diff"))
 
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    suffix = os.path.splitext(f.filename or "")[1]
+    if suffix.lower() not in [".mp3", ".wav", ".ogg", ".flac", ".m4a"]:
+        suffix = ".mp3"
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     tmp_path = tmp.name
     tmp.close()
-    file.save(tmp_path)
-
-    diff = (request.form.get("diff") or "easy").strip().lower()
-    print("FLASK_DIFF =", diff)
-    diff = apply_preset(diff)
-
-    rng = np.random.default_rng(SEED) if SEED is not None else np.random.default_rng()
+    f.save(tmp_path)
 
     try:
-        y, sr = librosa.load(tmp_path, sr=None, mono=True)
-
-        tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr, units="frames")
-        beat_times = librosa.frames_to_time(beat_frames, sr=sr)
-
-        if beat_times is None or len(beat_times) < 2:
-            duration = float(librosa.get_duration(y=y, sr=sr))
-            beat_times = np.arange(0.0, duration, 0.5, dtype=float)
-        beat_times = np.array(beat_times, dtype=float)
-
-        onset_frames = librosa.onset.onset_detect(y=y, sr=sr, backtrack=False)
-        onset_times = librosa.frames_to_time(onset_frames, sr=sr)
-
-        hop = 512
-        rms = librosa.feature.rms(y=y, hop_length=hop)[0]
-        rms_times = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=hop)
-
-        win = 6
-        rms_smooth = np.convolve(rms, np.ones(win) / win, mode="same")
-
-        hard_thr = float(np.percentile(rms_smooth, HARD_PCT))
-        very_hard_thr = float(np.percentile(rms_smooth, VERY_HARD_PCT))
-
-        def energy_level(t: float) -> str:
-            i = int(np.argmin(np.abs(rms_times - t)))
-            e = float(rms_smooth[i])
-            if e >= very_hard_thr:
-                return "very_hard"
-            if e >= hard_thr:
-                return "hard"
-            return "easy"
-
-        thr_long = float(np.percentile(rms, LONG_THR_PCT))
-        mask = rms >= thr_long
-
-        long_segments = []
-        start = None
-        for i, m in enumerate(mask):
-            if m and start is None:
-                start = i
-            if (not m or i == len(mask) - 1) and start is not None:
-                end = i if not m else i
-                t0 = float(rms_times[start])
-                t1 = float(rms_times[end])
-                if t1 - t0 >= LONG_MIN_SEC:
-                    long_segments.append((t0, t1))
-                start = None
-
-        grid_easy = beat_times
-        grid_hard = make_subgrid(beat_times, SUBDIV_HARD)
-        grid_very_hard = make_subgrid(beat_times, SUBDIV_VERY_HARD)
-
-        def snap_time_by_energy(t: float) -> float:
-            if diff == "easy":
-                return snap_to_grid(t, grid_easy)
-            lv = energy_level(t)
-            if lv == "very_hard":
-                return snap_to_grid(t, grid_very_hard)
-            if lv == "hard":
-                return snap_to_grid(t, grid_hard)
-            return snap_to_grid(t, grid_easy)
-
-        snapped_longs = []
-        for (t0, t1) in long_segments:
-            s = snap_time_by_energy(t0)
-            e = snap_time_by_energy(t1)
-            if e - s >= LONG_SNAP_MIN_SEC:
-                snapped_longs.append((s, e))
-
-        def in_any_long(t: float) -> bool:
-            for s, e in snapped_longs:
-                if s <= t <= e:
-                    return True
-            return False
-
-        snapped_onsets = [snap_time_by_energy(float(t)) for t in onset_times]
-        snapped_onsets.sort()
-
-        filtered_onsets = []
-        last = -1e9
-        for t in snapped_onsets:
-            lv = "easy" if diff == "easy" else energy_level(t)
-            gap = MIN_GAP_EASY if lv == "easy" else (MIN_GAP_HARD if lv == "hard" else MIN_GAP_VERY_HARD)
-            if t - last >= gap:
-                filtered_onsets.append(t)
-                last = t
-
-        filtered_onsets = [t for t in filtered_onsets if not in_any_long(t)]
-        filtered_onsets = [round(float(t), 3) for t in filtered_onsets]
-        filtered_onsets.sort()
-
-        dedup = []
-        last_t = None
-        for t in filtered_onsets:
-            if last_t is None or t != last_t:
-                dedup.append(t)
-                last_t = t
-        filtered_onsets = dedup
-
-        if diff == "easy":
-            filtered_onsets = [t for t in filtered_onsets if rng.random() < EASY_KEEP]
-            filtered_onsets.sort()
-            filtered_onsets = cap_by_nps(filtered_onsets, MAX_NPS_EASY)
-
-        elif diff == "hard":
-            extra = []
-            onset_np = np.array(filtered_onsets, dtype=float) if filtered_onsets else np.array([], dtype=float)
-
-            for tg in grid_very_hard:
-                tg = float(tg)
-                if energy_level(tg) != "very_hard":
-                    continue
-                if in_any_long(tg):
-                    continue
-                if onset_np.size > 0 and np.min(np.abs(onset_np - tg)) < MIN_GAP_VERY_HARD:
-                    continue
-                if rng.random() < 0.25:
-                    extra.append(round(tg, 3))
-                    onset_np = np.append(onset_np, tg)
-
-            if extra:
-                filtered_onsets = sorted(filtered_onsets + extra)
-
-        notes = []
-        last_lane = None
-
-        def pick_lane(lv: str) -> int:
-            nonlocal last_lane
-            lanes = np.arange(7)
-
-            if last_lane is None:
-                lane = int(rng.integers(0, 7))
-                last_lane = lane
-                return lane
-
-            dist = np.abs(lanes - last_lane)
-            dist = np.minimum(dist, 7 - dist)
-
-            close_w = 1.0 / (dist + 1.0)
-            jump_w = (dist + 1.0)
-
-            if lv == "very_hard":
-                alpha = JUMP_STRENGTH_VERY_HARD
-            elif lv == "hard":
-                alpha = JUMP_STRENGTH_HARD
-            else:
-                alpha = JUMP_STRENGTH_EASY
-
-            weights = (1.0 - alpha) * close_w + alpha * jump_w
-            weights[last_lane] = 0.0
-            weights = weights / weights.sum()
-
-            lane = int(rng.choice(lanes, p=weights))
-            last_lane = lane
-            return lane
-
-        def pick_lane_far_from(base_lane: int) -> int:
-            candidates = [
-                i for i in range(7)
-                if i != base_lane and i != SPACE_LANE and abs(i - base_lane) >= CHORD_MIN_DIST
-            ]
-            if candidates:
-                return int(rng.choice(candidates))
-            return int((base_lane + 3) % 7)
-
-        def chord_prob(lv: str) -> float:
-            if diff == "easy":
-                return 0.0
-            if lv == "very_hard":
-                return CHORD_PROB_VERY_HARD
-            if lv == "hard":
-                return CHORD_PROB_HARD
-            return CHORD_PROB_EASY
-
-        for (s, e) in snapped_longs:
-            lv = "easy" if diff == "easy" else energy_level(s)
-            lane = pick_lane(lv)
-            st = clamp_time(float(s) + GLOBAL_OFFSET)
-            et = clamp_time(float(e) + GLOBAL_OFFSET)
-            notes.append({"time": round(st, 3), "lane": lane, "type": "long", "endTime": round(et, 3)})
-
-        for t in filtered_onsets:
-            lv = "easy" if diff == "easy" else energy_level(t)
-            lane1 = pick_lane(lv)
-            tt = clamp_time(float(t) + GLOBAL_OFFSET)
-            notes.append({"time": round(tt, 3), "lane": lane1, "type": "tap", "endTime": None})
-
-            if lane1 != SPACE_LANE and rng.random() < chord_prob(lv):
-                lane2 = pick_lane_far_from(lane1)
-                notes.append({"time": round(tt, 3), "lane": lane2, "type": "tap", "endTime": None})
-
-        notes.sort(key=lambda n: n["time"])
-
+        notes, duration = generate_notes(tmp_path, diff)
         return jsonify({
-            "version": "2026-01-07-debug",
-            "difficulty": diff,
-            "tempo": float(np.atleast_1d(tempo)[0]),
+            "diff": diff,
+            "duration": float(round(duration, 3)),
             "noteCount": len(notes),
             "notes": notes
         })
-
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
     finally:
         try:
             os.remove(tmp_path)
@@ -320,4 +403,4 @@ def analyze():
             pass
 
 if __name__ == "__main__":
-    app.run(port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)

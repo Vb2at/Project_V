@@ -292,7 +292,7 @@ export default function MainOverlay() {
 
                     {/* Difficulty */}
                     <span style={{ display: 'flex', gap: '6px' }}>
-                      {['EASY', 'NORMAL', 'HARD', 'EXPERT'].map((d) => {
+                      {['EASY', 'NORMAL', 'HARD', 'HELL'].map((d) => {
                         const active = d === (selectedSong.difficulty ?? selectedSong.diff);
 
                         return (

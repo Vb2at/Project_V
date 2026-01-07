@@ -10,51 +10,7 @@ import { playTapNormal, playTapAccent } from './SFXManager';
 export default function GameSession({ onState, paused, onReady, onFinish }) {
   const SAFE_SCORE = 300;
   const MISS_PENALTY = 150;
-  const [notes, setNotes] = useState([
-    // (fallback 더미) songId 로드되면 AI 노트로 덮어씀
-    { lane: 3, timing: 500, type: 'tap', hit: false },
-    { lane: 3, timing: 700, type: 'tap', hit: false },
-    { lane: 3, timing: 900, type: 'tap', hit: false },
-    { lane: 3, timing: 1100, type: 'tap', hit: false },
-    { lane: 3, timing: 1300, type: 'tap', hit: false },
-    { lane: 3, timing: 1500, type: 'tap', hit: false },
-    { lane: 3, timing: 1700, type: 'tap', hit: false },
-
-    // 2-4초: 롱노트 + 탭노트 혼합
-    { lane: 1, timing: 2000, endTime: 3000, type: 'long', hit: false, holding: false },
-    { lane: 5, timing: 2000, endTime: 3000, type: 'long', hit: false, holding: false },
-    { lane: 3, timing: 2500, type: 'tap', hit: false },
-    { lane: 0, timing: 3200, type: 'tap', hit: false },
-    { lane: 6, timing: 3400, type: 'tap', hit: false },
-
-    // 4-6초: 연속 탭노트
-    { lane: 0, timing: 4000, type: 'tap', hit: false },
-    { lane: 1, timing: 4200, type: 'tap', hit: false },
-    { lane: 2, timing: 4400, type: 'tap', hit: false },
-    { lane: 3, timing: 4600, type: 'tap', hit: false },
-    { lane: 4, timing: 4800, type: 'tap', hit: false },
-    { lane: 5, timing: 5000, type: 'tap', hit: false },
-    { lane: 6, timing: 5200, type: 'tap', hit: false },
-    { lane: 3, timing: 5400, type: 'tap', hit: false },
-    { lane: 1, timing: 5600, type: 'tap', hit: false },
-    { lane: 5, timing: 5800, type: 'tap', hit: false },
-
-    // 6-8초: 동시 롱노트
-    { lane: 0, timing: 6000, endTime: 7500, type: 'long', hit: false, holding: false },
-    { lane: 6, timing: 6000, endTime: 7500, type: 'long', hit: false, holding: false },
-    { lane: 3, timing: 6500, type: 'tap', hit: false },
-    { lane: 3, timing: 7000, type: 'tap', hit: false },
-
-    // 8-10초: 마무리 패턴
-    { lane: 2, timing: 8000, type: 'tap', hit: false },
-    { lane: 4, timing: 8200, type: 'tap', hit: false },
-    { lane: 1, timing: 8400, type: 'tap', hit: false },
-    { lane: 5, timing: 8600, type: 'tap', hit: false },
-    { lane: 3, timing: 8800, endTime: 9500, type: 'long', hit: false, holding: false },
-    { lane: 0, timing: 9600, type: 'tap', hit: false },
-    { lane: 6, timing: 9800, type: 'tap', hit: false },
-    { lane: 3, timing: 10000, type: 'tap', hit: false },
-  ]);
+  const [notes, setNotes] = useState([]);
 
   const [currentTime, setCurrentTime] = useState(0);
   const [score, setScore] = useState(0);

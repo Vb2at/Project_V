@@ -41,7 +41,7 @@ export const GAME_CONFIG = {
     SCALE_MAX: 1,
   },
 
-  SPEED: 0.75,
+  SPEED: 0.5,
 
   TAP_NOTE_COLOR: '#c8ff00ff',
   LONG_NOTE_COLOR: '#e64c4cff',
