@@ -23,10 +23,10 @@ export const GAME_CONFIG = {
   },
 
   SCORE: {
-    PERFECT: 300,
-    GOOD: 100,
+    PERFECT: 500,
+    GOOD: 300,
     MISS: 0,
-    LONG_BONUS: 10,
+    LONG_BONUS: 100,
   },
 
   CANVAS: {
