@@ -1,0 +1,107 @@
+/* =========================
+   common
+========================= */
+.visualizer {
+  display: flex;
+  align-items: flex-end;
+}
+
+/* =========================
+   small = 헤더용 (항상 표시)
+========================= */
+.visualizer--small {
+  width: 24px;
+  height: 12px;
+  gap: 4px;
+}
+
+.visualizer--small span {
+  width: 3px;
+  height: 10px;
+  background: linear-gradient(#5aeaff, #ff00ea);
+  border-radius: 2px;
+  animation: viz-pulse 0.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px rgba(90,234,255,0.6));
+  transform-origin: bottom;
+}
+
+.visualizer--small span:nth-child(1) { animation-delay: 0s; }
+.visualizer--small span:nth-child(2) { animation-delay: 0.1s; }
+.visualizer--small span:nth-child(3) { animation-delay: 0.2s; }
+.visualizer--small span:nth-child(4) { animation-delay: 0.3s; }
+
+@keyframes viz-pulse {
+  0%   { transform: scaleY(0.3); }
+  50%  { transform: scaleY(1.0); }
+  100% { transform: scaleY(0.3); }
+}
+
+/* =========================
+   game = 플레이 화면용
+========================= */
+.visualizer--game {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: -12px;
+
+  width: 100vw;           /* 화면 전체 폭 */
+  transform: none;       /* 중앙 보정 제거 */
+
+  height: 180px;
+  display: flex;
+  align-items: flex-end;
+  gap: 0px;
+
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* 막대 */
+.visualizer--game span {
+  flex: 1 1 0%;
+  height: 100%;
+  border-radius: 2px;
+  transform-origin: bottom;
+  transition: transform 0.05s linear;
+  
+  background: linear-gradient(
+    180deg,
+    #bfcfcf 0%,
+    #28ecf0 35%,
+    #02b8cc 60%,
+    #f73dc2 100%
+  );
+
+  filter:
+    drop-shadow(0 0 6px rgba(90,234,255,0.85))
+    drop-shadow(0 0 14px rgba(255,0,200,0.55));
+
+  opacity: 0.5;
+}
+
+/* 하단 글로우 반사 */
+.visualizer--game::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -28px;
+  height: 56px;
+
+  background: linear-gradient(
+    to bottom,
+    rgba(90,234,255,0.35),
+    rgba(255,0,200,0.18),
+    rgba(0,0,0,0)
+  );
+
+  filter: blur(14px);
+  pointer-events: none;
+}
+
+/* game 비활성 숨김 (small 영향 없음) */
+.visualizer--game:not(.is-active) {
+  opacity: 0;
+  pointer-events: none;
+}

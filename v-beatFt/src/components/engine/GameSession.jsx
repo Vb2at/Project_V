@@ -6,10 +6,11 @@ import { InputHandler } from '../../core/input/InputHandler';
 import { NoteCalculator } from '../../core/judge/NoteCalculator';
 import { GAME_CONFIG } from '../../constants/GameConfig';
 import { playTapNormal, playTapAccent } from './SFXManager';
+import Visualizer from '../visualizer/Visualizer';
 
-export default function GameSession({ onState, paused, onReady, onFinish }) {
+export default function GameSession({ onState, paused, bgmVolume, sfxVolume, onReady, onFinish }) {
   const SAFE_SCORE = 300;
-  const MISS_PENALTY = 150;
+  const MISS_PENALTY = 100;
   const [notes, setNotes] = useState([
     // (fallback 더미) songId 로드되면 AI 노트로 덮어씀
     { lane: 3, timing: 500, type: 'tap', hit: false },
@@ -57,11 +58,11 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
   ]);
 
   const [currentTime, setCurrentTime] = useState(0);
+  const [audioLevels, setAudioLevels] = useState([0, 0, 0, 0]);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [pressedKeys, setPressedKeys] = useState(new Set());
   const [effects, setEffects] = useState([]);
-  const [maxCombo, setMaxCombo] = useState(0);
   const passedSafeZoneRef = useRef(false);
   const readyCalledRef = useRef(false);
   const notesRef = useRef(notes);
@@ -76,6 +77,12 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
       return Math.max(0, s - MISS_PENALTY);
     });
   };
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.volume = bgmVolume;
+  }, [bgmVolume]);
+
   useEffect(() => {
     notesRef.current = notes;
   }, [notes]);
@@ -147,6 +154,9 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
 
   const [audioUrl, setAudioUrl] = useState('');
   const audioRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const analyserRef = useRef(null);
+  const dataArrayRef = useRef(null);
   const finishedRef = useRef(false);
   const scoreRef = useRef(0);
   const maxScoreRef = useRef(1);
@@ -202,6 +212,23 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
 
     audio.src = audioUrl;
     audio.currentTime = 0;
+
+    // WebAudio Analyser 연결 (1회)
+    if (!audioCtxRef.current) {
+      const ctx = new AudioContext();
+      const source = ctx.createMediaElementSource(audio);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      analyser.connect(ctx.destination);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      audioCtxRef.current = ctx;
+      analyserRef.current = analyser;
+      dataArrayRef.current = dataArray;
+    }
 
     audio.addEventListener('canplay', handleReady, { once: true });
     audio.addEventListener('ended', handleEnded);
@@ -313,6 +340,30 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
     const interval = setInterval(() => {
       if (paused || finishedRef.current) return;
 
+      // audio amplitude 측정
+      const analyser = analyserRef.current;
+      const dataArray = dataArrayRef.current;
+      if (analyser && dataArray) {
+        analyser.getByteFrequencyData(dataArray);
+        const BAR_COUNT = 64;
+        const bucketSize = Math.floor(dataArray.length / BAR_COUNT);
+        const levels = new Array(BAR_COUNT).fill(0);
+
+        for (let b = 0; b < BAR_COUNT; b++) {
+          let sum = 0;
+          const start = b * bucketSize;
+          const end = start + bucketSize;
+
+          for (let i = start; i < end; i++) {
+            sum += dataArray[i] || 0;
+          }
+
+          levels[b] = (sum / bucketSize) / 255; // 0~1 normalize
+        }
+
+        setAudioLevels(levels);
+      }
+
       setCurrentTime((prev) => {
         const newTime = prev + 16;
         currentTimeRef.current = newTime;
@@ -422,9 +473,9 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
       const ACCENT_LANES = new Set([1, 3, 5]);
 
       if (ACCENT_LANES.has(laneIndex)) {
-        playTapAccent();
+        playTapAccent(sfxVolume);
       } else {
-        playTapNormal();
+        playTapNormal(sfxVolume);
       }
 
       const result = NoteCalculator.judgeNote(laneIndex, currentTimeRef.current, notesRef.current);
@@ -448,7 +499,6 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
         setNotes((prev) => prev.map((n) => (n === note ? { ...n, hit: true, holding: true } : n)));
         setCombo((prev) => {
           const next = prev + 1;
-          setMaxCombo((m) => Math.max(m, next)); // ← 추가
 
           setEffects((pe) =>
             pe.some((e) => e.type === 'long' && e.noteId === noteId)
@@ -475,7 +525,6 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
       setNotes((prev) => prev.map((n) => (n === note ? { ...n, hit: true } : n)));
       setCombo((prev) => {
         const next = prev + 1;
-        setMaxCombo((m) => Math.max(m, next)); // ← 추가
 
         setEffects((eff) => [
           ...eff,
@@ -537,8 +586,13 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
   }, [pressedKeys]);
 
   useEffect(() => {
-    if (!paused && audioRef.current && audioRef.current.paused) {
-      audioRef.current.play().catch(() => { });
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (paused) {
+      audio.pause();
+    } else if (audio.paused) {
+      audio.play().catch(() => { });
     }
   }, [paused]);
 
@@ -563,9 +617,13 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
         currentTime={currentTime}
         pressedKeys={pressedKeys}
       />
-
       <PixiEffects effects={effects} />
       <audio ref={audioRef} />
+      <Visualizer
+        active={!paused}
+        levels={audioLevels}
+        size="game"
+      />
     </div>
   );
 }

@@ -2,6 +2,8 @@
 import { getClassByRatio } from "../../util/scoreClass";
 import Background from '../../components/Common/Background';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, } from 'react';
+import { playResultEnter, startResultBgm, stopResultBgm, playMenuConfirm, } from '../../components/engine/SFXManager';
 
 const GRADE_STYLE = {
   S: { color: '#ffd75e', glow: 'rgba(255,215,94,0.9)' },
@@ -15,6 +17,14 @@ const GRADE_STYLE = {
 export default function Result() {
   const { state } = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    playResultEnter(); 
+    startResultBgm();
+    return () => {
+      stopResultBgm();
+    };
+  }, []);
 
   const {
     score = 0,
@@ -116,7 +126,10 @@ export default function Result() {
             }}
           >
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                playMenuConfirm();
+                navigate(-1);
+              }}
               style={{
                 padding: '12px 28px',
                 borderRadius: 8,
@@ -131,7 +144,10 @@ export default function Result() {
             </button>
 
             <button
-              onClick={() => navigate('/main')}
+              onClick={() => {
+                playMenuConfirm();
+                navigate('/main');
+              }}
               style={{
                 padding: '12px 28px',
                 borderRadius: 8,

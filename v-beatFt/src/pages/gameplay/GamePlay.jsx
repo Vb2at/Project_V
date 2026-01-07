@@ -8,8 +8,8 @@ import HUD from './HUD.jsx';
 import HUDFrame from './HUDFrame.jsx';
 import { useNavigate } from 'react-router-dom';
 import LoadingNoteRain from './LoadingNoteRain';
-
-
+import { playCountTick, playCountStart } from '../../components/engine/SFXManager';
+import Visualizer from '../../components/visualizer/Visualizer';
 
 function GamePlay() {
   const getSongIdFromUrl = () => {
@@ -32,13 +32,41 @@ function GamePlay() {
   const [finished, setFinished] = useState(false);
   const [songProgress, setSongProgress] = useState(0);
   const [classProgress, setClassProgress] = useState(0);
+  const [userPaused, setUserPaused] = useState(false);
+  const [bgmVolume, setBgmVolume] = useState(1);   // 0~1
+  const [sfxVolume, setSfxVolume] = useState(1);   // 0~1
+  const [bgmMuted, setBgmMuted] = useState(false);
+  const [sfxMuted, setSfxMuted] = useState(false);
 
+
+  const effectiveBgmVolume = bgmMuted ? 0 : bgmVolume;
+  const effectiveSfxVolume = sfxMuted ? 0 : sfxVolume;
   const MIN_LOADING_TIME = 2500;
   const loadingStartRef = useRef(0);
   const loadingEndRef = useRef(null);
   const HEADER_HEIGHT = 25;
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.code !== 'Escape') return;
+
+      setUserPaused((p) => {
+        const next = !p;
+
+        // ▶ Pause → Resume 전환 시 카운트다운 재시작
+        if (p === true && next === false) {
+          setCountdown(3);
+        }
+
+        return next;
+      });
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => {
     const onPopState = () => {
@@ -86,10 +114,12 @@ function GamePlay() {
     if (countdown === null) return;
 
     if (countdown === 0) {
+      playCountStart();
       const raf = requestAnimationFrame(() => setCountdown(null));
       return () => cancelAnimationFrame(raf);
     }
 
+    playCountTick();
     const t = setTimeout(() => {
       setCountdown((c) => c - 1);
     }, 1000);
@@ -98,7 +128,7 @@ function GamePlay() {
   }, [countdown]);
 
   // 로딩 or 카운트 중에는 엔진 정지
-  const paused = !ready || countdown !== null;
+  const paused = userPaused || !ready || countdown !== null;
 
   return (
     <div
@@ -115,7 +145,6 @@ function GamePlay() {
 
       <LeftSidebar songId={songId} diff={diff} />
       <RightSidebar />
-
       <HUDFrame>
         <HUD
           score={score}
@@ -124,6 +153,8 @@ function GamePlay() {
           classProgress={classProgress}
         />
       </HUDFrame>
+      {/* 🎵 하단 비주얼라이저 (브라우저 기준 fixed) */}
+      <Visualizer size="game" active={!paused} />
 
       {/* ===== 로딩 화면 ===== */}
       {!ready && (
@@ -228,6 +259,8 @@ function GamePlay() {
       >
         <GameSession
           paused={paused}
+          bgmVolume={effectiveBgmVolume}
+          sfxVolume={effectiveSfxVolume}
           onReady={() => {
             loadingEndRef.current = performance.now();
             setLoadingDone(true);
@@ -254,6 +287,146 @@ function GamePlay() {
             });
           }}
         />
+
+        {/* ===== Pause Modal ===== */}
+        {userPaused && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.65)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 10000,
+            }}
+          >
+            <div
+              style={{
+                width: 460,
+                padding: 32,
+                borderRadius: 16,
+                background: '#5c5c5cff',
+                boxShadow: '0 0 40px rgba(255,0,0,0.45)',
+                color: '#fff',
+              }}
+            >
+              <h2 style={{ marginBottom: 24, textAlign: 'center' }}>일 시 정 지</h2>
+
+              {/*BGM */}
+              <div style={{ marginBottom: 20, textAlign: 'center' }}>
+                <div style={{ marginBottom: 6 }}>M U S I C</div>
+
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+                  <button
+                    onClick={() => setBgmMuted((m) => !m)}
+                    style={{
+                      width: 72,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: bgmMuted ? '#ff4d4d' : '#3a3a3aff',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {bgmMuted ? 'OFF' : 'ON'}
+                  </button>
+
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={bgmVolume}
+                    onChange={(e) => setBgmVolume(Number(e.target.value))}
+                    style={{ width: 220 }}
+                  />
+
+                </div>
+              </div>
+
+              {/* SFX */}
+              <div style={{ marginBottom: 28, textAlign: 'center' }}>
+                <div style={{ marginBottom: 6 }}>S F X</div>
+
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+                  <button
+                    onClick={() => setSfxMuted((m) => !m)}
+                    style={{
+                      width: 72,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: sfxMuted ? '#ff4d4d' : '#3a3a3aff',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {sfxMuted ? 'OFF' : 'ON'}
+                  </button>
+
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={sfxVolume}
+                    onChange={(e) => setSfxVolume(Number(e.target.value))}
+                    style={{ width: 220 }}
+                  />
+
+                </div>
+              </div>
+
+              {/* 버튼 */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 16,
+                  justifyContent: 'center',
+                }}
+              >
+                <button
+                  style={{
+                    flex: 1,
+                    background: 'linear-gradient(90deg, #ff3a3ab9, #ff009db0)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '10px 0',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setUserPaused(false);
+                    setCountdown(3);
+                  }}
+                >
+                  다시시작
+                </button>
+
+                <button
+                  style={{
+                    flex: 1,
+                    background: '#3a3a3aff',
+                    color: '#ddd',
+                    border: '1px solid #444',
+                    borderRadius: 8,
+                    padding: '10px 0',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => navigate('/main')}
+                >
+                  나가기
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ===== 카운트다운 ===== */}
         {countdown !== null && (
@@ -301,7 +474,7 @@ function GamePlay() {
           }
         `}
       </style>
-    </div>
+    </div >
   );
 }
 
