@@ -9,21 +9,9 @@ import HUDFrame from './HUDFrame.jsx';
 import { useNavigate } from 'react-router-dom';
 import LoadingNoteRain from './LoadingNoteRain';
 
+
+
 function GamePlay() {
-  const [score, setScore] = useState(0);
-  const [combo, setCombo] = useState(0);
-
-  const MIN_LOADING_TIME = 2500;
-
-  const loadingStartRef = useRef(0);
-  const [loadingDone, setLoadingDone] = useState(false);
-
-  const [loadingPercent, setLoadingPercent] = useState(0);
-  const [ready, setReady] = useState(false);
-  const [countdown, setCountdown] = useState(null);
-  const [dotCount, setDotCount] = useState(0);
-  const loadingEndRef = useRef(null);
-
   const getSongIdFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
     return params.get('songId') || '1';
@@ -35,15 +23,23 @@ function GamePlay() {
 
   const [songId, setSongId] = useState(getSongIdFromUrl());
   const [diff, setDiff] = useState(getDiffFromUrl());
-
+  const [score, setScore] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [loadingDone, setLoadingDone] = useState(false);
+  const [loadingPercent, setLoadingPercent] = useState(0);
+  const [ready, setReady] = useState(false);
+  const [countdown, setCountdown] = useState(null);
+  const [finished, setFinished] = useState(false);
   const [songProgress, setSongProgress] = useState(0);
   const [classProgress, setClassProgress] = useState(0);
 
-  const navigate = useNavigate();
-  const [finished, setFinished] = useState(false);
+  const MIN_LOADING_TIME = 2500;
+  const loadingStartRef = useRef(0);
+  const loadingEndRef = useRef(null);
   const HEADER_HEIGHT = 25;
 
-  // 주소 변경 반영
+  const navigate = useNavigate();
+
   useEffect(() => {
     const onPopState = () => {
       setSongId(getSongIdFromUrl());
@@ -84,18 +80,6 @@ function GamePlay() {
   useEffect(() => {
     loadingStartRef.current = performance.now();
   }, []);
-
-
-  // 로딩 중 점 애니메이션
-  useEffect(() => {
-    if (ready) return;
-
-    const i = setInterval(() => {
-      setDotCount((d) => (d + 1) % 4);
-    }, 300);
-
-    return () => clearInterval(i);
-  }, [ready]);
 
   // 카운트다운
   useEffect(() => {
@@ -208,7 +192,7 @@ function GamePlay() {
                     0 0 8px rgba(255,80,80,0.8),
                     0 0 16px rgba(255,0,0,0.6)
                   `,
-                  transition: 'none',
+                  transition: 'non',
                 }}
               />
             </div>
@@ -245,10 +229,12 @@ function GamePlay() {
         <GameSession
           paused={paused}
           onReady={() => {
-            loadingEndRef.current = performance.now(); 
+            loadingEndRef.current = performance.now();
             setLoadingDone(true);
           }}
           onState={({ score, combo, diff, currentTime, duration, maxScore }) => {
+            if (paused) return;
+
             setScore(score);
             setCombo(combo);
             if (diff) setDiff(diff);
@@ -260,10 +246,12 @@ function GamePlay() {
               maxScore > 0 ? Math.min(1, score / maxScore) : 0
             );
           }}
-          onFinish={({ score, maxScore }) => {
+          onFinish={({ score, maxScore, maxCombo }) => {
             if (finished) return;
             setFinished(true);
-            navigate('/game/result', { state: { score, maxScore } });
+            navigate('/game/result', {
+              state: { score, maxScore, maxCombo },
+            });
           }}
         />
 

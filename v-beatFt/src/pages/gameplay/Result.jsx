@@ -1,5 +1,7 @@
+// src/pages/gameplay/Result.jsx
 import { getClassByRatio } from "../../util/scoreClass";
 import Background from '../../components/Common/Background';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const GRADE_STYLE = {
   S: { color: '#ffd75e', glow: 'rgba(255,215,94,0.9)' },
@@ -10,7 +12,16 @@ const GRADE_STYLE = {
   F: { color: '#ff6b6b', glow: 'rgba(255,107,107,0.9)' },
 };
 
-export default function Result({ score = 0, maxScore = 1 }) {
+export default function Result() {
+  const { state } = useLocation();
+  const navigate = useNavigate();
+
+  const {
+    score = 0,
+    maxScore = 1,
+    maxCombo = 0,
+  } = state ?? {};
+
   const ratio = maxScore > 0 ? score / maxScore : 0;
   const grade = getClassByRatio(ratio);
   const gradeStyle = GRADE_STYLE[grade] ?? GRADE_STYLE.F;
@@ -18,9 +29,8 @@ export default function Result({ score = 0, maxScore = 1 }) {
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
       <Background />
-      <div/>
 
-      {/* ===== 중앙 정렬 ===== */}
+      {/* 중앙 정렬 */}
       <div
         style={{
           position: 'absolute',
@@ -28,90 +38,115 @@ export default function Result({ score = 0, maxScore = 1 }) {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          color: '#e6faff',
         }}
       >
-        {/* ===== 카드 래퍼 ===== */}
-        <div style={{ position: 'relative' }}>
-          {/* ===== 네온 윤곽선 ===== */}
-          <div
-            style={{
-              position: 'absolute',
-              inset: -6,
-              borderRadius: '22px',
-              background: 'rgba(255,80,80,0.45)',
-              filter: 'blur(10px)',
-              opacity: 0.8,
-            }}
-          />
+        {/* ===== 카드 + 버튼 전체 컨테이너 ===== */}
+        <div style={{ textAlign: 'center' }}>
 
-          {/* ===== 카드 본체 ===== */}
-          <div
-            style={{
-              position: 'relative',
-              padding: '48px 72px',
-              borderRadius: '16px',
-              background: '#111',
-              boxShadow: `
-                0 0 24px rgba(255,80,80,0.35),
-                0 0 48px rgba(255,0,0,0.25)
-              `,
-              textAlign: 'center',
-              animation: 'cardIn 800ms ease-out',
-            }}
-          >
-            <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: 6 }}>
-              RESULT
-            </div>
-
-            {/* ===== 등급 ===== */}
+          {/* ===== 카드 전용 래퍼 ===== */}
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            {/* 네온 윤곽 (카드 전용) */}
             <div
               style={{
-                marginTop: 28,
-                fontSize: 96,
-                fontWeight: 900,
-                color: gradeStyle.color,
-                textShadow: `
-                  0 0 12px ${gradeStyle.glow},
-                  0 0 32px ${gradeStyle.glow}
+                position: 'absolute',
+                inset: -8,
+                borderRadius: '22px',
+                background: 'rgba(255,80,80,0.45)',
+                filter: 'blur(12px)',
+                pointerEvents: 'none',
+                opacity: 0.6,
+              }}
+            />
+
+            {/* 카드 */}
+            <div
+              style={{
+                position: 'relative',
+                padding: '48px 72px',
+                borderRadius: '16px',
+                background: '#111',
+                isolation: 'isolate',
+                color: '#e6faff',
+                boxShadow: `
+                  0 0 24px rgba(255,80,80,0.35),
+                  0 0 48px rgba(255,0,0,0.25)
                 `,
-                animation: 'gradePop 1000ms ease-out',
               }}
             >
-              {grade}
-            </div>
+              <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: 6 }}>
+                S C O R E
+              </div>
 
-            <div style={{ marginTop: 24, fontSize: 20 }}>
-              점수: {score}
-            </div>
+              <div
+                style={{
+                  marginTop: 28,
+                  fontSize: 96,
+                  fontWeight: 900,
+                  color: gradeStyle.color,
+                  textShadow: `
+                    0 0 12px ${gradeStyle.glow},
+                    0 0 32px ${gradeStyle.glow}
+                  `,
+                }}
+              >
+                {grade}
+              </div>
 
-            <div style={{ marginTop: 12, opacity: 0.7 }}>
-              달성률: {(ratio * 100).toFixed(2)}%
+              <div style={{ marginTop: 24, fontSize: 20 }}>
+                점수: {score}
+              </div>
+
+              <div style={{ marginTop: 12, fontSize: 20 }}>
+                최대 콤보: {maxCombo}
+              </div>
+
+              <div style={{ marginTop: 12, opacity: 0.7 }}>
+                달성률: {(ratio * 100).toFixed(2)}%
+              </div>
             </div>
+          </div>
+
+          {/* ===== 버튼 (완전 독립) ===== */}
+          <div
+            style={{
+              marginTop: 28,
+              display: 'flex',
+              gap: 16,
+              justifyContent: 'center',
+            }}
+          >
+            <button
+              onClick={() => navigate(-1)}
+              style={{
+                padding: '12px 28px',
+                borderRadius: 8,
+                background: '#222',
+                color: '#fff',
+                border: '1px solid #555',
+                cursor: 'pointer',
+                fontSize: 16,
+              }}
+            >
+              다시하기
+            </button>
+
+            <button
+              onClick={() => navigate('/main')}
+              style={{
+                padding: '12px 28px',
+                borderRadius: 8,
+                background: '#222',
+                color: '#fff',
+                border: '1px solid #555',
+                cursor: 'pointer',
+                fontSize: 16,
+              }}
+            >
+              나가기
+            </button>
           </div>
         </div>
       </div>
-
-      {/* ===== 애니메이션 정의 ===== */}
-      <style>
-        {`
-          @keyframes bgPulse {
-            0%   { opacity: 1; }
-            50%  { opacity: 0.92; }
-            100% { opacity: 1; }
-          }
-
-          @keyframes cardIn {
-            0%   { opacity: 0; transform: scale(0.96); }
-            100% { opacity: 1; transform: scale(1); }
-          }
-
-          @keyframes gradePop {
-            0%   { transform: scale(0.7); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-          }
-        `}
-      </style>
     </div>
   );
 }

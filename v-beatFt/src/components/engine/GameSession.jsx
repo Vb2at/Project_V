@@ -8,6 +8,8 @@ import { GAME_CONFIG } from '../../constants/GameConfig';
 import { playTapNormal, playTapAccent } from './SFXManager';
 
 export default function GameSession({ onState, paused, onReady, onFinish }) {
+  const SAFE_SCORE = 300;
+  const MISS_PENALTY = 150;
   const [notes, setNotes] = useState([
     // (fallback 더미) songId 로드되면 AI 노트로 덮어씀
     { lane: 3, timing: 500, type: 'tap', hit: false },
@@ -58,14 +60,22 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [pressedKeys, setPressedKeys] = useState(new Set());
-
-  const readyCalledRef = useRef(false);
-
   const [effects, setEffects] = useState([]);
-
+  const [maxCombo, setMaxCombo] = useState(0);
+  const passedSafeZoneRef = useRef(false);
+  const readyCalledRef = useRef(false);
   const notesRef = useRef(notes);
   const currentTimeRef = useRef(0);
+  const maxComboRef = useRef(0);
 
+  const applyMissPenalty = () => {
+    setScore((s) => {
+      if (s >= SAFE_SCORE) {
+        return s - MISS_PENALTY;
+      }
+      return Math.max(0, s - MISS_PENALTY);
+    });
+  };
   useEffect(() => {
     notesRef.current = notes;
   }, [notes]);
@@ -74,6 +84,32 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
     maxScoreRef.current = Math.max(1, calcMaxScore(notes));
   }, [notes]);
 
+  useEffect(() => {
+    if (score >= SAFE_SCORE) {
+      passedSafeZoneRef.current = true;
+    }
+  }, [score]);
+
+  useEffect(() => {
+    if (
+      passedSafeZoneRef.current &&   // 세이프존 한번이라도 넘겼고
+      score <= 0 &&                  // 점수가 0이 되었고
+      !finishedRef.current           // 아직 종료 안 했으면
+    ) {
+      finishedRef.current = true;
+      audioRef.current?.pause();
+      onFinish?.({
+        score: 0,
+        maxScore: maxScoreRef.current,
+        maxCombo: maxComboRef.current,
+        gameOver: true,
+      });
+    }
+  }, [score]);
+
+  useEffect(() => {
+    maxComboRef.current = Math.max(maxComboRef.current, combo);
+  }, [combo]);
   // =========================
   // UI 최소: Play 버튼만 / songId는 URL에서
   // =========================
@@ -100,6 +136,11 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
         score,
         combo,
         diff,
+        currentTime: currentTimeRef.current,
+        duration: audioRef.current?.duration
+          ? audioRef.current.duration * 1000
+          : 0,
+        maxScore: maxScoreRef.current,
       });
     }
   }, [score, combo, diff, onState]);
@@ -129,6 +170,7 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
     }, 0);
   };
 
+
   useEffect(() => {
     scoreRef.current = score;
   }, [score]);
@@ -149,9 +191,12 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
     const handleEnded = () => {
       if (finishedRef.current) return;
       finishedRef.current = true;
+      audioRef.current?.pause();
       onFinish?.({
         score: scoreRef.current,
         maxScore: maxScoreRef.current,
+        maxCombo: maxComboRef.current,
+        gameOver: false,
       });
     };
 
@@ -171,9 +216,6 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
       audio.removeEventListener('ended', handleEnded);
     };
   }, [audioUrl]);
-
-
-
 
   useEffect(() => {
     if (!paused) {
@@ -269,7 +311,7 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (paused) return;
+      if (paused || finishedRef.current) return;
 
       setCurrentTime((prev) => {
         const newTime = prev + 16;
@@ -309,10 +351,12 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
           if (note.type === 'long') {
             if (!note.holding && now > note.timing + GAME_CONFIG.JUDGEMENT.MISS) {
               missOccurred = true;
+              applyMissPenalty();
               return { ...note, hit: true, judgement: 'MISS' };
             }
             if (note.holding && now > note.endTime + GAME_CONFIG.JUDGEMENT.MISS) {
               missOccurred = true;
+              applyMissPenalty();
               setEffects((prevEffects) =>
                 prevEffects.filter(
                   (e) => !(e.type === 'long' && e.noteId === `${note.timing}-${note.lane}`)
@@ -323,6 +367,7 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
           } else {
             if (now > note.timing + GAME_CONFIG.JUDGEMENT.MISS) {
               missOccurred = true;
+              applyMissPenalty();
               setEffects((prevEff) => [
                 ...prevEff,
                 { type: 'judge', lane: note.lane, judgement: 'MISS', id: crypto.randomUUID() },
@@ -389,6 +434,7 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
       const noteId = `${note.timing}-${note.lane}`;
 
       if (result.judgement === 'MISS') {
+        applyMissPenalty();
         setCombo(0);
         setEffects((eff) => [
           ...eff,
@@ -400,9 +446,10 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
       // ★ 롱 시작: 딱 1회
       if (note.type === 'long' && !note.holding) {
         setNotes((prev) => prev.map((n) => (n === note ? { ...n, hit: true, holding: true } : n)));
-
         setCombo((prev) => {
           const next = prev + 1;
+          setMaxCombo((m) => Math.max(m, next)); // ← 추가
+
           setEffects((pe) =>
             pe.some((e) => e.type === 'long' && e.noteId === noteId)
               ? pe
@@ -426,9 +473,10 @@ export default function GameSession({ onState, paused, onReady, onFinish }) {
 
       // ★ 탭
       setNotes((prev) => prev.map((n) => (n === note ? { ...n, hit: true } : n)));
-
       setCombo((prev) => {
         const next = prev + 1;
+        setMaxCombo((m) => Math.max(m, next)); // ← 추가
+
         setEffects((eff) => [
           ...eff,
           { type: 'tap', lane: laneIndex, id: crypto.randomUUID() },
