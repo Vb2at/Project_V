@@ -12,6 +12,14 @@ const dummySongs = [
   { id: 5, title: 'Song E', artist: 'Artist E', cover: null },
 ];
 
+const formatDuration = (sec) => {
+  const n = Number(sec);
+  if(!n || n <= 0) return '--:--';
+  const m = Math.floor(n / 60);
+  const s = Math.floor(n % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 const ITEM_HEIGHT = 72;
 const INPUT_LOCK_MS = 50;
 
@@ -50,16 +58,22 @@ export default function MainOverlay() {
         const list = Array.isArray(data) ? data : [];
 
         // UI에서 쓰는 형태로 최소 가공 (title/artist/cover)
-        const mapped = list.map((s) => ({
+      const mapped = list.map((s) => {
+        const len = s.length ?? s.duration ?? s.lengthSec;
+
+        return {
           id: s.id,
           title: (s.title ?? '(no title)').replace(/\.mp3$/i, ''),
           artist: s.artist ?? 'unknown',
           cover: s.coverPath ? `/api/songs/${s.id}/cover` : null,
 
-          bpm: typeof s.bpm === 'number' ? s.bpm : null,
-          lengthSec: typeof s.length === 'number' ? s.length : null,
+          bpm: Number.isFinite(Number(s.bpm)) ? Number(s.bpm) : null,
+          lengthSec: Number.isFinite(Number(len)) ? Number(len) : null,
+
           difficulties: Array.isArray(s.difficulties) ? s.difficulties : [],
-        }));
+          diff: (s.diff ? String(s.diff).toUpperCase() : 'NORMAL'),
+        };
+      });
 
         if (!mounted) return;
 
@@ -270,27 +284,33 @@ export default function MainOverlay() {
 
                     {/* Length */}
                     <span>
-                      <strong style={{ color: '#cfd8e3' }}>LENGTH</strong> --:--
+                      <strong style={{ color: '#cfd8e3' }}>LENGTH</strong> {' '}
+                      {formatDuration(selectedSong.lengthSec)}
                     </span>
 
                     <span style={{ opacity: 0.4 }}>•</span>
 
                     {/* Difficulty */}
                     <span style={{ display: 'flex', gap: '6px' }}>
-                      {['EASY', 'NORMAL', 'HARD', 'EXPERT'].map((d) => (
-                        <span
-                          key={d}
-                          style={{
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            background: 'rgba(255,255,255,0.08)',
-                            fontSize: '11px',
-                            opacity: 0.7,
-                          }}
-                        >
-                          {d}
-                        </span>
-                      ))}
+                      {['EASY', 'NORMAL', 'HARD', 'EXPERT'].map((d) => {
+                        const active = d === (selectedSong.difficulty ?? selectedSong.diff);
+
+                        return (
+                          <span
+                            key={d}
+                            style={{
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: 'rgba(255,255,255,0.08)',
+                              fontSize: '11px',
+                              opacity: active ? 1 : 0.4,
+                              fontWeight: active ? 600 : 400,
+                            }}
+                          >
+                            {d}
+                          </span>
+                        );
+                      })}
                     </span>
                   </div>
                 </>

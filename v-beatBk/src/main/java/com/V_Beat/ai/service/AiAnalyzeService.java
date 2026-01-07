@@ -61,7 +61,9 @@ public class AiAnalyzeService {
 				return file.getOriginalFilename();
 			}
 		});
+		diff = diff.toLowerCase();
 		body.add("diff", diff);
+		System.out.println("DIFF_TO_FLASK = " + diff);
 
 		HttpHeaders headers = new HttpHeaders();
 		headers.setContentType(MediaType.MULTIPART_FORM_DATA);
