@@ -257,6 +257,24 @@ function GamePlay() {
           transform: 'translate(-50%, -50%)',
         }}
       >
+        {/* 🎭 레인 마스크 (뒤 비주얼라이저 차단용) */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: -5,
+            pointerEvents: 'none',
+          background: `
+            linear-gradient(
+             #000000 0%,
+             #000000 60%,
+             #000000 85%,
+             #000000 100%
+            )
+          `,
+     clipPath: 'polygon(46% 8%, 54% 8%, 100% 100%, 0% 100%)',
+          }}
+        />
         <GameSession
           paused={paused}
           bgmVolume={effectiveBgmVolume}

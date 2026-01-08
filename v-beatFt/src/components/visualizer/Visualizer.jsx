@@ -79,7 +79,7 @@ export default function Visualizer({
     return Math.min(MAX_SCALE, raw);
   };
 
-  return createPortal(
+  const node = (
     <div
       className={[
         'visualizer',
@@ -98,7 +98,10 @@ export default function Visualizer({
           }
         />
       ))}
-    </div>,
-    document.body
+    </div>
   );
+
+  return isGame
+    ? createPortal(node, document.body)
+    : node;
 }

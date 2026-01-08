@@ -14,11 +14,7 @@ const dummySongs = [
 
 const formatDuration = (sec) => {
   const n = Number(sec);
-<<<<<<< HEAD
   if (!n || n <= 0) return '--:--';
-=======
-  if(!n || n <= 0) return '--:--';
->>>>>>> 76d084d5d06eefee248dbce19a89c8eb04ca66af
   const m = Math.floor(n / 60);
   const s = Math.floor(n % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
@@ -62,7 +58,6 @@ export default function MainOverlay() {
         const list = Array.isArray(data) ? data : [];
 
         // UI에서 쓰는 형태로 최소 가공 (title/artist/cover)
-<<<<<<< HEAD
         const mapped = list.map((s) => {
           const len = s.length ?? s.duration ?? s.lengthSec;
 
@@ -79,25 +74,6 @@ export default function MainOverlay() {
             diff: (s.diff ? String(s.diff).toUpperCase() : 'NORMAL'),
           };
         });
-=======
-      const mapped = list.map((s) => {
-        const len = s.length ?? s.duration ?? s.lengthSec;
-
-        return {
-          id: s.id,
-          title: (s.title ?? '(no title)').replace(/\.mp3$/i, ''),
-          artist: s.artist ?? 'unknown',
-          cover: s.coverPath ? `/api/songs/${s.id}/cover` : null,
-
-          bpm: Number.isFinite(Number(s.bpm)) ? Number(s.bpm) : null,
-          lengthSec: Number.isFinite(Number(len)) ? Number(len) : null,
-
-          difficulties: Array.isArray(s.difficulties) ? s.difficulties : [],
-          diff: (s.diff ? String(s.diff).toUpperCase() : 'NORMAL'),
-        };
-      });
->>>>>>> 76d084d5d06eefee248dbce19a89c8eb04ca66af
-
         if (!mounted) return;
 
         // 서버에서 곡이 오면 dummySongs 대신 덮어씀
@@ -316,11 +292,7 @@ export default function MainOverlay() {
 
                     {/* Difficulty */}
                     <span style={{ display: 'flex', gap: '6px' }}>
-<<<<<<< HEAD
                       {['EASY', 'NORMAL', 'HARD', 'HELL'].map((d) => {
-=======
-                      {['EASY', 'NORMAL', 'HARD', 'EXPERT'].map((d) => {
->>>>>>> 76d084d5d06eefee248dbce19a89c8eb04ca66af
                         const active = d === (selectedSong.difficulty ?? selectedSong.diff);
 
                         return (

@@ -12,7 +12,7 @@ export default function Background() {
             #004750ff 100%
           )
         `,
-        zIndex: -1,
+        zIndex: -10,
         pointerEvents: 'none',
       }}
     />

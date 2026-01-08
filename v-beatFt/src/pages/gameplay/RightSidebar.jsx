@@ -12,8 +12,6 @@ export default function RightSidebar() {
         position: 'fixed',
         top: HEADER_HEIGHT + 'px',
         right: 0,
-        maskImage: 'linear-gradient(to bottom, black 78%, transparent 100%)',
-        WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
       }}
     >
       <div
