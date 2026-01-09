@@ -297,11 +297,12 @@ function GamePlay() {
               maxScore > 0 ? Math.min(1, score / maxScore) : 0
             );
           }}
-          onFinish={({ score, maxScore, maxCombo }) => {
+          onFinish={({ score, maxScore, maxCombo, diff: finishDiff }) => {
+             console.log("FINISH:", { finishDiff, diff, songId, url: window.location.search });
             if (finished) return;
             setFinished(true);
             navigate('/game/result', {
-              state: { score, maxScore, maxCombo },
+              state: { score, maxScore, maxCombo, diff: finishDiff ?? diff ?? 'unknown', songId },
             });
           }}
         />

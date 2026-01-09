@@ -160,7 +160,7 @@ export default function MainOverlay() {
 
         console.log('선택 확정:', songs[selectedIndex]);
         playMenuConfirm();
-        navigate(`/game/play?songId=${songs[selectedIndex].id}`);
+        navigate(`/game/play?songId=${songs[selectedIndex].id}&diff=${songs[selectedIndex].diff}`);
       }
     };
 
