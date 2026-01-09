@@ -2,7 +2,7 @@
 import { getClassByRatio } from "../../util/scoreClass";
 import Background from '../../components/Common/Background';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { playResultEnter, startResultBgm, stopResultBgm, playMenuConfirm, } from '../../components/engine/SFXManager';
 
 const GRADE_STYLE = {
@@ -14,9 +14,26 @@ const GRADE_STYLE = {
   F: { color: '#ff6b6b', glow: 'rgba(255,107,107,0.9)' },
 };
 
+// 점수 저장 api 연동
+async function postScore(payload) {
+  const res = await fetch("http://localhost:8080/api/scores", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  });
+  
+  if(!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Failed to save score");
+  }
+  return;
+}
+
 export default function Result() {
   const { state } = useLocation();
   const navigate = useNavigate();
+  const sentRef = useRef(false);
+  const [saveStatus, setSaveStatus] = useState("idle");
 
   useEffect(() => {
     playResultEnter(); 
@@ -27,6 +44,8 @@ export default function Result() {
   }, []);
 
   const {
+    songId = null,
+    diff = null,
     score = 0,
     maxScore = 1,
     maxCombo = 0,
@@ -35,6 +54,27 @@ export default function Result() {
   const ratio = maxScore > 0 ? score / maxScore : 0;
   const grade = getClassByRatio(ratio);
   const gradeStyle = GRADE_STYLE[grade] ?? GRADE_STYLE.F;
+  const accuracy = Number((ratio * 100).toFixed(2));
+
+  // db에 결과 저장
+  useEffect(() => {
+    if(!state) return;
+    if(sentRef.current) return;
+    sentRef.current = true;
+
+    if(!songId || !diff) {
+      console.warn("score 저장 실패: songId/diff 없음", state);
+      return;
+    }
+
+    setSaveStatus("saving");
+    postScore({ songId, diff, score, accuracy, grade, maxCombo})
+      .then(() => setSaveStatus("saved"))
+      .catch((err) => {
+        console.error("점수 저장 실패:", err);
+        setSaveStatus("failed");
+      });
+  }, [state]);
 
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
