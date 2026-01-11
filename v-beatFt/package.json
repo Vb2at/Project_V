@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@pixi/mesh": "^7.4.3",
+    "@pixi/mesh-extras": "^7.4.3",
     "@pixi/particle-emitter": "^5.0.8",
     "axios": "^1.13.2",
     "howler": "^2.2.4",

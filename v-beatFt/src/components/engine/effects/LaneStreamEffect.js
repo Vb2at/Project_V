@@ -16,9 +16,9 @@ const WIDTH_RATIO = 0.8;   // 레인 폭 대비 기본 폭 (절반)
 const SHRINK_X_RATE = 1;   // 시간에 따라 얼마나 가늘어질지 (1 = 끝에 0)
 
 // 높이(길이) 관련
-const START_HEIGHT = 0.2;  // 시작 길이
-const GROW_HEIGHT = 0.3;   // 늘어나는 양
-const MAX_HEIGHT = 0.3;    // 최대 길이 제한
+const START_HEIGHT = 0.3;  // 시작 길이
+const GROW_HEIGHT = 0.4;   // 늘어나는 양
+const MAX_HEIGHT = 0.5;    // 최대 길이 제한
 
 /* ========================= */
 
@@ -29,7 +29,7 @@ export default class LaneStreamEffect {
 
     this.sprite.tint = '#ffffffff';
 
-    this.sprite.anchor.set(0.5, 0.8); // 판정선 기준
+    this.sprite.anchor.set(0.5, 0.8);
     this.sprite.blendMode = 'add';
 
     // 👉 기준 폭은 laneWidth로 한 번만 맞춰줌

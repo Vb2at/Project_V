@@ -9,6 +9,7 @@ import HUDFrame from './HUDFrame.jsx';
 import { useNavigate } from 'react-router-dom';
 import LoadingNoteRain from './LoadingNoteRain';
 import { playCountTick, playCountStart } from '../../components/engine/SFXManager';
+import { playMenuConfirm } from '../../components/engine/SFXManager';
 import Visualizer from '../../components/visualizer/Visualizer';
 
 function GamePlay() {
@@ -33,11 +34,12 @@ function GamePlay() {
   const [songProgress, setSongProgress] = useState(0);
   const [classProgress, setClassProgress] = useState(0);
   const [userPaused, setUserPaused] = useState(false);
-  const [bgmVolume, setBgmVolume] = useState(1);   // 0~1
-  const [sfxVolume, setSfxVolume] = useState(1);   // 0~1
+  const [bgmVolume, setBgmVolume] = useState(1);
+  const [sfxVolume, setSfxVolume] = useState(1);
   const [bgmMuted, setBgmMuted] = useState(false);
   const [sfxMuted, setSfxMuted] = useState(false);
-
+  const analyserRef = useRef(null);
+  const [sessionKey, setSessionKey] = useState(0);
 
   const effectiveBgmVolume = bgmMuted ? 0 : bgmVolume;
   const effectiveSfxVolume = sfxMuted ? 0 : sfxVolume;
@@ -154,7 +156,11 @@ function GamePlay() {
         />
       </HUDFrame>
       {/* 🎵 하단 비주얼라이저 (브라우저 기준 fixed) */}
-      <Visualizer size="game" active={!paused} />
+      <Visualizer 
+        size="game" 
+        active={!paused} 
+        analyserRef={analyserRef}
+      />
 
       {/* ===== 로딩 화면 ===== */}
       {!ready && (
@@ -264,7 +270,7 @@ function GamePlay() {
             inset: 0,
             zIndex: -5,
             pointerEvents: 'none',
-          background: `
+            background: `
             linear-gradient(
              #000000 0%,
              #000000 60%,
@@ -272,10 +278,12 @@ function GamePlay() {
              #000000 100%
             )
           `,
-     clipPath: 'polygon(46% 8%, 54% 8%, 100% 100%, 0% 100%)',
+            clipPath: 'polygon(46% 8%, 54% 8%, 100% 100%, 0% 100%)',
           }}
         />
         <GameSession
+          analyserRef={analyserRef}
+          key={sessionKey}
           paused={paused}
           bgmVolume={effectiveBgmVolume}
           sfxVolume={effectiveSfxVolume}
@@ -421,6 +429,8 @@ function GamePlay() {
                     cursor: 'pointer',
                   }}
                   onClick={() => {
+                    playMenuConfirm();
+                    setSessionKey((k) => k + 1);
                     setUserPaused(false);
                     setCountdown(3);
                   }}
@@ -438,7 +448,10 @@ function GamePlay() {
                     padding: '10px 0',
                     cursor: 'pointer',
                   }}
-                  onClick={() => navigate('/main')}
+                  onClick={() => {
+                    playMenuConfirm();
+                    navigate('/main');
+                  }}
                 >
                   나가기
                 </button>

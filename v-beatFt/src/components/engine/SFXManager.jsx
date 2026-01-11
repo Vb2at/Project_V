@@ -20,7 +20,8 @@ export function playTapNormal(volume = 1.0) {
 
 // 강조 레인
 export function playTapAccent(volume = 1.0) {
-playOnce('/sound/hit/hit_tap_accent.wav', BASE_VOLUME.accent * volume);}
+  playOnce('/sound/hit/hit_tap_accent.wav', BASE_VOLUME.accent * volume);
+}
 
 // =========================
 // MENU BGM
@@ -38,15 +39,32 @@ const MENU_BGM_LIST = [
 
 let menuBgmAudio = null;
 let menuBgmPlaying = false;
+let menuBgmUserPaused = false;
+let lastMenuBgmIndex = -1;
 
 export function playMenuBgmRandom() {
   stopMenuBgm();
 
-  const idx = Math.floor(Math.random() * MENU_BGM_LIST.length);
+  menuBgmUserPaused = false;
+
+  let idx = Math.floor(Math.random() * MENU_BGM_LIST.length);
+  if (MENU_BGM_LIST.length > 1) {
+    while (idx === lastMenuBgmIndex) {
+      idx = Math.floor(Math.random() * MENU_BGM_LIST.length);
+    }
+  }
+  lastMenuBgmIndex = idx;
+  
   menuBgmAudio = new Audio(MENU_BGM_LIST[idx]);
   menuBgmAudio.loop = false;
   menuBgmAudio.volume = 0.4;
   menuBgmAudio.play().catch(() => { });
+
+  // ✅ 곡 종료 시 다음 곡 자동 재생
+  menuBgmAudio.onended = () => {
+    if (menuBgmUserPaused) return;
+    playMenuBgmRandom();
+  };
 
   menuBgmPlaying = true;
 }
@@ -57,9 +75,11 @@ export function toggleMenuBgm() {
   if (menuBgmPlaying) {
     menuBgmAudio.pause();
     menuBgmPlaying = false;
+    menuBgmUserPaused = true;
   } else {
     menuBgmAudio.play().catch(() => { });
     menuBgmPlaying = true;
+    menuBgmUserPaused = false;
   }
 }
 
@@ -70,6 +90,7 @@ export function stopMenuBgm() {
   menuBgmAudio.currentTime = 0;
   menuBgmAudio = null;
   menuBgmPlaying = false;
+  menuBgmUserPaused = false;
 }
 
 // ✅ 실제 재생 상태 조회용

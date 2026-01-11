@@ -70,3 +70,18 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+button:focus,
+button:focus-visible,
+button:active,
+svg:focus,
+svg:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+/* 모바일/크롬 탭 하이라이트 제거 (겸사) */
+button {
+  -webkit-tap-highlight-color: transparent;
+}

@@ -38,16 +38,16 @@ export default class LightEffect {
     this.dead = false;
     this.ending = false;
     this.endStartTime = 0;
-
     this.container.alpha = 1;
   }
 
   update(now) {
     if (this.dead) return;
 
-    //TAP
+    // TAP
     if (this.type === 'tap') {
       const t = (now - this.startTime) / TAP_LIFE_MS;
+
       if (t >= 1) {
         this.container.alpha = 0;
         this.dead = true;
@@ -55,8 +55,8 @@ export default class LightEffect {
       }
 
       const a = 1 - t;
-      this.container.alpha = a;
 
+      this.container.alpha = a;
       this.core.alpha = a * 0.25;
       this.bloom.alpha = a * 0.35;
       this.flare.alpha = a;
@@ -67,28 +67,29 @@ export default class LightEffect {
       return;
     }
 
-    //LONG
+    // LONG
     if (this.type === 'long') {
       if (!this.ending) {
-        const progress = Math.min(1, (now - this.startTime) / this.duration);
+        const progress = Math.min(
+          1,
+          (now - this.startTime) / this.duration
+        );
 
         this.container.alpha = 1;
 
         // core: 주체, 하지만 튀지 않게
         this.core.alpha = 0.9;
-        this.core.scale.set(0.2 + progress * 0.4); // 0.45 → 0.6
+        this.core.scale.set(0.2 + progress * 0.4);
 
         // bloom: 분위기만
-        this.bloom.alpha = 0. + progress * 0.07;  // 0.08 → 0.15
-        this.bloom.scale.set(0.3 + progress * 0.1); // 0.5 → 0.65
+        this.bloom.alpha = 0 + progress * 0.07;
+        this.bloom.scale.set(0.3 + progress * 0.1);
 
         // flare: 존재만 느껴지게
         this.flare.alpha = 0.6 + Math.sin(now * 0.004) * 0.03;
         this.flare.scale.set(0.5);
-
         return;
       }
-
 
       // 종료 페이드
       const t = (now - this.endStartTime) / LONG_FADE_MS;

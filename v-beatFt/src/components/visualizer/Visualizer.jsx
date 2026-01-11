@@ -1,101 +1,121 @@
 import './Visualizer.css';
 import { createPortal } from 'react-dom';
+import { useRef, useEffect } from 'react';
 
 /* =========================
-   🎛 튜닝 상수 (직관용)
+   🎛 튜닝 상수
 ========================= */
-const GAIN = 6.0;        // 소리 증폭량 (크면 더 크게 반응)
-const MIN_SCALE = 0.08; // 최소 막대 높이
-const MAX_SCALE = 3.6;  // 최대 막대 높이
-const WOBBLE = 0.25;    // 막대 간 미세 흔들림
-
-const GAME_BAR_COUNT = 64;
+const GAIN = 6.0;
+const MIN_SCALE = 0.08;
+const MAX_SCALE = 3.6;
+const WOBBLE = 0.25;
+const GAME_BAR_COUNT = 48;
 
 /* =========================
-   🎲 막대별 고정 민감도 (랜덤 1회 생성)
-   0.7 ~ 1.3 범위
+   🎲 bar 고정 민감도
 ========================= */
 const BAR_SENSITIVITY = Array.from(
   { length: GAME_BAR_COUNT },
   () => 0.7 + Math.random() * 0.6
 );
 
+/* =========================
+   🚀 bar 메타 선계산 (앱 시작 1회)
+========================= */
+const BAR_META = Array.from({ length: GAME_BAR_COUNT }, (_, i) => {
+  const hash = Math.sin(i * 127.1) * 43758.5453;
+  const rand = hash - Math.floor(hash);   // 0~1
+
+  const bandRatio = rand;
+
+  const sensitivity =
+    BAR_SENSITIVITY[i % BAR_SENSITIVITY.length] *
+    (0.6 + rand * 0.9);
+
+  const wobble = 1.0 + Math.sin(i * 0.7) * WOBBLE;
+  const gain = GAIN * sensitivity * wobble;
+
+  return { bandRatio, gain };
+});
+
 export default function Visualizer({
   size = 'small',
   active = false,
-  levels = null,   // GameSession에서 전달한 주파수 밴드
-  level = 0,       // fallback
+  analyserRef,
 }) {
   const isGame = size === 'game';
   const BAR_COUNT = isGame ? GAME_BAR_COUNT : 4;
 
-  // header는 항상 보이고, game만 active 제어
-  const show = isGame ? active : true;
+  const barsRef = useRef([]);
+  const activeRef = useRef(active);
+  const avgRef = useRef(0);
+  const dataRef = useRef(new Uint8Array(128));
+  const rafRef = useRef(0);
 
-  const getStrength = (i) => {
-    if (!isGame) return null;
+  /* active 상태만 ref로 미러링 */
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
 
-    // 기본 입력 레벨
-    let v = level; // 0 ~ 1
+  /* =========================
+     🚀 RAF 루프 (단일)
+  ========================= */
+  useEffect(() => {
+    if (!isGame) return;
 
-    if (levels && levels.length) {
-      const bandCount = levels.length;
+    const tick = () => {
+      const analyser = analyserRef?.current;
+      if (!analyser || !activeRef.current) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
 
-      // ✅ 공간 분산용 pseudo random (항상 동일한 패턴)
-      const hash = Math.sin(i * 127.1) * 43758.5453;
-      const rand = hash - Math.floor(hash); // 0~1
+      const data = dataRef.current;
+      analyser.getByteFrequencyData(data);
 
-      // ✅ 밴드를 랜덤 분산 매핑
-      const bandIndex = Math.floor(rand * bandCount);
+      /* 평균 계산 (1회) */
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        sum += data[i];
+      }
+      avgRef.current = (sum / data.length) / 255;
 
-      const base = levels[bandIndex] ?? 0;
+      /* bar 업데이트 */
+      for (let i = 0; i < BAR_COUNT; i++) {
+        const el = barsRef.current[i];
+        if (!el) continue;
 
-      // ✅ 전체 평균
-      const globalAvg =
-        levels.reduce((s, x) => s + x, 0) / bandCount;
+        const meta = BAR_META[i];
+        const bandIndex = Math.floor(meta.bandRatio * data.length);
+        const base = data[bandIndex] / 255;
+        const v = base * 0.45 + avgRef.current * 0.55;
 
-      // ✅ 막대 고유 민감도 (고정)
-      const sensitivity = 0.6 + rand * 0.9; // 0.6 ~ 1.5
+        const raw = MIN_SCALE + v * meta.gain;
+        const scale = raw > MAX_SCALE ? MAX_SCALE : raw;
 
-      // ✅ 최종 혼합값
-      v =
-        base * 0.45 +
-        globalAvg * 0.55;
+        el.style.transform = `scaleY(${scale})`;
+      }
 
-      v *= sensitivity;
-    }
+      rafRef.current = requestAnimationFrame(tick);
+    };
 
-    // ✅ 막대별 랜덤 민감도 (고정)
-    const sensitivity = BAR_SENSITIVITY[i % BAR_SENSITIVITY.length];
-
-    // ✅ 방향성 없는 미세 흔들림만 적용
-    const wobble =
-      1.0 + Math.sin(i * 0.7) * WOBBLE;
-
-    // ✅ 최종 스케일 계산
-    const raw =
-      MIN_SCALE + v * GAIN * sensitivity * wobble;
-
-    return Math.min(MAX_SCALE, raw);
-  };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [isGame, analyserRef, BAR_COUNT]);
 
   const node = (
     <div
       className={[
         'visualizer',
         `visualizer--${size}`,
-        show ? 'is-active' : '',
+        active ? 'is-active' : '',
       ].join(' ')}
       aria-hidden="true"
     >
       {Array.from({ length: BAR_COUNT }).map((_, i) => (
         <span
           key={i}
-          style={
-            isGame
-              ? { transform: `scaleY(${getStrength(i)})` }
-              : undefined
-          }
+          ref={(el) => (barsRef.current[i] = el)}
         />
       ))}
     </div>

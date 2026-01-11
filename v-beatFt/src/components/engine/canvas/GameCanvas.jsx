@@ -1,37 +1,20 @@
 // src/components/Game/GameCanvas.jsx
 import { useEffect, useRef } from 'react';
 import { GAME_CONFIG } from "../../../constants/GameConfig";
+const KEY_LABELS = ['A', 'S', 'D', 'SPACE', 'J', 'K', 'L'];
 
 // 게임 캔버스 컴포넌트
-export default function GameCanvas({ notes, currentTime, pressedKeys = new Set() }) {
+export default function GameCanvas({ currentTime, pressedKeys = new Set() }) {
   const canvasRef = useRef(null);
-
-  const notesRef = useRef(notes);
+  const pressedKeysRef = useRef(pressedKeys);
   const timeRef = useRef(currentTime);
-  const keyFlashRef = useRef(new Map());
+
+  useEffect(() => {
+    pressedKeysRef.current = pressedKeys;
+  }, [pressedKeys]);
 
   // props → ref 동기화
-  useEffect(() => { notesRef.current = notes; }, [notes]);
   useEffect(() => { timeRef.current = currentTime; }, [currentTime]);
-
-  // 키 플래시 타이밍 관리
-  useEffect(() => {
-    const now = performance.now();
-
-    // 새로 눌린 키
-    pressedKeys.forEach(key => {
-      if (!keyFlashRef.current.has(key)) {
-        keyFlashRef.current.set(key, now);
-      }
-    });
-
-    // 떼어진 키 제거
-    [...keyFlashRef.current.keys()].forEach(key => {
-      if (!pressedKeys.has(key)) {
-        keyFlashRef.current.delete(key);
-      }
-    });
-  }, [pressedKeys]);
 
   // 게임 루프
   useEffect(() => {
@@ -48,25 +31,108 @@ export default function GameCanvas({ notes, currentTime, pressedKeys = new Set()
 
       // 렌더 순서
       drawLanes(ctx);
-      drawKeyLabels(ctx, pressedKeys, keyFlashRef);
       drawHitLine(ctx);
-      drawNotes(ctx, notesRef.current, timeRef.current);
+      drawKeyIndicators(ctx, pressedKeysRef.current);
       animationId = requestAnimationFrame(gameLoop);
     }
 
     gameLoop();
     return () => cancelAnimationFrame(animationId);
-  }, [pressedKeys]);
+  }, []);
 
   return (
     <canvas
       ref={canvasRef}
       width={GAME_CONFIG.CANVAS.WIDTH}
       height={GAME_CONFIG.CANVAS.HEIGHT}
-      style={{ display: 'block', position: 'absolute', top: 0, left: 0 }}
+      style={{ display: 'block', position: 'absolute', top: 0, left: 0, zIndex: 1 }}
     />
   );
 }
+
+function drawKeyIndicators(ctx, pressedKeys) {
+  const { CANVAS, LANES } = GAME_CONFIG;
+  const y = CANVAS.HIT_LINE_Y + 35;   // 히트라인 아래 위치
+  const BOX_Y_OFFSET = 20;
+
+  for (let lane = 0; lane < LANES; lane++) {
+    const isPressed = pressedKeys.has(lane);
+
+    const left = getLaneLeftX(lane);
+    const right = getLaneRightX(lane);
+
+    const bl = applyPerspective(left, y);
+    const br = applyPerspective(right, y);
+
+    const WIDTH_RATIO = 0.98;  
+    const width = (br.x - bl.x) * WIDTH_RATIO;
+    const offsetX = (br.x - bl.x - width) / 2;
+    const height = 50;
+
+    /* ======================
+       눌림 박스 (Pressed Only)
+       ====================== */
+    if (isPressed) {
+      ctx.fillStyle = 'rgba(180, 240, 255, 0.9)';
+      ctx.shadowColor = 'rgba(180, 240, 255, 0.9)';
+      ctx.shadowBlur = 18;
+
+      const boxY = y + BOX_Y_OFFSET;
+      // ===== 사다리꼴 상단 Y (박스 위쪽) =====
+      const topY = boxY - height;
+
+      // ===== 월드 기준 좌우 =====
+      const worldLeft = left + offsetX;
+      const worldRight = right - offsetX;
+
+      // ===== 상단 좌표 =====
+      const tl = applyPerspective(worldLeft, topY);
+      const tr = applyPerspective(worldRight, topY);
+
+      // ===== 하단 좌표 (y만 다르고 같은 worldX 사용) =====
+      const blp = applyPerspective(worldLeft, boxY);
+      const brp = applyPerspective(worldRight, boxY);
+
+      ctx.beginPath();
+      ctx.moveTo(tl.x, topY);     // 좌상
+      ctx.lineTo(tr.x, topY);     // 우상
+      ctx.lineTo(brp.x, boxY);     // 우하
+      ctx.lineTo(blp.x, boxY);     // 좌하
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+    }
+
+    /* ======================
+       키 텍스트 (Always Visible)
+       ====================== */
+    const label = KEY_LABELS[lane] ?? '';
+
+    ctx.font = 'bold 25px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    if (isPressed) {
+      // 눌렸을 때: 밝고 발광
+      ctx.fillStyle = '#c02f5fee';
+      ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+      ctx.shadowBlur = 10;
+    } else {
+      // 평소: 은은하게
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.shadowBlur = 0;
+    }
+
+    ctx.fillText(
+      label,
+      bl.x + offsetX + width / 2,
+      y - 1
+    );
+    ctx.shadowBlur = 0;
+  }
+}
+
 
 // 원근법 유틸
 
@@ -167,178 +233,4 @@ function getLaneLeftX(lane) {
 
 function getLaneRightX(lane) {
   return getLaneLeftX(lane) + GAME_CONFIG.LANE_WIDTHS[lane];
-}
-
-// 키 UI
-function drawKeyLabels(ctx, pressedKeys, keyFlashRef) {
-  const { CANVAS } = GAME_CONFIG;
-  const hitLineY = CANVAS.HIT_LINE_Y;
-
-  ctx.font = 'bold 18px Arial';
-  ctx.textAlign = 'center';
-
-  GAME_CONFIG.KEY_NAMES.forEach((keyName, i) => {
-    const laneLeft = getLaneLeftX(i);
-    const laneRight = getLaneRightX(i);
-    const bottomY = hitLineY + 80;
-    const topY = bottomY - 850;
-
-    const textY = hitLineY + 54;  // 텍스트 고정 기준
-
-    const tl = applyPerspective(laneLeft, topY);
-    const tr = applyPerspective(laneRight, topY);
-    const bl = applyPerspective(laneLeft, bottomY);
-    const br = applyPerspective(laneRight, bottomY);
-
-    if (pressedKeys.has(i)) {
-      const now = performance.now();
-      const start = keyFlashRef.current.get(i);
-      const FLASH_DURATION = 120;
-
-      const t = start ? (now - start) / FLASH_DURATION : 1;
-      const alpha = t < 1 ? 1 - t : 0;
-
-      const basePad = 2;
-      const topPad = basePad * 0.5;
-      const bottomPad = basePad * 1.2;
-
-      ctx.save();
-
-      const grad = ctx.createLinearGradient(0, topY, 0, bottomY);
-      grad.addColorStop(0.0, `rgba(180,255,255,0)`);
-      grad.addColorStop(0.4, `rgba(180,255,255,${0.05 * alpha})`);
-      grad.addColorStop(1.0, `rgba(180,255,255,${0.5 + alpha * 0.4})`);
-
-      ctx.fillStyle = grad;
-      ctx.shadowColor = 'rgba(0,255,255,0.8)';
-      ctx.shadowBlur = 35 * bl.scale;
-
-      ctx.beginPath();
-      ctx.moveTo(tl.x + topPad * tl.scale, topY);
-      ctx.lineTo(tr.x - topPad * tr.scale, topY);
-      ctx.lineTo(br.x - bottomPad * br.scale, bottomY);
-      ctx.lineTo(bl.x + bottomPad * bl.scale, bottomY);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.restore();
-    }
-
-    const laneCenterX = (laneLeft + laneRight) / 2;
-    const px = applyPerspective(laneCenterX, textY);
-    const cx = px.x
-    ctx.fillStyle = pressedKeys.has(i) ? '#000' : '#fff';
-    ctx.fillText(keyName, cx, textY);
-  });
-}
-
-function drawNeonBorder(ctx, points, color, glow, width) {
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = glow;
-  ctx.beginPath();
-  ctx.moveTo(points[0].x, points[0].y);
-  for (let i = 1; i < points.length; i++) {
-    ctx.lineTo(points[i].x, points[i].y);
-  }
-  ctx.closePath();
-  ctx.stroke();
-  ctx.restore();
-}
-
-// 노트 렌더링
-
-function drawNotes(ctx, notes, currentTime) {
-  const { NOTE_HEIGHT, HIT_LINE_Y } = GAME_CONFIG.CANVAS;
-  const SPEED = GAME_CONFIG.SPEED;
-
-  notes.forEach(note => {
-    const left = getLaneLeftX(note.lane);
-    const right = getLaneRightX(note.lane);
-
-    if (note.type === 'long') {
-      const yStart = HIT_LINE_Y - (note.timing - currentTime) * SPEED;
-      const yEnd = HIT_LINE_Y - (note.endTime - currentTime) * SPEED;
-
-      const fullTopY = Math.min(yStart, yEnd) - NOTE_HEIGHT;
-      const fullBottomY = Math.max(yStart, yEnd) + NOTE_HEIGHT;
-
-      if (fullBottomY < 0 || fullTopY > GAME_CONFIG.CANVAS.HEIGHT) return;
-
-      const topY = Math.max(fullTopY, 0);
-      const bottomY = Math.min(fullBottomY, GAME_CONFIG.CANVAS.HEIGHT);
-
-      const tl = applyPerspective(left, topY);
-      const tr = applyPerspective(right, topY);
-      const bl = applyPerspective(left, bottomY);
-      const br = applyPerspective(right, bottomY);
-
-      const grad = ctx.createLinearGradient(0, topY, 0, bottomY);
-      grad.addColorStop(0.0, 'rgba(20, 20, 25, 0.62)');
-      grad.addColorStop(0.5, 'rgba(220, 20, 60, 0.64)');
-      grad.addColorStop(1.0, 'rgba(255, 69, 0, 0.79)');
-
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.moveTo(tl.x + 5 * tl.scale, topY);
-      ctx.lineTo(tr.x - 5 * tr.scale, topY);
-      ctx.lineTo(br.x - 5 * br.scale, bottomY);
-      ctx.lineTo(bl.x + 5 * bl.scale, bottomY);
-      ctx.closePath();
-      ctx.fill();
-
-      drawNeonBorder(
-        ctx,
-        [
-          { x: tl.x + 5 * tl.scale, y: topY },
-          { x: tr.x - 5 * tr.scale, y: topY },
-          { x: br.x - 5 * br.scale, y: bottomY },
-          { x: bl.x + 5 * bl.scale, y: bottomY },
-        ],
-        note.holding ? '#7CFF7C' : '#FF4C4C',
-        18 * tl.scale,
-        5 * tl.scale
-      );
-
-      return;
-    }
-
-    // === 탭 노트는 기존 그대로 ===
-    else {
-      const y = HIT_LINE_Y - (note.timing - currentTime) * SPEED;
-      if (y < -NOTE_HEIGHT || y > HIT_LINE_Y + 100) return;
-
-      const tl = applyPerspective(left, y);
-      const tr = applyPerspective(right, y);
-      const h = NOTE_HEIGHT * tl.scale;
-      const by = y + h;
-
-      const bl = applyPerspective(left, by);
-      const br = applyPerspective(right, by);
-
-      ctx.fillStyle = 'rgba(0, 225, 255, 0.5)';
-      ctx.beginPath();
-      ctx.moveTo(tl.x + 5 * tl.scale, y);
-      ctx.lineTo(tr.x - 5 * tr.scale, y);
-      ctx.lineTo(br.x - 5 * br.scale, by);
-      ctx.lineTo(bl.x + 5 * bl.scale, by);
-      ctx.closePath();
-      ctx.fill();
-
-      drawNeonBorder(
-        ctx,
-        [
-          { x: tl.x + 5 * tl.scale, y },
-          { x: tr.x - 5 * tr.scale, y },
-          { x: br.x - 5 * br.scale, y: by },
-          { x: bl.x + 5 * bl.scale, y: by },
-        ],
-        '#00e1ffff',
-        18 * tl.scale,
-        2.2 * tl.scale
-      );
-    }
-  });
 }

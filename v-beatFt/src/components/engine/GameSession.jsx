@@ -2,13 +2,15 @@
 import { useState, useEffect, useRef } from 'react';
 import GameCanvas from './canvas/GameCanvas';
 import PixiEffects from './effects/PixiEffects';
+import PixiNotes from './notes/PixiNotes';
 import { InputHandler } from '../../core/input/InputHandler';
 import { NoteCalculator } from '../../core/judge/NoteCalculator';
 import { GAME_CONFIG } from '../../constants/GameConfig';
 import { playTapNormal, playTapAccent } from './SFXManager';
 import Visualizer from '../visualizer/Visualizer';
+import KeyEffectLayer from "./effects/KeyEffectLayer";
 
-export default function GameSession({ onState, paused, bgmVolume, sfxVolume, onReady, onFinish }) {
+export default function GameSession({ analyserRef, onState, paused, bgmVolume, sfxVolume, onReady, onFinish }) {
   const SAFE_SCORE = 300;
   const MISS_PENALTY = 100;
   const [notes, setNotes] = useState([
@@ -58,7 +60,6 @@ export default function GameSession({ onState, paused, bgmVolume, sfxVolume, onR
   ]);
 
   const [currentTime, setCurrentTime] = useState(0);
-  const [audioLevels, setAudioLevels] = useState([0, 0, 0, 0]);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [pressedKeys, setPressedKeys] = useState(new Set());
@@ -155,8 +156,8 @@ export default function GameSession({ onState, paused, bgmVolume, sfxVolume, onR
   const [audioUrl, setAudioUrl] = useState('');
   const audioRef = useRef(null);
   const audioCtxRef = useRef(null);
-  const analyserRef = useRef(null);
   const dataArrayRef = useRef(null);
+  const lastVizUpdateRef = useRef(0);
   const finishedRef = useRef(false);
   const scoreRef = useRef(0);
   const maxScoreRef = useRef(1);
@@ -218,6 +219,7 @@ export default function GameSession({ onState, paused, bgmVolume, sfxVolume, onR
       const ctx = new AudioContext();
       const source = ctx.createMediaElementSource(audio);
       const analyser = ctx.createAnalyser();
+      analyserRef.current = analyser;
       analyser.fftSize = 256;
       source.connect(analyser);
       analyser.connect(ctx.destination);
@@ -339,30 +341,6 @@ export default function GameSession({ onState, paused, bgmVolume, sfxVolume, onR
   useEffect(() => {
     const interval = setInterval(() => {
       if (paused || finishedRef.current) return;
-
-      // audio amplitude 측정
-      const analyser = analyserRef.current;
-      const dataArray = dataArrayRef.current;
-      if (analyser && dataArray) {
-        analyser.getByteFrequencyData(dataArray);
-        const BAR_COUNT = 64;
-        const bucketSize = Math.floor(dataArray.length / BAR_COUNT);
-        const levels = new Array(BAR_COUNT).fill(0);
-
-        for (let b = 0; b < BAR_COUNT; b++) {
-          let sum = 0;
-          const start = b * bucketSize;
-          const end = start + bucketSize;
-
-          for (let i = start; i < end; i++) {
-            sum += dataArray[i] || 0;
-          }
-
-          levels[b] = (sum / bucketSize) / 255; // 0~1 normalize
-        }
-
-        setAudioLevels(levels);
-      }
 
       setCurrentTime((prev) => {
         const newTime = prev + 16;
@@ -617,12 +595,24 @@ export default function GameSession({ onState, paused, bgmVolume, sfxVolume, onR
         currentTime={currentTime}
         pressedKeys={pressedKeys}
       />
+
+      <PixiNotes
+        notes={notes}
+        currentTime={currentTime}
+      />
+
+      <KeyEffectLayer
+        pressedKeys={pressedKeys}
+      />
+
       <PixiEffects effects={effects} />
+
       <audio ref={audioRef} />
+
       <Visualizer
         active={!paused}
-        levels={audioLevels}
         size="game"
+        analyserRef={analyserRef}
       />
     </div>
   );

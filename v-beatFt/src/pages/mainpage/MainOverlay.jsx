@@ -27,7 +27,7 @@ export default function MainOverlay() {
   const navigate = useNavigate();
   const wheelLockRef = useRef(false);
   const keyLockRef = useRef(false);
-
+  const wheelContainerRef = useRef(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   //loading / errorMsg 상태 (지금 코드에서 setLoading/setErrorMsg 쓰고 있어서 필수)
@@ -128,6 +128,22 @@ export default function MainOverlay() {
       wheelLockRef.current = false;
     }, INPUT_LOCK_MS);
   };
+
+  useEffect(() => {
+    const el = wheelContainerRef.current;
+    if (!el) return;
+
+    const onWheel = (e) => {
+      e.preventDefault();
+      handleWheel(e);
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+    };
+  }, [handleWheel]);
 
   /* ===============================
      Keyboard: 전역 ↑ ↓ / Enter
@@ -322,7 +338,7 @@ export default function MainOverlay() {
 
           {/* Game List */}
           <section
-            onWheel={handleWheel}
+            ref={wheelContainerRef}
             style={{
               position: 'relative',
               flex: 1,
@@ -413,7 +429,7 @@ export default function MainOverlay() {
             </div>
           </section>
         </div>
-      </main>
-    </div>
+      </main >
+    </div >
   );
 }

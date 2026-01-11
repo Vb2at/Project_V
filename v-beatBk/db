@@ -3,30 +3,28 @@ USE Vbeat;
 
 # 유저 정보 테이블
 CREATE TABLE `User`(
-    id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT 
-    ,email VARCHAR(100) NOT NULL
-    ,loginPw VARCHAR(255) NULL
-    ,nickName VARCHAR(50) NOT NULL
-    ,loginType TINYINT NOT NULL DEFAULT 0 COMMENT '0=일반, 1=카카오, 2=구글'
-    ,regDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ,profileImg VARCHAR(255) NULL
-    ,UNIQUE KEY (email)
-    ,UNIQUE KEY (nickName)
+    id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    email VARCHAR(100) NOT NULL,
+    loginPw VARCHAR(255) NULL,
+    nickName VARCHAR(50) NOT NULL,
+    loginType TINYINT NOT NULL DEFAULT 0 COMMENT '0=일반, 1=카카오, 2=구글',
+    regDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    profileImg VARCHAR(255) NULL,
+    UNIQUE KEY (email),
+    UNIQUE KEY (nickName)
 );
-
 
 # 추후 컬럼 수정 
 CREATE TABLE Message (
-    id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT 
-    ,channelId INT UNSIGNED NOT NULL 
-    ,userId  INT UNSIGNED
-    ,content TEXT NOT NULL 
-    ,`type` INT UNSIGNED DEFAULT 0 # 0=일반, 1=시스템, 2=파일, 3=Git, 4=코드
-    ,regDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ,FOREIGN KEY (channelId) REFERENCES `Channel`(id) ON DELETE CASCADE
-    ,FOREIGN KEY (userId) REFERENCES `User`(id) ON DELETE SET NULL
-)
-
+    id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    channelId INT UNSIGNED NOT NULL,
+    userId  INT UNSIGNED,
+    content TEXT NOT NULL,
+    `type` INT UNSIGNED DEFAULT 0, -- 0=일반, 1=시스템, 2=파일, 3=Git, 4=코드
+    regDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (channelId) REFERENCES `Channel`(id) ON DELETE CASCADE,
+    FOREIGN KEY (userId) REFERENCES `User`(id) ON DELETE SET NULL
+);
 
 # 음원 관련 테이블
 CREATE TABLE song(
@@ -47,13 +45,12 @@ DROP TABLE song;
 UPDATE song
    SET is_public = TRUE
  WHERE id IN (1,2,3,4); 
- 
+
 SELECT note_time, lane, TYPE, end_time, COUNT(*)
 FROM note
 WHERE song_id = 6
 GROUP BY note_time, lane, TYPE, end_time
 HAVING COUNT(*) > 1;
-
 
 # 음원분석 후 노트 저장 테이블
 CREATE TABLE note (
@@ -74,14 +71,13 @@ CREATE TABLE note (
     UNIQUE KEY uq_note_dedup (song_id, note_time, lane, `type`, end_time_nn)
 );
 
-DROP TABLE note
+DROP TABLE note;
 SELECT * FROM note;
-
 
 # 점수 저장 테이블(랭킹시스템)
 CREATE TABLE score (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT UNSIGNED NULL,  #추후 로그인 기능 구현 시 not null로 변경
+    user_id BIGINT UNSIGNED NULL,  -- 추후 로그인 기능 구현 시 not null로 변경
     song_id BIGINT UNSIGNED NOT NULL,
     diff VARCHAR(10) NOT NULL,
     score INT NOT NULL,
