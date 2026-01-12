@@ -5,10 +5,12 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.V_Beat.dto.Member;
+import com.V_Beat.dto.User;
 import com.V_Beat.dto.Req;
 import com.V_Beat.service.EmailService;
 import com.V_Beat.service.MemberService;
@@ -16,7 +18,8 @@ import com.V_Beat.service.VerificationService;
 import com.V_Beat.util.Util;
 
 
-@Controller
+@RestController
+@RequestMapping("/api/user")
 public class MemberController {
 	
 	private MemberService memberService;
@@ -113,7 +116,7 @@ public class MemberController {
 	        }
 	        
 	        // Member 객체 생성
-	        Member member = new Member();
+	        User member = new User();
 	        member.setLoginPw(loginPw);  // Service에서 BCrypt 암호화
 	        member.setNickName(nickName);
 	        member.setEmail(email);
@@ -149,7 +152,7 @@ public class MemberController {
 	    }
 	    
 	    // DB 조회 + BCrypt 비밀번호 비교
-	    Member member = memberService.login(email, loginPw);
+	    User member = memberService.login(email, loginPw);
 		if (member == null) {
 			return Util.jsReplace("이메일 또는 비밀번호가 일치하지 않습니다.", "/user/member/login");
 		}
@@ -179,7 +182,7 @@ public class MemberController {
 	public String sendTempPW(String email) {
 		try {
 			// 이메일로 사용자 조회
-			Member member = memberService.findByEmail(email);
+			User member = memberService.findByEmail(email);
 			
 			if (member == null) {
 				return "notFound";  // 등록되지 않은 이메일
@@ -209,7 +212,7 @@ public class MemberController {
 		}// 서비스에서 비즈니스 로직 검증
 		String result = memberService.changeNickName(req.getLoginMemberId(), nickName);
 	    if(result.equals("success")) {
-	        Member updatedMember = memberService.findById(req.getLoginMemberId());
+	        User updatedMember = memberService.findById(req.getLoginMemberId());
 	        req.login(updatedMember);
 	    }
 			return result;

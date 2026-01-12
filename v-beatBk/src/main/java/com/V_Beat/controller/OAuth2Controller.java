@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
-import com.V_Beat.dto.Member;
+import com.V_Beat.dto.User;
 import com.V_Beat.dto.Req;
 import com.V_Beat.service.GitHubOAuthService;
 import com.V_Beat.service.GoogleOAuthService;
@@ -57,11 +57,11 @@ public class OAuth2Controller {
             String profileImg = (String) userInfo.get("profileImg");
             
             // 3. DB에서 카카오 계정 찾기
-            Member member = memberService.findBySocialId(socialId, 1); // loginType=1(카카오)
+            User member = memberService.findBySocialId(socialId, 1); // loginType=1(카카오)
 
             if (member == null) {
                 // 신규 회원 - 회원가입
-                Member newMember = new Member();
+                User newMember = new User();
                 newMember.setEmail(email);
                 newMember.setNickName(nickname);
                 newMember.setLoginType(1); // 카카오
@@ -115,11 +115,11 @@ public class OAuth2Controller {
             String profileImg = (String) userInfo.get("profileImg");
             
             // 3. DB에서 깃헙 계정 찾기
-            Member member = memberService.findBySocialId(socialId, 2); // loginType=2(깃헙)
+            User member = memberService.findBySocialId(socialId, 2); // loginType=2(깃헙)
 
             if (member == null) {
                 // 신규 회원 - 회원가입
-                Member newMember = new Member();
+                User newMember = new User();
                 newMember.setEmail(email);
                 newMember.setNickName(nickname);
                 newMember.setLoginType(2); // 깃헙
@@ -167,11 +167,11 @@ public class OAuth2Controller {
             String profileImg = (String) userInfo.get("profileImg");
             
             // 3. DB에서 구글 계정 찾기
-            Member member = memberService.findBySocialId(socialId, 3); // loginType=3(구글)
+            User member = memberService.findBySocialId(socialId, 3); // loginType=3(구글)
 
             if (member == null) {
                 // 신규 회원 - 회원가입
-                Member newMember = new Member();
+                User newMember = new User();
                 newMember.setEmail(email);
                 newMember.setNickName(nickname);
                 newMember.setLoginType(3); // 구글
