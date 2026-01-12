@@ -78,7 +78,15 @@ export default function MainOverlay() {
 
         // 서버에서 곡이 오면 dummySongs 대신 덮어씀
         if (mapped.length > 0) {
-          setSongs(mapped);
+          const DIFF_ORDER = ['EASY', 'NORMAL', 'HARD', 'HELL'];
+
+          const sorted = [...mapped].sort((a, b) => {
+            const da = DIFF_ORDER.indexOf(a.diff ?? 'NORMAL');
+            const db = DIFF_ORDER.indexOf(b.diff ?? 'NORMAL');
+            return da - db;
+          });
+
+          setSongs(sorted);
           setSelectedIndex(0);
         }
       } catch (err) {
@@ -184,6 +192,38 @@ export default function MainOverlay() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedIndex, songs]);
 
+  const DIFF_ORDER = ['EASY', 'NORMAL', 'HARD', 'HELL'];
+
+  const renderList = [];
+
+  DIFF_ORDER.forEach((diff) => {
+    const group = songs.filter((s) => (s.diff ?? 'NORMAL') === diff);
+    if (!group.length) return;
+
+    // 난이도 헤더 아이템
+    renderList.push({
+      id: `__HEADER__${diff}`,
+      type: 'header',
+      diff,
+    });
+
+    // 실제 곡들
+    group.forEach((song) => {
+      const songIndex = songs.findIndex((s) => s.id === song.id);
+
+      renderList.push({
+        ...song,
+        type: 'song',
+        songIndex,
+      });
+    });
+  });
+  
+  const renderSelectedIndex = (() => {
+    const id = songs[selectedIndex]?.id;
+    if (!id) return 0;
+    return renderList.findIndex((item) => item.id === id);
+  })();
   const selectedSong = songs[selectedIndex];
 
   return (
@@ -347,6 +387,45 @@ export default function MainOverlay() {
             }}
           >
 
+            {/* 난이도 기준선 */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top: '42%',     
+                height: '1px',
+                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
+                pointerEvents: 'none',
+                zIndex: 3,
+              }}
+            >
+              {/* 라벨 */}
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: '-20px',
+                  display: 'flex',
+                  gap: '12px',
+                  fontSize: '14px',
+                  color: '#cfd8e3',
+                  opacity: 0.7,
+                }}
+              >
+                <span
+                  style={{
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    color: '#ffffff',
+                  }}
+                >
+                  {selectedSong?.diff ?? 'NORMAL'}
+                </span>
+              </div>
+            </div>
+
+
             {/* 고정 포커스 라인 */}
             <div
               style={{
@@ -370,12 +449,12 @@ export default function MainOverlay() {
                 top: '50%',
                 left: 0,
                 right: 0,
-                transform: `translateY(calc(-${selectedIndex * ITEM_HEIGHT}px - ${ITEM_HEIGHT / 2}px))`,
+                transform: `translateY(calc(-${renderSelectedIndex * ITEM_HEIGHT}px - ${ITEM_HEIGHT / 2}px))`,
                 transition: 'transform 0.25s ease-out',
               }}
             >
-              {songs.map((song, index) => {
-                const d = index - selectedIndex;
+              {renderList.map((item, index) => {
+                const d = index - renderSelectedIndex;
                 const a = Math.abs(d);
 
                 const scale = Math.max(0.8, 1 - a * 0.12);
@@ -383,13 +462,36 @@ export default function MainOverlay() {
                 const y = d * 10;
                 const opacity = Math.max(0.35, 1 - a * 0.25);
 
+                // ✅ HEADER
+                if (item.type === 'header') {
+                  const isCurrent = item.diff === selectedSong?.diff;
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        height: ITEM_HEIGHT,
+                        paddingLeft: 12,
+                        display: 'flex',
+                        alignItems: 'center',
+                        fontSize: 15,
+                        fontWeight: 700,
+                        letterSpacing: '0.12em',
+                        color: '#cfd8e3',
+                        opacity: isCurrent ? 0 : 0.7,
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      {!isCurrent && item.diff}
+                    </div>
+                  );
+                }
                 return (
                   <div
-                    key={song.id}
+                    key={item.id}
                     onClick={() => {
-                      setSelectedIndex(index);
+                      setSelectedIndex(item.songIndex);
                       playMenuConfirm();
-                      navigate(`/game/play?songId=${songs[index].id}`);
+                      navigate(`/game/play?songId=${item.id}`);
                     }}
                     style={{
                       height: ITEM_HEIGHT,
@@ -403,25 +505,28 @@ export default function MainOverlay() {
                       opacity,
                       transition: 'transform 0.2s, opacity 0.2s',
                       cursor: 'pointer',
-                      background: index === selectedIndex ? 'rgba(255,255,255,0.08)' : 'transparent',
+                      background:
+                        item.songIndex === selectedIndex
+                          ? 'rgba(255,255,255,0.08)'
+                          : 'transparent',
                     }}
                   >
                     <div
                       style={{
-                        fontSize: index === selectedIndex ? '25px' : '18px',
-                        color: index === selectedIndex ? '#ffffff' : '#b8c4d6',
-                        fontWeight: index === selectedIndex ? 600 : 400,
+                        fontSize: item.songIndex === selectedIndex ? '25px' : '18px',
+                        color: item.songIndex === selectedIndex ? '#ffffff' : '#b8c4d6',
+                        fontWeight: item.songIndex === selectedIndex ? 600 : 400,
                       }}
                     >
-                      {song.title}
+                      {item.title}
                     </div>
                     <div
                       style={{
                         fontSize: '14px',
-                        color: index === selectedIndex ? '#cfd8e3' : '#7f8fa6',
+                        color: item.songIndex === selectedIndex ? '#cfd8e3' : '#7f8fa6',
                       }}
                     >
-                      {song.artist}
+                      {item.artist}
                     </div>
                   </div>
                 );

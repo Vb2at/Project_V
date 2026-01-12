@@ -131,7 +131,7 @@ function syncNotes(stage, textures, notes, currentTime) {
             }
 
             const fadeStartTime = longFadeStartMap.get(noteId);
-            const FADE_PX_PER_MS = SPEED * 0.1; // 페이드 속도 (튜닝 포인트)
+            const FADE_PX_PER_MS = SPEED * 0.05; // 페이드 속도 (튜닝 포인트)
             const FADE_RANGE_PX = 90;
 
             if (fadeStartTime != null) {
