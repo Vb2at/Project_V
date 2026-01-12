@@ -26,7 +26,7 @@ function createTapNoteCanvas() {
   // 기본 바디
   ctx.fillStyle = 'rgba(0, 225, 255, 0.7)';
   ctx.beginPath();
-  ctx.roundRect(16, 16, size - 32, size - 32, 14);
+  ctx.roundRect(16, 16, size - 32, size - 32, 1);
   ctx.fill();
 
   // 네온 테두리
