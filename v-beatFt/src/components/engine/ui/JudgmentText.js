@@ -4,11 +4,11 @@ export default class JudgmentText {
   constructor({ text }) {
     this.container = new Container();
 
-    //  판정별 색상
     let fillColor = '#ffffff';
-    if (text === 'PERFECT') fillColor = '#10afffff'; 
-    else if (text === 'GOOD') fillColor = '#ffb74d'; 
-    else if (text === 'MISS') fillColor = '#ff4d4f'; 
+    if (text === 'PERFECT') fillColor = '#10afffff';
+    else if (text === 'GREAT') fillColor = '#ffb74d';
+    else if (text === 'GOOD') fillColor = '#4cff4c';
+    else if (text === 'MISS') fillColor = '#ff4d4f';
 
     const style = new TextStyle({
       fontSize: 36,

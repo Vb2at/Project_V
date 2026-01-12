@@ -5,22 +5,19 @@ export default class ComboText {
     this.container = new Container();
 
     const style = new TextStyle({
-      fontSize: 60,
-      fill: '#f0f0f0ff',
-       fillAlpha: 0.65,
+      fontSize: 88,
       fontWeight: 'bold',
       align: 'center',
-      dropShadow: true,
-      dropShadowColor: '#000000',
-      dropShadowBlur: 3,
-      dropShadowDistance: 2,
+      fill: 'rgba(0,0,0,0)',   // 내부 완전 투명
+      stroke: '#ff0c7dff',      // 아웃라인 색
+      strokeThickness: 4,     // 두께 (3~6 추천)
     });
 
     this.text = new Text(`${combo}`, style);
     this.text.anchor.set(0.5);
     this.container.addChild(this.text);
     this.container.x = window.innerWidth / 2;
-    this.container.y = 180;
+    this.container.y = 240;
 
     this.start = performance.now();
     this.life = 350;

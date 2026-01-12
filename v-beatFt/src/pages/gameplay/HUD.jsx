@@ -1,4 +1,3 @@
-
 // 클래스별 기준 및 색상 정의
 const CLASS_STEPS = [
   { key: 'F', at: 0.00, color: '#ff6b6b' },
@@ -6,18 +5,13 @@ const CLASS_STEPS = [
   { key: 'C', at: 0.60, color: '#6fa8ff' },
   { key: 'B', at: 0.70, color: '#7dff9a' },
   { key: 'A', at: 0.90, color: '#6ffcff' },
-  { key: 'S', at: 1, color: '#ffd75e' },
+  { key: 'S', at: 1.00, color: '#ffd75e' },
 ];
 
-function getClassGradient(ratio) {
+function getClassColor(ratio) {
   for (let i = CLASS_STEPS.length - 1; i >= 0; i--) {
     if (ratio >= CLASS_STEPS[i].at) {
-      const curr = CLASS_STEPS[i];
-      const next = CLASS_STEPS[i + 1];
-      if (!next) return curr.color;
-      const t = (ratio - curr.at) / (next.at - curr.at);
-      if (t < 0.8) return curr.color;
-      return `linear-gradient(90deg, ${curr.color}, ${next.color})`;
+      return CLASS_STEPS[i].color;
     }
   }
   return CLASS_STEPS[0].color;
@@ -25,7 +19,6 @@ function getClassGradient(ratio) {
 
 /**
  * 하단이 오른쪽으로 갈수록 단계적으로 내려가는 계단 모양 데이터
- * M(시작), L(선), Z(닫기)
  */
 const PATH_DATA = `
   M 0,0 
@@ -56,8 +49,7 @@ export default function HUD({
         color: '#e6faff',
       }}
     >
-
-      {/* 1. CLASS LABELS (F, D, C, B, A, S) */}
+      {/* 1. CLASS LABELS */}
       <div style={{ position: 'relative', width: '420px', height: '16px', marginBottom: '4px' }}>
         {CLASS_STEPS.map(step => (
           <div
@@ -76,7 +68,7 @@ export default function HUD({
         ))}
       </div>
 
-      {/* 2. CLASS PROGRESS BAR (SVG 방식) */}
+      {/* 2. CLASS PROGRESS BAR */}
       <div style={{ position: 'relative', width: '420px', height: '22px', marginBottom: '12px' }}>
         <svg
           width="420"
@@ -85,32 +77,34 @@ export default function HUD({
           style={{ overflow: 'visible' }}
         >
           <defs>
-            {/* 계단 모양 마스크 정의 */}
+            {/* 계단 마스크 */}
             <clipPath id="energy-mask">
               <path d={PATH_DATA} />
             </clipPath>
+
           </defs>
 
-          {/* 배경 트랙: 에너지가 비어있을 때 보이는 흐릿한 가이드라인 */}
+          {/* ✅ 배경 트랙 (검정 제거, 단계 색상 유지) */}
           <path
             d={PATH_DATA}
-            fill="rgba(255, 255, 255, 0.05)"
-            stroke="rgba(120, 180, 255, 0.2)"
+            fill={getClassColor(classProgress)}
+            opacity="0.25"
+            stroke="rgba(120, 180, 255, 0.25)"
             strokeWidth="1"
           />
 
-          {/* 게이지 본체: 색상이 채워지는 부분 */}
+          {/* 진행 게이지 */}
           <rect
             x="0"
             y="0"
             width={`${classProgress * 100}%`}
             height="22"
-            fill={getClassGradient(classProgress)}
+            fill={getClassColor(classProgress)}
             clipPath="url(#energy-mask)"
             style={{ transition: 'width 0.15s linear' }}
           />
 
-          {/* 외곽선: 에너지가 없어도 전체 계단 모양을 유지해줌 */}
+          {/* 외곽선 */}
           <path
             d={PATH_DATA}
             fill="none"
@@ -121,7 +115,7 @@ export default function HUD({
         </svg>
       </div>
 
-      {/* 3. SONG PROGRESS & SCORE SECTION */}
+      {/* 3. SONG PROGRESS & SCORE */}
       <div
         style={{
           textAlign: 'left',
@@ -129,7 +123,7 @@ export default function HUD({
           fontWeight: 700,
         }}
       >
-        {/* SONG PROGRESS LINE */}
+        {/* SONG PROGRESS */}
         <div
           style={{
             height: '8px',
@@ -149,7 +143,7 @@ export default function HUD({
           />
         </div>
 
-        {/* SCORE & COMBO DISPLAY */}
+        {/* SCORE & COMBO */}
         <div style={{ display: 'flex', alignItems: 'baseline' }}>
           {score.toLocaleString()}
           <span style={{ marginLeft: '15px', fontSize: '18px', opacity: 0.8, color: '#00e5ff' }}>

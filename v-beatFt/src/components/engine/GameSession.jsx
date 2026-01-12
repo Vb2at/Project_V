@@ -1,5 +1,5 @@
 // src/components/engine/GameSession.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import GameCanvas from './canvas/GameCanvas';
 import PixiEffects from './effects/PixiEffects';
 import PixiNotes from './notes/PixiNotes';
@@ -62,6 +62,7 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
   const [currentTime, setCurrentTime] = useState(0);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
+  const comboRef = useRef(0);
   const [pressedKeys, setPressedKeys] = useState(new Set());
   const [effects, setEffects] = useState([]);
   const passedSafeZoneRef = useRef(false);
@@ -69,6 +70,8 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
   const notesRef = useRef(notes);
   const currentTimeRef = useRef(0);
   const maxComboRef = useRef(0);
+  const onReadyRef = useRef(onReady);
+  const onFinishRef = useRef(onFinish);
 
   const applyMissPenalty = () => {
     setScore((s) => {
@@ -78,6 +81,23 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
       return Math.max(0, s - MISS_PENALTY);
     });
   };
+  const getComboMultiplier = (combo) => {
+    if (combo >= 50) return 3;
+    if (combo >= 20) return 2;
+    return 1;
+  };
+
+  useEffect(() => {
+    comboRef.current = combo;
+  }, [combo]);
+
+  useEffect(() => {
+    onFinishRef.current = onFinish;
+  }, [onFinish]);
+
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
 
   useEffect(() => {
     if (!audioRef.current) return;
@@ -86,10 +106,6 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
 
   useEffect(() => {
     notesRef.current = notes;
-  }, [notes]);
-
-  useEffect(() => {
-    maxScoreRef.current = Math.max(1, calcMaxScore(notes));
   }, [notes]);
 
   useEffect(() => {
@@ -106,7 +122,7 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     ) {
       finishedRef.current = true;
       audioRef.current?.pause();
-      onFinish?.({
+      onFinishRef.current?.({
         score: 0,
         maxScore: maxScoreRef.current,
         maxCombo: maxComboRef.current,
@@ -137,7 +153,9 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
 
   const [songId, setSongId] = useState(getSongIdFromUrl());
   const [diff, setDiff] = useState(getDiffFromUrl());
-
+  const speed =
+    GAME_CONFIG.DIFFICULTY[diff?.toUpperCase()]?.SPEED
+    ?? GAME_CONFIG.SPEED;
   useEffect(() => {
     if (typeof onState === 'function') {
       onState({
@@ -157,7 +175,6 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
   const audioRef = useRef(null);
   const audioCtxRef = useRef(null);
   const dataArrayRef = useRef(null);
-  const lastVizUpdateRef = useRef(0);
   const finishedRef = useRef(false);
   const scoreRef = useRef(0);
   const maxScoreRef = useRef(1);
@@ -169,7 +186,7 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     return vals.length ? Math.max(...vals) : 0;
   };
 
-  const calcMaxScore = (list) => {
+  const calcMaxScore = useCallback((list) => {
     const maxJudge = getMaxJudgementScore();
     return (Array.isArray(list) ? list : []).reduce((acc, n) => {
       if (n.type === 'long') {
@@ -179,8 +196,11 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
       }
       return acc + maxJudge;
     }, 0);
-  };
+  }, []);
 
+  useEffect(() => {
+    maxScoreRef.current = Math.max(1, calcMaxScore(notes));
+  }, [notes, calcMaxScore]);
 
   useEffect(() => {
     scoreRef.current = score;
@@ -196,14 +216,14 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     const handleReady = () => {
       if (readyCalledRef.current) return;
       readyCalledRef.current = true;
-      onReady?.();
+      onReadyRef.current?.();
     };
 
     const handleEnded = () => {
       if (finishedRef.current) return;
       finishedRef.current = true;
       audioRef.current?.pause();
-      onFinish?.({
+      onFinishRef.current?.({
         score: scoreRef.current,
         maxScore: maxScoreRef.current,
         maxCombo: maxComboRef.current,
@@ -244,7 +264,7 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
       audio.removeEventListener('canplay', handleReady);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [audioUrl]);
+  }, [audioUrl, analyserRef]);
 
   useEffect(() => {
     if (!paused) {
@@ -331,13 +351,6 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songId]);
 
-  // 오디오 시간 -> 게임 시간(ms) 동기화 (현재 비워둔 상태 유지)
-  // useEffect(() => {
-  //   const el = audioRef.current;
-  //   if (!el) return;
-  // }, [audioUrl]);
-
-
   useEffect(() => {
     const interval = setInterval(() => {
       if (paused || finishedRef.current) return;
@@ -381,6 +394,10 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
             if (!note.holding && now > note.timing + GAME_CONFIG.JUDGEMENT.MISS) {
               missOccurred = true;
               applyMissPenalty();
+              setEffects((prevEff) => [
+                ...prevEff,
+                { type: 'judge', lane: note.lane, judgement: 'MISS', combo: 0, id: crypto.randomUUID() },
+              ]);
               return { ...note, hit: true, judgement: 'MISS' };
             }
             if (note.holding && now > note.endTime + GAME_CONFIG.JUDGEMENT.MISS) {
@@ -391,6 +408,10 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
                   (e) => !(e.type === 'long' && e.noteId === `${note.timing}-${note.lane}`)
                 )
               );
+              setEffects((prevEff) => [
+                ...prevEff,
+                { type: 'judge', lane: note.lane, judgement: 'MISS', combo: 0, id: crypto.randomUUID() },
+              ]);
               return { ...note, hit: true, holding: false, released: true, judgement: 'MISS' };
             }
           } else {
@@ -420,13 +441,14 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
       if (paused) return;
       const holdingNotes = notesRef.current.filter((n) => n.holding && !n.released);
       if (holdingNotes.length > 0) {
-        const bonus = holdingNotes.length * GAME_CONFIG.SCORE.LONG_BONUS;
+        const mult = getComboMultiplier(comboRef.current);
+        const bonus =
+          holdingNotes.length * GAME_CONFIG.SCORE.LONG_BONUS * mult;
         setScore((prev) => prev + bonus);
         setCombo((prev) => {
           const next = prev + 1;
           setEffects((eff) => [
             ...eff,
-            { type: 'judge', judgement: '', combo: next, id: crypto.randomUUID() },
           ]);
           return next;
         });
@@ -518,7 +540,10 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
         return next;
       });
 
-      setScore((prev) => prev + GAME_CONFIG.SCORE[result.judgement]);
+      setScore((prev) => {
+        const mult = getComboMultiplier(comboRef.current + 1);
+        return prev + GAME_CONFIG.SCORE[result.judgement] * mult;
+      });
     };
 
     const handleKeyRelease = (laneIndex) => {
@@ -542,7 +567,10 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
           prev.map((n) => (n === note ? { ...n, hit: true, holding: false, released: true } : n))
         );
         setEffects((prev) => prev.filter((e) => !(e.type === 'long' && e.noteId === noteId)));
-        setScore((prev) => prev + GAME_CONFIG.SCORE[result.judgement]);
+        setScore((prev) => {
+          const mult = getComboMultiplier(comboRef.current);
+          return prev + GAME_CONFIG.SCORE[result.judgement] * mult;
+        });
       } else {
         setNotes((prev) =>
           prev.map((n) => {
@@ -561,7 +589,7 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
 
     const ih = new InputHandler(handleKeyPress, handleKeyRelease);
     return () => ih.destroy();
-  }, [pressedKeys]);
+  }, [pressedKeys, paused, sfxVolume]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -574,46 +602,45 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     }
   }, [paused]);
 
+  const SCALE = 0.8;
+
   return (
     <div
       style={{
-        width: GAME_CONFIG.CANVAS.WIDTH + 'px',
-        height: GAME_CONFIG.CANVAS.HEIGHT + 'px',
+        width: `${GAME_CONFIG.CANVAS.WIDTH * SCALE}px`,
+        height: `${GAME_CONFIG.CANVAS.HEIGHT * SCALE}px`,
         position: 'relative',
-        marginTop: '80px', // ← 헤더 높이
+        margin: '80px auto 0',   // ✅ 헤더 80px + 가운데 정렬
         overflow: 'hidden',
       }}
     >
-      <GameCanvas
-        notes={notes.filter((n) => {
-          if (n.type === 'long') {
-            const t = (GAME_CONFIG.CANVAS.HEIGHT + 100) / GAME_CONFIG.SPEED;
-            return currentTime < n.endTime + t;
-          }
-          return !n.hit;
-        })}
-        currentTime={currentTime}
-        pressedKeys={pressedKeys}
-      />
+      <div
+        style={{
+          width: `${GAME_CONFIG.CANVAS.WIDTH}px`,
+          height: `${GAME_CONFIG.CANVAS.HEIGHT}px`,
+          transform: `scale(${SCALE})`,
+          transformOrigin: 'top left', // ✅ wrapper가 이미 스케일 크기라 left 기준이 정답
+        }}
+      >
+        <GameCanvas
+          notes={notes.filter((n) => {
+            if (n.type === 'long') {
+              const t = (GAME_CONFIG.CANVAS.HEIGHT + 100) / speed;
+              return currentTime < n.endTime + t;
+            }
+            return !n.hit;
+          })}
+          currentTime={currentTime}
+          pressedKeys={pressedKeys}
+        />
 
-      <PixiNotes
-        notes={notes}
-        currentTime={currentTime}
-      />
-
-      <KeyEffectLayer
-        pressedKeys={pressedKeys}
-      />
-
-      <PixiEffects effects={effects} />
-
-      <audio ref={audioRef} />
-
-      <Visualizer
-        active={!paused}
-        size="game"
-        analyserRef={analyserRef}
-      />
+        <PixiNotes notes={notes} currentTime={currentTime} speed={speed} />
+        <KeyEffectLayer pressedKeys={pressedKeys} />
+        <PixiEffects effects={effects} />
+        <audio ref={audioRef} />
+        <Visualizer active={!paused} size="game" analyserRef={analyserRef} />
+      </div>
     </div>
   );
+
 }

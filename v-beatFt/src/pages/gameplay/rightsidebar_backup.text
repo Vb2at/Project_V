@@ -4,36 +4,21 @@ export default function RightSidebar() {
   return (
     <div
       style={{
-        position: 'fixed',
         width: '260px',
         height: `calc(100vh - ${HEADER_HEIGHT}px)`,
         padding: '24px 16px',
         boxSizing: 'border-box',
         background: 'rgba(10, 20, 30, 0.6)',
+        position: 'fixed',
         top: HEADER_HEIGHT + 'px',
         right: 0,
       }}
     >
-
-      {/* <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: "url('/images/rightSideBar.png')",
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'brightness(0.5)',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      /> */}
-
       <div
         style={{
           position: 'absolute',
           top: 0,
           left: 0,
-          zIndex: 1,
           width: '5px',
           height: '100%',
           background: 'linear-gradient(to bottom, #5aeaff, #ff00eaff, #5aeaff)',
@@ -43,6 +28,6 @@ export default function RightSidebar() {
         }}
       />
     </div>
-
+    
   );
 }

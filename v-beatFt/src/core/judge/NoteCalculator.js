@@ -5,11 +5,11 @@ export class NoteCalculator {
   static judgeNote(laneIndex, currentTime, notes) {
     // 해당 레인의 노트 찾기
     const laneNotes = notes.filter(note => note.lane === laneIndex && !note.hit);
-    
+
     // 가장 가까운 노트 찾기
     let closestNote = null;
     let minDiff = Infinity;
-    
+
     for (const note of laneNotes) {
       const diff = Math.abs(note.timing - currentTime);
       if (diff < minDiff) {
@@ -17,18 +17,23 @@ export class NoteCalculator {
         closestNote = note;
       }
     }
-    
+
     // 판정
     if (!closestNote) return null;
-    
+
     if (minDiff <= GAME_CONFIG.JUDGEMENT.PERFECT) {
       return { note: closestNote, judgement: 'PERFECT', diff: minDiff };
-    } else if (minDiff <= GAME_CONFIG.JUDGEMENT.GOOD) {
+    }
+    else if (minDiff <= GAME_CONFIG.JUDGEMENT.GREAT) {
+      return { note: closestNote, judgement: 'GREAT', diff: minDiff };
+    }
+    else if (minDiff <= GAME_CONFIG.JUDGEMENT.GOOD) {
       return { note: closestNote, judgement: 'GOOD', diff: minDiff };
-    } else if (minDiff <= GAME_CONFIG.JUDGEMENT.MISS) {
+    }
+    else if (minDiff <= GAME_CONFIG.JUDGEMENT.MISS) {
       return { note: closestNote, judgement: 'MISS', diff: minDiff };
     }
-    
+
     return null;
   }
   // 롱노트 끝 판정
@@ -36,11 +41,11 @@ export class NoteCalculator {
     const holdingNote = notes.find(
       note => note.lane === laneIndex && note.holding && !note.hit
     );
-    
+
     if (!holdingNote || holdingNote.type !== 'long') return null;
-    
+
     const diff = Math.abs(holdingNote.endTiming - currentTime);
-    
+
     if (diff <= GAME_CONFIG.JUDGEMENT.PERFECT) {
       return { note: holdingNote, judgement: 'PERFECT', diff };
     } else if (diff <= GAME_CONFIG.JUDGEMENT.GOOD) {

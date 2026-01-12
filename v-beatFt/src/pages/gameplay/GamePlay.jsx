@@ -117,8 +117,10 @@ function GamePlay() {
 
     if (countdown === 0) {
       playCountStart();
-      const raf = requestAnimationFrame(() => setCountdown(null));
-      return () => cancelAnimationFrame(raf);
+      const t = setTimeout(() => {
+        setCountdown(null);
+      }, 300);
+      return () => clearTimeout(t);
     }
 
     playCountTick();
@@ -156,9 +158,9 @@ function GamePlay() {
         />
       </HUDFrame>
       {/* 🎵 하단 비주얼라이저 (브라우저 기준 fixed) */}
-      <Visualizer 
-        size="game" 
-        active={!paused} 
+      <Visualizer
+        size="game"
+        active={!paused}
         analyserRef={analyserRef}
       />
 
@@ -254,6 +256,151 @@ function GamePlay() {
         </div>
       )}
 
+      {/* ===== Pause Modal ===== */}
+      {userPaused && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 10000,
+          }}
+        >
+          <div
+            style={{
+              width: 460,
+              padding: 32,
+              borderRadius: 16,
+              background: '#5c5c5cff',
+              boxShadow: '0 0 40px rgba(255,0,0,0.45)',
+              color: '#fff',
+            }}
+          >
+            <h2 style={{ marginBottom: 24, textAlign: 'center' }}>일 시 정 지</h2>
+
+            {/*BGM */}
+            <div style={{ marginBottom: 20, textAlign: 'center' }}>
+              <div style={{ marginBottom: 6 }}>M U S I C</div>
+
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+                <button
+                  onClick={() => setBgmMuted((m) => !m)}
+                  style={{
+                    width: 72,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: bgmMuted ? '#ff4d4d' : '#3a3a3aff',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {bgmMuted ? 'OFF' : 'ON'}
+                </button>
+
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={bgmVolume}
+                  onChange={(e) => setBgmVolume(Number(e.target.value))}
+                  style={{ width: 220 }}
+                />
+
+              </div>
+            </div>
+
+            {/* SFX */}
+            <div style={{ marginBottom: 28, textAlign: 'center' }}>
+              <div style={{ marginBottom: 6 }}>S F X</div>
+
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+                <button
+                  onClick={() => setSfxMuted((m) => !m)}
+                  style={{
+                    width: 72,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: sfxMuted ? '#ff4d4d' : '#3a3a3aff',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {sfxMuted ? 'OFF' : 'ON'}
+                </button>
+
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={sfxVolume}
+                  onChange={(e) => setSfxVolume(Number(e.target.value))}
+                  style={{ width: 220 }}
+                />
+
+              </div>
+            </div>
+
+            {/* 버튼 */}
+            <div
+              style={{
+                display: 'flex',
+                gap: 16,
+                justifyContent: 'center',
+              }}
+            >
+              <button
+                style={{
+                  flex: 1,
+                  background: 'linear-gradient(90deg, #ff3a3ab9, #ff009db0)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 0',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  playMenuConfirm();
+                  setSessionKey((k) => k + 1);
+                  setUserPaused(false);
+                  setCountdown(3);
+                }}
+              >
+                다시시작
+              </button>
+
+              <button
+                style={{
+                  flex: 1,
+                  background: '#3a3a3aff',
+                  color: '#ddd',
+                  border: '1px solid #444',
+                  borderRadius: 8,
+                  padding: '10px 0',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  playMenuConfirm();
+                  navigate('/main');
+                }}
+              >
+                나가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===== 게임 영역 ===== */}
       <div
         style={{
@@ -278,7 +425,7 @@ function GamePlay() {
              #000000 100%
             )
           `,
-            clipPath: 'polygon(46% 8%, 54% 8%, 100% 100%, 0% 100%)',
+            clipPath: 'polygon(40% 8%, 60% 8%, 100% 100%, 0% 100%)',
           }}
         />
         <GameSession
@@ -306,7 +453,7 @@ function GamePlay() {
             );
           }}
           onFinish={({ score, maxScore, maxCombo, diff: finishDiff }) => {
-             console.log("FINISH:", { finishDiff, diff, songId, url: window.location.search });
+            console.log("FINISH:", { finishDiff, diff, songId, url: window.location.search });
             if (finished) return;
             setFinished(true);
             navigate('/game/result', {
@@ -314,151 +461,6 @@ function GamePlay() {
             });
           }}
         />
-
-        {/* ===== Pause Modal ===== */}
-        {userPaused && (
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.65)',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 10000,
-            }}
-          >
-            <div
-              style={{
-                width: 460,
-                padding: 32,
-                borderRadius: 16,
-                background: '#5c5c5cff',
-                boxShadow: '0 0 40px rgba(255,0,0,0.45)',
-                color: '#fff',
-              }}
-            >
-              <h2 style={{ marginBottom: 24, textAlign: 'center' }}>일 시 정 지</h2>
-
-              {/*BGM */}
-              <div style={{ marginBottom: 20, textAlign: 'center' }}>
-                <div style={{ marginBottom: 6 }}>M U S I C</div>
-
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
-                  <button
-                    onClick={() => setBgmMuted((m) => !m)}
-                    style={{
-                      width: 72,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: bgmMuted ? '#ff4d4d' : '#3a3a3aff',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {bgmMuted ? 'OFF' : 'ON'}
-                  </button>
-
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={bgmVolume}
-                    onChange={(e) => setBgmVolume(Number(e.target.value))}
-                    style={{ width: 220 }}
-                  />
-
-                </div>
-              </div>
-
-              {/* SFX */}
-              <div style={{ marginBottom: 28, textAlign: 'center' }}>
-                <div style={{ marginBottom: 6 }}>S F X</div>
-
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
-                  <button
-                    onClick={() => setSfxMuted((m) => !m)}
-                    style={{
-                      width: 72,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: sfxMuted ? '#ff4d4d' : '#3a3a3aff',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {sfxMuted ? 'OFF' : 'ON'}
-                  </button>
-
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={sfxVolume}
-                    onChange={(e) => setSfxVolume(Number(e.target.value))}
-                    style={{ width: 220 }}
-                  />
-
-                </div>
-              </div>
-
-              {/* 버튼 */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 16,
-                  justifyContent: 'center',
-                }}
-              >
-                <button
-                  style={{
-                    flex: 1,
-                    background: 'linear-gradient(90deg, #ff3a3ab9, #ff009db0)',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '10px 0',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    playMenuConfirm();
-                    setSessionKey((k) => k + 1);
-                    setUserPaused(false);
-                    setCountdown(3);
-                  }}
-                >
-                  다시시작
-                </button>
-
-                <button
-                  style={{
-                    flex: 1,
-                    background: '#3a3a3aff',
-                    color: '#ddd',
-                    border: '1px solid #444',
-                    borderRadius: 8,
-                    padding: '10px 0',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    playMenuConfirm();
-                    navigate('/main');
-                  }}
-                >
-                  나가기
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ===== 카운트다운 ===== */}
         {countdown !== null && (
@@ -491,7 +493,7 @@ function GamePlay() {
               pointerEvents: 'none',
             }}
           >
-            {countdown}
+            {countdown === 0 ? 'START' : countdown}
           </div>
         )}
       </div>

@@ -52,12 +52,22 @@ export default function Header() {
       <div
         style={{
           position: 'absolute',
-          left: '20px',
+          left: '5px',
           top: '50%',
           transform: 'translateY(-50%)',
+          display: 'flex',
+          alignItems: 'center',
         }}
       >
-        V-BEAT
+        <img
+          src="/images/logo.png"
+          alt="V-BEAT"
+          style={{
+            height: '70px',   // 필요시 조절
+            objectFit: 'contain',
+            pointerEvents: 'none',
+          }}
+        />
       </div>
 
       {/* 🎧 메인메뉴에서만 BGM 컨트롤 표시 */}
