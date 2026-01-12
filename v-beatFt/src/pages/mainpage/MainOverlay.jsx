@@ -1,5 +1,5 @@
 // pages/mainpage/MainOverlay.jsx
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import Header from '../../components/Common/Header';
 import { useNavigate } from 'react-router-dom';
 import { playMenuMove, playMenuConfirm } from '../../components/engine/SFXManager';
@@ -32,7 +32,7 @@ export default function MainOverlay() {
 
   //loading / errorMsg 상태 (지금 코드에서 setLoading/setErrorMsg 쓰고 있어서 필수)
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [_errorMsg, setErrorMsg] = useState('');
 
   //서버에서 받아온 공개곡을 여기에 덮어씀 (없으면 dummySongs 사용)
   const [songs, setSongs] = useState(dummySongs);
@@ -94,8 +94,9 @@ export default function MainOverlay() {
         setErrorMsg(err?.message ?? '곡 목록 불러오기 실패');
         // 실패해도 dummySongs로 화면은 유지
       } finally {
-        if (!mounted) return;
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -117,7 +118,7 @@ export default function MainOverlay() {
   /* ===============================
      Wheel: 한 번에 한 칸
   =============================== */
-  const handleWheel = (e) => {
+  const handleWheel = useCallback((e) => {
     e.preventDefault();
     if (wheelLockRef.current) return;
 
@@ -135,7 +136,7 @@ export default function MainOverlay() {
     setTimeout(() => {
       wheelLockRef.current = false;
     }, INPUT_LOCK_MS);
-  };
+  }, [songs.length, selectedIndex]);
 
   useEffect(() => {
     const el = wheelContainerRef.current;
@@ -190,7 +191,7 @@ export default function MainOverlay() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIndex, songs]);
+  }, [selectedIndex, songs, navigate]);
 
   const DIFF_ORDER = ['EASY', 'NORMAL', 'HARD', 'HELL'];
 
@@ -218,7 +219,7 @@ export default function MainOverlay() {
       });
     });
   });
-  
+
   const renderSelectedIndex = (() => {
     const id = songs[selectedIndex]?.id;
     if (!id) return 0;
@@ -393,7 +394,7 @@ export default function MainOverlay() {
                 position: 'absolute',
                 left: 0,
                 right: 0,
-                top: '42%',     
+                top: '42%',
                 height: '1px',
                 background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
                 pointerEvents: 'none',
@@ -491,7 +492,7 @@ export default function MainOverlay() {
                     onClick={() => {
                       setSelectedIndex(item.songIndex);
                       playMenuConfirm();
-                      navigate(`/game/play?songId=${item.id}`);
+                      navigate(`/game/play?songId=${item.id}&diff=${item.diff}`);
                     }}
                     style={{
                       height: ITEM_HEIGHT,

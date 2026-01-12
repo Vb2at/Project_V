@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.V_Beat.dao.MemberDao;
-import com.V_Beat.dto.Member;
+import com.V_Beat.dto.User;
 
 
 @Service
@@ -24,17 +24,17 @@ public class MemberService {
 	}
 
 	// socialId로 회원 조회
-	public Member findBySocialId(String socialId, int loginType) {
+	public User findBySocialId(String socialId, int loginType) {
 	    return this.memberDao.findBySocialId(socialId, loginType);
 	}
 
 	// 소셜 로그인 회원가입 (비밀번호 암호화 생략)
-	public void joinSocial(Member member) {
+	public void joinSocial(User member) {
 	    this.memberDao.join(member);
 	}
 	
 	// 회원가입
-	public void join(Member member) {
+	public void join(User member) {
 		// 비밀번호 BCrypt 암호화 (단방향 해시)
 		String encodePW = passwordEncoder.encode(member.getLoginPw());
 		member.setLoginPw(encodePW);
@@ -44,14 +44,14 @@ public class MemberService {
 	}
 
 	// 닉네임으로 회원 조회
-	public Member findByNickName(String nickName) {
+	public User findByNickName(String nickName) {
 		return this.memberDao.findByNickName(nickName);
 	}
 
 	// 로그인 처리
-	public Member login(String email, String loginPw) {
+	public User login(String email, String loginPw) {
 	    // 1. 이메일로 회원 조회
-	    Member member = this.memberDao.findByEmail(email);
+	    User member = this.memberDao.findByEmail(email);
 	    if (member == null) {
 	        return null; // 존재하지 않는 이메일
 	    }
@@ -69,7 +69,7 @@ public class MemberService {
 	    return null; // 비밀번호 불일치
 	}
 	// 이메일로 회원 조회
-	public Member findByEmail(String email) {
+	public User findByEmail(String email) {
 		return this.memberDao.findByEmail(email);
 	}
 
@@ -95,7 +95,7 @@ public class MemberService {
 		String encodedPw = passwordEncoder.encode(tempPw);
 
 		// 이메일로 회원 조회
-		Member member = this.memberDao.findByEmail(email);
+		User member = this.memberDao.findByEmail(email);
 
 		// DB에 암호화된 임시 비밀번호로 업데이트
 		this.memberDao.updatePw(member.getId(), encodedPw);
@@ -111,7 +111,7 @@ public class MemberService {
 			return "emp";
 		}
 		// 중복 체크
-		Member dupNickname = memberDao.findByNickName(newNickName);
+		User dupNickname = memberDao.findByNickName(newNickName);
 		if (dupNickname != null) {
 			return "dup";
 		}
@@ -127,7 +127,7 @@ public class MemberService {
 			return "emp";
 		}
 		// 현재 비밀번호 확인
-		Member member = memberDao.findById(id);
+		User member = memberDao.findById(id);
 		if (!passwordEncoder.matches(loginPw, member.getLoginPw())) {
 			return "diff";
 		}
@@ -186,7 +186,7 @@ public class MemberService {
 	}
 
 	// 회원 ID로 조회
-	public Member findById(int id) {
+	public User findById(int id) {
 		return this.memberDao.findById(id);
 	}
 

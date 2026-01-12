@@ -2,7 +2,7 @@
 import { getClassByRatio } from "../../util/scoreClass";
 import Background from '../../components/Common/Background';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { playResultEnter, startResultBgm, stopResultBgm, playMenuConfirm, } from '../../components/engine/SFXManager';
 
 const GRADE_STYLE = {
@@ -18,11 +18,11 @@ const GRADE_STYLE = {
 async function postScore(payload) {
   const res = await fetch("http://localhost:8080/api/scores", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  
-  if(!res.ok) {
+
+  if (!res.ok) {
     const text = await res.text();
     throw new Error(text || "Failed to save score");
   }
@@ -33,10 +33,9 @@ export default function Result() {
   const { state } = useLocation();
   const navigate = useNavigate();
   const sentRef = useRef(false);
-  const [saveStatus, setSaveStatus] = useState("idle");
 
   useEffect(() => {
-    playResultEnter(); 
+    playResultEnter();
     startResultBgm();
     return () => {
       stopResultBgm();
@@ -58,23 +57,20 @@ export default function Result() {
 
   // db에 결과 저장
   useEffect(() => {
-    if(!state) return;
-    if(sentRef.current) return;
+    if (sentRef.current) return;
     sentRef.current = true;
 
-    if(!songId || !diff) {
-      console.warn("score 저장 실패: songId/diff 없음", state);
+    if (!songId || !diff) {
+      console.warn("score 저장 실패: songId/diff 없음", { songId, diff });
       return;
     }
 
-    setSaveStatus("saving");
-    postScore({ songId, diff, score, accuracy, grade, maxCombo})
-      .then(() => setSaveStatus("saved"))
+
+    postScore({ songId, diff, score, accuracy, grade, maxCombo })
       .catch((err) => {
         console.error("점수 저장 실패:", err);
-        setSaveStatus("failed");
       });
-  }, [state]);
+  }, [songId, diff, score, accuracy, grade, maxCombo]);
 
   return (
     <div style={{ position: 'fixed', inset: 0 }}>

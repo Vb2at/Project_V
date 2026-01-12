@@ -10,21 +10,29 @@ const longPool = [];
 const longOutlinePool = [];
 const longFadeStartMap = new Map(); // noteId → fade 시작 시점
 
-export default function PixiNotes({ notes, currentTime, onReady }) {
+export default function PixiNotes({ notes, currentTime, speed, onReady }) {
     const containerRef = useRef(null);
     const appRef = useRef(null);
-    const texturesRef = useRef(null);
     const readyRef = useRef(false);
+    const speedRef = useRef(speed);
+    const onReadyRef = useRef(onReady);
 
     const notesRef = useRef(notes);
     const timeRef = useRef(currentTime);
     useEffect(() => { notesRef.current = notes; }, [notes]);
     useEffect(() => { timeRef.current = currentTime; }, [currentTime]);
+    useEffect(() => {
+        speedRef.current = speed;
+    }, [speed]);
+
+    useEffect(() => {
+        onReadyRef.current = onReady;
+    }, [onReady]);
 
     useEffect(() => {
         let mounted = true;
         let tickerFn = null;
-
+        const containerEl = containerRef.current;
         (async () => {
             const textures = await loadNoteTextures();
             if (!mounted) return;
@@ -38,11 +46,10 @@ export default function PixiNotes({ notes, currentTime, onReady }) {
             });
 
             if (!mounted) {
-                try { app.destroy(true); } catch { }
+                try { app.destroy(true); } catch (e) { void e; }
                 return;
             }
 
-            texturesRef.current = textures;
             appRef.current = app;
 
             if (containerRef.current) {
@@ -50,12 +57,11 @@ export default function PixiNotes({ notes, currentTime, onReady }) {
             }
 
             readyRef.current = true;
-            onReady?.();
-
+            onReadyRef.current?.();
             tickerFn = () => {
                 const nowNotes = notesRef.current || [];
                 const nowTime = timeRef.current;
-                syncNotes(app.stage, textures, nowNotes, nowTime);
+                syncNotes(app.stage, textures, nowNotes, nowTime, speedRef.current);
             };
 
             app.ticker.add(tickerFn);
@@ -68,7 +74,7 @@ export default function PixiNotes({ notes, currentTime, onReady }) {
             if (app && tickerFn) app.ticker.remove(tickerFn);
 
             spritesRefSingleton.forEach(sprite => {
-                try { sprite.destroy({ children: true }); } catch { }
+                try { sprite.destroy({ children: true }); } catch (e) { void e; }
             });
             spritesRefSingleton.clear();
 
@@ -77,7 +83,7 @@ export default function PixiNotes({ notes, currentTime, onReady }) {
                 app.destroy(true);
             }
             appRef.current = null;
-            if (containerRef.current) containerRef.current.innerHTML = '';
+            if (containerEl) containerEl.innerHTML = '';
         };
     }, []);
 
@@ -96,10 +102,10 @@ export default function PixiNotes({ notes, currentTime, onReady }) {
     );
 }
 
-function syncNotes(stage, textures, notes, currentTime) {
+function syncNotes(stage, textures, notes, currentTime, speed) {
     const sprites = spritesRefSingleton;
     const { NOTE_HEIGHT, HIT_LINE_Y, HEIGHT: CANVAS_HEIGHT } = GAME_CONFIG.CANVAS;
-    const SPEED = GAME_CONFIG.SPEED;
+    const SPEED = speed;
     const visibleIds = new Set();
 
     notes.forEach(note => {
@@ -131,7 +137,7 @@ function syncNotes(stage, textures, notes, currentTime) {
             }
 
             const fadeStartTime = longFadeStartMap.get(noteId);
-            const FADE_PX_PER_MS = SPEED * 0.05; // 페이드 속도 (튜닝 포인트)
+            const FADE_PX_PER_MS = SPEED * 0.02; // 페이드 속도 (튜닝 포인트)
             const FADE_RANGE_PX = 90;
 
             if (fadeStartTime != null) {
@@ -197,7 +203,7 @@ function syncNotes(stage, textures, notes, currentTime) {
 
                 let sprite = sprites.get(id);
                 if (!sprite) {
-                    sprite = acquireLongSprite(textures);
+                    sprite = acquireLongSprite();
                     sprite.visible = true;
                     stage.addChild(sprite);
                     sprites.set(id, sprite);
@@ -360,7 +366,7 @@ function acquireTapSprite(textures) {
     return sprite;
 }
 
-function acquireLongSprite(textures) {
+function acquireLongSprite() {
     const sprite = longPool.pop() || createMesh(Texture.WHITE, 'long');
     sprite.texture = Texture.WHITE;
     return sprite;

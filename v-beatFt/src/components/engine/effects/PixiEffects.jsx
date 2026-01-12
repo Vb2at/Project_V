@@ -84,6 +84,7 @@ export default function PixiEffects({ effects }) {
   const TAP_KEY_MAX = 1500;
   const lastTapCreatedAtByLaneRef = useRef(new Map());
   const judgeTextsRef = useRef([]);
+  const judgeClearedThisBatchRef = useRef(false);
   const consumedEffectIdsRef = useRef(new Set());
   const comboTextRef = useRef(null);;
 
@@ -267,7 +268,7 @@ export default function PixiEffects({ effects }) {
     const app = appRef.current;
     const textures = texturesRef.current;
     if (!initReadyRef.current || !app || !textures) return;
-
+    judgeClearedThisBatchRef.current = false;
     const { HIT_LINE_Y } = GAME_CONFIG.CANVAS;
     const now = performance.now();
 
@@ -279,12 +280,14 @@ export default function PixiEffects({ effects }) {
 
       /* ================= 판정 텍스트 ================= */
       if (effect.type === 'judge') {
-        judgeTextsRef.current.forEach(old => {
-          judgeLayerRef.current.removeChild(old.container);
-          old.destroy();
-        });
-        judgeTextsRef.current.length = 0;
-
+        if (!judgeClearedThisBatchRef.current) {
+          judgeTextsRef.current.forEach(old => {
+            judgeLayerRef.current.removeChild(old.container);
+            old.destroy();
+          });
+          judgeTextsRef.current.length = 0;
+          judgeClearedThisBatchRef.current = true;
+        }
         const inst = new JudgmentText({ text: effect.judgement });
         inst.container.x = GAME_CONFIG.CANVAS.WIDTH / 2;
         inst.container.y = GAME_CONFIG.CANVAS.HEIGHT * 0.65;
@@ -316,11 +319,6 @@ export default function PixiEffects({ effects }) {
       const laneRight = getLaneRightX(lane);
 
       const x = applyPerspective((laneLeft + laneRight) / 2, HIT_LINE_Y);
-
-      const leftX = applyPerspective(laneLeft, HIT_LINE_Y);
-      const rightX = applyPerspective(laneRight, HIT_LINE_Y);
-      const widthPx = Math.abs(rightX - leftX);
-      const streamX = (laneLeft + laneRight) / 2;
       const streamWidthPx = Math.abs(laneRight - laneLeft);
       /* ================= TAP ================= */
       if (effect.type === 'tap') {
@@ -368,7 +366,7 @@ export default function PixiEffects({ effects }) {
             laneWidth: streamWidthPx,
           });
 
-          stream.container.x = x;  
+          stream.container.x = x;
           stream.container.y = HIT_LINE_Y;
           app.stage.addChild(stream.container);
           longStreamRef.current.set(key, stream);

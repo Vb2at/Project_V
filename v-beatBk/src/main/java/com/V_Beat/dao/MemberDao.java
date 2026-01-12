@@ -6,7 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
-import com.V_Beat.dto.Member;
+import com.V_Beat.dto.User;
 
 
 @Mapper
@@ -16,25 +16,25 @@ public interface MemberDao{
 		    INSERT INTO `User` (email, loginPw, nickName, loginType, socialId, profileImg, regDate)
 		    VALUES (#{email}, #{loginPw}, #{nickName}, #{loginType}, #{socialId}, #{profileImg}, NOW())
 		    """)
-		void join(Member member);
+		void join(User member);
 
 	@Select("""
 			SELECT * FROM `User` 
 			WHERE id = #{id}
 			""")
-	Member findById(int id);	
+	User findById(int id);	
 	
 	@Select("""
 			SELECT * FROM `user`
 			     WHERE nickName = #{nickName}
 			""")
-	Member findByNickName(String nickName);
+	User findByNickName(String nickName);
 
 	@Select("""
 		    SELECT * FROM `user`
 		    	WHERE email = #{email}
 		    """)
-	Member findByEmail(String email);
+	User findByEmail(String email);
 
 	@Update("""
 		    UPDATE `user`
@@ -49,7 +49,7 @@ public interface MemberDao{
 				WHERE email = #{keyword} OR nickName = #{keyword}
 				LIMIT 1
 			""")
-	Member searchUser(String keyword);
+	User searchUser(String keyword);
 		
 	@Select("""
 			SELECT COUNT(*) 
@@ -97,7 +97,7 @@ public interface MemberDao{
 		    SELECT * FROM `User`
 		    WHERE socialId = #{socialId} AND loginType = #{loginType}
 		    """)
-		Member findBySocialId(String socialId, int loginType);
+		User findBySocialId(String socialId, int loginType);
 	
 	
 }

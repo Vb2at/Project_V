@@ -18,17 +18,17 @@ import lombok.Getter;
 public class Req {
     
     @Getter
-    private Member loginMember;
+    private User loginMember;
     private HttpServletResponse resp;
     private HttpSession session;
     
     public Req(HttpServletRequest request, HttpServletResponse response) {
         this.resp = response;
         this.session = request.getSession();
-        this.loginMember = (Member) this.session.getAttribute("loginMember");
+        this.loginMember = (User) this.session.getAttribute("loginMember");
         
         if(this.loginMember == null) {
-            this.loginMember = new Member();
+            this.loginMember = new User();
         }
         
         request.setAttribute("req", this);
@@ -44,7 +44,7 @@ public class Req {
         }
     }
 
-    public void login(Member member) {
+    public void login(User member) {
         this.session.setAttribute("loginMember", member);
         this.loginMember = member;
     }
@@ -60,7 +60,7 @@ public class Req {
         if (this.session != null) {
             this.session.invalidate();
         }
-        this.loginMember = new Member();
+        this.loginMember = new User();
     }
     
     public void init() {
