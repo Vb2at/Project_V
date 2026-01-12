@@ -2,6 +2,7 @@ package com.V_Beat.dao;
 
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
@@ -48,9 +49,9 @@ public interface AuthDao {
 	//비밀번호 업데이트
 	@Update("""
 			UPDATE `user`
-				SET loginPw = #{loginPw}
+				SET loginPw = #{encodedPw}
 				WHERE id = #{id}
 			""")
-	void updatePw(int id, String endoedPw);
+	void updatePw(@Param("id") int id, @Param("encodedPw") String encodedPw);
 
 }

@@ -85,10 +85,10 @@ public class AuthService {
 		String tempPw = generateTempPassword();
 		
 		//BCrypt로 암호화
-		String endoedPw = this.passwordEncoder.encode(tempPw);
+		String encodedPw = this.passwordEncoder.encode(tempPw);
 		
 		//DB에 암호화된 임시 비밀번호로 업데이트
-		this.authDao.updatePw(user.getId(), endoedPw);
+		this.authDao.updatePw(user.getId(), encodedPw);
 		
 		//평문 임시 비밀번호를 이메일로 발송
 		this.emailService.sendTempPw(email, tempPw);

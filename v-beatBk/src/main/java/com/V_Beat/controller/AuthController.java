@@ -49,6 +49,30 @@ public class AuthController {
 		return res;
 	}
 	
+	//닉네임 중복 체크(AJAX)
+	@PostMapping("/check-nickname")
+	public Map<String, Object> checkNickname(@RequestBody CheckReq req) {
+		Map<String, Object> res = new HashMap<>();
+		
+		String nickName = (req.getNickName() == null) ? "" : req.getNickName().trim();
+		
+		if(nickName.isEmpty()) {
+			res.put("ok", false);
+			res.put("message", "닉네임을 입력하세요.");
+			return res;
+		}
+		
+		if(this.authService.existsByNickName(nickName)) {
+			res.put("ok", false);
+			res.put("message", "이미 사용중인 닉네임입니다.");
+			return res;
+		}
+		
+		res.put("ok", true);
+		res.put("message", String.format("%s는 사용 가능한 닉네임입니다.", nickName));
+		return res;
+	}
+	
 	//이메일 검증(중복 체크)
 	@PostMapping("/check-email")
 	public Map<String, Object> checkEmail(@RequestBody CheckReq req) {
@@ -214,6 +238,7 @@ public class AuthController {
 		
 		session.setAttribute("loginUser", user.getEmail());
 		session.setAttribute("loginUserNickName", user.getNickName());
+		session.setAttribute("loginUserId", user.getId());
 		
 		res.put("ok", true);
 		res.put("message", String.format("%s님 환영합니다!", user.getNickName()));
@@ -236,6 +261,12 @@ public class AuthController {
 	@PostMapping("/sendTempPw")
 	public Map<String, Object> sendTempPw(@RequestBody CheckReq req) {
 		Map<String, Object> res = new HashMap<>();
+		
+		if(req.getEmail() == null || req.getEmail().trim().isEmpty()) {
+			res.put("ok", false);
+			res.put("message", "이메일을 입력하세요.");
+			return res;
+		}
 		
 		try {
 			User user = this.authService.findByEmail(req.getEmail());

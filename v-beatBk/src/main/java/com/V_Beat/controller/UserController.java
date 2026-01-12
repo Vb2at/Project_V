@@ -1,17 +1,122 @@
 package com.V_Beat.controller;
 
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import java.util.HashMap;
+import java.util.Map;
 
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.V_Beat.dto.CheckReq;
+import com.V_Beat.dto.User;
 import com.V_Beat.service.UserService;
+
+import jakarta.servlet.http.HttpSession;
 
 @RestController
 @RequestMapping("/api/user")
 public class UserController {
 
 	private UserService userService;
-	
+
 	public UserController(UserService userService) {
 		this.userService = userService;
 	}
+
+	// 닉네임 변경
+	@PostMapping("/change-nickname")
+	public Map<String, Object> changeNickName(@RequestBody CheckReq req, HttpSession session) {
+		Map<String, Object> res = new HashMap<>();
+
+		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+		if (loginUserId == null) {
+			res.put("ok", false);
+			res.put("message", "로그인이 필요한 기능입니다.");
+			return res;
+		}
+
+		String nickName = (req.getNickName() == null) ? "" : req.getNickName().trim();
+		if (nickName.isEmpty()) {
+			res.put("ok", false);
+			res.put("message", "닉네임을 입력하세요.");
+			return res;
+		}
+
+		String result = this.userService.changeNickName(loginUserId, nickName);
+		if ("success".equals(result)) {
+			session.setAttribute("loginUserNickName", nickName);
+			res.put("ok", true);
+			res.put("message", "닉네임이 변경되었습니다.");
+			return res;
+		}
+
+		res.put("ok", false);
+		res.put("message", result);
+		return res;
+	}
+
+	// 비밀번호 변경
+	@PostMapping("/change-pw")
+	public Map<String, Object> changePw(@RequestBody CheckReq req, HttpSession session) {
+		Map<String, Object> res = new HashMap<>();
+
+		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+		if (loginUserId == null) {
+			res.put("ok", false);
+			res.put("message", "로그인이 필요한 기능입니다.");
+			return res;
+		}
+
+		String newPw = (req.getLoginPw() == null) ? "" : req.getLoginPw().trim();
+		if (newPw.isEmpty()) {
+			res.put("ok", false);
+			res.put("message", "비밀번호를 입력하세요");
+			return res;
+		}
+
+		String result = userService.changePw(loginUserId, newPw);
+
+		if ("success".equals(result)) {
+			res.put("ok", true);
+			res.put("message", "비밀번호가 변경되었습니다.");
+			return res;
+		}
+
+		res.put("ok", false);
+		res.put("message", result);
+		return res;
+	}
+
+	//프로필 이미지 업로드
+	@PostMapping(value = "/uploadProfile", consumes = "multipart/form-data")
+	public Map<String, Object> uploadProfile(@RequestParam("profileImg") MultipartFile profileImg,
+	                                         HttpSession session) {
+	    Map<String, Object> res = new HashMap<>();
+
+	    Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+	    if (loginUserId == null) {
+	        res.put("ok", false);
+	        res.put("message", "로그인이 필요한 기능입니다.");
+	        return res;
+	    }
+
+	    if (profileImg == null || profileImg.isEmpty()) {
+	        res.put("ok", false);
+	        res.put("message", "업로드할 파일을 선택하세요.");
+	        return res;
+	    }
+
+	    userService.uploadProfile(loginUserId, profileImg);
+
+	    res.put("ok", true);
+	    res.put("message", "프로필 이미지가 업로드 되었습니다.");
+	    return res;
+	}
+
+	//회원탈퇴
+	
+
 }
