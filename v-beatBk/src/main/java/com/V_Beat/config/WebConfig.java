@@ -9,26 +9,30 @@ import com.V_Beat.interceptor.Interceptor;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
-    
-    private final Interceptor Interceptor;
-    
-    public WebConfig(Interceptor reqInterceptor) {
-        this.Interceptor = reqInterceptor;
+
+    private final Interceptor authInterceptor;
+
+    public WebConfig(Interceptor authInterceptor) {
+        this.authInterceptor = authInterceptor;
     }
-    
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(Interceptor)
-                .addPathPatterns("/**") 
+        registry.addInterceptor(authInterceptor)
+                .addPathPatterns("/api/**")
                 .excludePathPatterns(
-                    "/resource/**",
-                    "/error" 
+                    "/api/auth/**",
+                    "/oauth/**",
+                    "/error"
                 );
     }
-    
+
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-    	registry.addMapping("/api/**").allowedOrigins("http://localhost:5173")
-    	.allowedMethods("*").allowedHeaders("*");
+        registry.addMapping("/api/**")
+                .allowedOrigins("http://localhost:5173")
+                .allowedMethods("*")
+                .allowedHeaders("*")
+                .allowCredentials(true);
     }
 }
