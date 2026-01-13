@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 const WIDTH = 300;   // GamePlay 로딩 박스 width
 const HEIGHT = 180;  // GamePlay 로딩 박스 height
 
-export default function LoadingNoteRain({ count = 6 }) {
+export default function LoadingNoteRain() {
   const [notes, setNotes] = useState([]);
 
   // 노트 생성

@@ -1,50 +1,37 @@
 import './Visualizer.css';
 import { createPortal } from 'react-dom';
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
 
 /* =========================
-   🎛 튜닝 상수
+   ✅ 프리셋 분리 (게임/로그인)
+   - 게임(default): 기존 값 유지
+   - 로그인: 여기만 튜닝
 ========================= */
-const GAIN = 6.0;
-const MIN_SCALE = 0.08;
-const MAX_SCALE = 3.6;
-const WOBBLE = 0.25;
-const GAME_BAR_COUNT = 48;
-
-/* =========================
-   🎲 bar 고정 민감도
-========================= */
-const BAR_SENSITIVITY = Array.from(
-  { length: GAME_BAR_COUNT },
-  () => 0.7 + Math.random() * 0.6
-);
-
-/* =========================
-   🚀 bar 메타 선계산 (앱 시작 1회)
-========================= */
-const BAR_META = Array.from({ length: GAME_BAR_COUNT }, (_, i) => {
-  const hash = Math.sin(i * 127.1) * 43758.5453;
-  const rand = hash - Math.floor(hash);   // 0~1
-
-  const bandRatio = rand;
-
-  const sensitivity =
-    BAR_SENSITIVITY[i % BAR_SENSITIVITY.length] *
-    (0.6 + rand * 0.9);
-
-  const wobble = 1.0 + Math.sin(i * 0.7) * WOBBLE;
-  const gain = GAIN * sensitivity * wobble;
-
-  return { bandRatio, gain };
-});
+const PRESET = {
+  game: {
+    GAIN: 6.0,
+    MIN_SCALE: 0.08,
+    MAX_SCALE: 3.6,
+    WOBBLE: 0.25,
+    BAR_COUNT: 48,
+  },
+};
 
 export default function Visualizer({
   size = 'small',
   active = false,
   analyserRef,
+  preset,
+  style,
 }) {
   const isGame = size === 'game';
-  const BAR_COUNT = isGame ? GAME_BAR_COUNT : 4;
+
+  // ✅ size가 game이면 기본 preset은 game
+  const presetKey = preset ?? (isGame ? 'game' : 'game');
+  // (small은 RAF 안 도니 preset 의미 없음. 그래도 안전하게 둡니다)
+
+  const cfg = PRESET[presetKey] ?? PRESET.game;
+  const { GAIN, MIN_SCALE, MAX_SCALE, WOBBLE, BAR_COUNT } = cfg;
 
   const barsRef = useRef([]);
   const activeRef = useRef(active);
@@ -58,13 +45,37 @@ export default function Visualizer({
   }, [active]);
 
   /* =========================
-     🚀 RAF 루프 (단일)
+     ✅ bar meta (BAR_COUNT/cfg에 맞춰 안정적으로 생성)
+     - 전역 상수 제거
+     - preset 바꿔도 게임 영향 없음
+  ========================= */
+  const barMeta = useMemo(() => {
+    return Array.from({ length: BAR_COUNT }, (_, i) => {
+      const hash = Math.sin(i * 127.1) * 43758.5453;
+      const rand = hash - Math.floor(hash); // 0~1
+
+      const bandRatio = rand;
+
+      // 민감도는 고정적이면서도 bar별 차이를 주기
+      const sensitivity = (0.7 + ((i * 73) % 100) / 100 * 0.6) * (0.6 + rand * 0.9);
+      const wobble = 1.0 + Math.sin(i * 0.7) * WOBBLE;
+
+      const gain = GAIN * sensitivity * wobble;
+
+      return { bandRatio, gain };
+    });
+  }, [BAR_COUNT, GAIN, WOBBLE]);
+
+  /* =========================
+     ✅ RAF 루프 (game일 때만)
   ========================= */
   useEffect(() => {
     if (!isGame) return;
 
     const tick = () => {
       const analyser = analyserRef?.current;
+
+      // analyser 없거나 비활성이면 계속 대기
       if (!analyser || !activeRef.current) {
         rafRef.current = requestAnimationFrame(tick);
         return;
@@ -73,19 +84,17 @@ export default function Visualizer({
       const data = dataRef.current;
       analyser.getByteFrequencyData(data);
 
-      /* 평균 계산 (1회) */
+      // 평균
       let sum = 0;
-      for (let i = 0; i < data.length; i++) {
-        sum += data[i];
-      }
+      for (let i = 0; i < data.length; i++) sum += data[i];
       avgRef.current = (sum / data.length) / 255;
 
-      /* bar 업데이트 */
+      // bar 업데이트
       for (let i = 0; i < BAR_COUNT; i++) {
         const el = barsRef.current[i];
         if (!el) continue;
 
-        const meta = BAR_META[i];
+        const meta = barMeta[i];
         const bandIndex = Math.floor(meta.bandRatio * data.length);
         const base = data[bandIndex] / 255;
         const v = base * 0.45 + avgRef.current * 0.55;
@@ -101,7 +110,7 @@ export default function Visualizer({
 
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [isGame, analyserRef, BAR_COUNT]);
+  }, [isGame, analyserRef, BAR_COUNT, barMeta, MIN_SCALE, MAX_SCALE]);
 
   const node = (
     <div
@@ -110,18 +119,14 @@ export default function Visualizer({
         `visualizer--${size}`,
         active ? 'is-active' : '',
       ].join(' ')}
+      style={style}  
       aria-hidden="true"
     >
-      {Array.from({ length: BAR_COUNT }).map((_, i) => (
-        <span
-          key={i}
-          ref={(el) => (barsRef.current[i] = el)}
-        />
+      {Array.from({ length: isGame ? BAR_COUNT : 4 }).map((_, i) => (
+        <span key={i} ref={(el) => (barsRef.current[i] = el)} />
       ))}
     </div>
   );
 
-  return isGame
-    ? createPortal(node, document.body)
-    : node;
+  return isGame ? createPortal(node, document.body) : node;
 }

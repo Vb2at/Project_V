@@ -1,0 +1,67 @@
+/* 카드 레이아웃 */
+.login-form {
+  width: 420px;
+  max-width: 100%;
+}
+
+/* 입력 영역 레이아웃 */
+.login-form__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.login-input {
+  height: 46px;
+  outline: none;
+  transition: box-shadow 140ms ease, border-color 140ms ease;
+}
+
+/* 버튼 레이아웃 */
+.login-form__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-btn {
+  height: 48px;
+  border: none;
+  cursor: pointer;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+/* 하단 링크 레이아웃 */
+.login-form__links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+.login-btn:active {
+  transform: scale(0.96);
+  filter: brightness(1.15);
+}
+.login-input:focus {
+  border-color: #ff0000;
+  box-shadow: 0 0 0 2px rgba(0, 204, 255, 0.35);
+  outline: none;
+}
+@keyframes input-shake {
+  0%   { transform: translateX(0); }
+  20%  { transform: translateX(-4px); }
+  40%  { transform: translateX(4px); }
+  60%  { transform: translateX(-3px); }
+  80%  { transform: translateX(3px); }
+  100% { transform: translateX(0); }
+}
+
+.login-input.is-error {
+  animation: input-shake 280ms ease;
+  border-color: #ff6b6b;
+  box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.35);
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

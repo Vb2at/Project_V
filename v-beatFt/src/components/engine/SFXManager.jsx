@@ -54,7 +54,7 @@ export function playMenuBgmRandom() {
     }
   }
   lastMenuBgmIndex = idx;
-  
+
   menuBgmAudio = new Audio(MENU_BGM_LIST[idx]);
   menuBgmAudio.loop = false;
   menuBgmAudio.volume = 0.4;
@@ -82,7 +82,6 @@ export function toggleMenuBgm() {
     menuBgmUserPaused = false;
   }
 }
-
 export function stopMenuBgm() {
   if (!menuBgmAudio) return;
 
@@ -91,6 +90,15 @@ export function stopMenuBgm() {
   menuBgmAudio = null;
   menuBgmPlaying = false;
   menuBgmUserPaused = false;
+
+  // ✅ analyser 정리
+  if (sourceNode) sourceNode.disconnect();
+  if (analyserNode) analyserNode.disconnect();
+  if (audioCtx) audioCtx.close();
+
+  sourceNode = null;
+  analyserNode = null;
+  audioCtx = null;
 }
 
 // ✅ 실제 재생 상태 조회용
@@ -149,4 +157,40 @@ export function stopResultBgm() {
   resultBgmAudio.pause();
   resultBgmAudio.currentTime = 0;
   resultBgmAudio = null;
+}
+
+let audioCtx = null;
+let analyserNode = null;
+let sourceNode = null;
+
+export function singleBgm({
+  src,
+  loop = true,
+  volume = 0.4,
+  analyserRef,
+} = {}) {
+  stopMenuBgm();
+
+  menuBgmUserPaused = false;
+
+  const finalSrc = src ?? MENU_BGM_LIST[0];
+  menuBgmAudio = new Audio(finalSrc);
+  menuBgmAudio.loop = loop;
+  menuBgmAudio.volume = volume;
+
+  // ✅ analyser 연결
+  if (analyserRef) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyserNode = audioCtx.createAnalyser();
+    analyserNode.fftSize = 256;
+
+    sourceNode = audioCtx.createMediaElementSource(menuBgmAudio);
+    sourceNode.connect(analyserNode);
+    analyserNode.connect(audioCtx.destination);
+
+    analyserRef.current = analyserNode;
+  }
+
+  menuBgmAudio.play().catch(() => { });
+  menuBgmPlaying = true;
 }
