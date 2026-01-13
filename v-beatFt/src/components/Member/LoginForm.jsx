@@ -1,5 +1,5 @@
 import './LoginForm.css';
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom';
 
 export default function LoginForm() {
@@ -39,7 +39,20 @@ export default function LoginForm() {
         }, 800);
     };
 
+    useEffect(() => {
+        const el = logoRef.current;
+        if (!el) return;
 
+        const interval = setInterval(() => {
+            el.classList.add('logo-glitch');
+
+            setTimeout(() => {
+                el.classList.remove('logo-glitch');
+            }, 250);   // 글리치 지속 시간
+        }, 2800);     // 몇 초마다 발생할지
+
+        return () => clearInterval(interval);
+    }, []);
     return (
         <div
             className="login-form"

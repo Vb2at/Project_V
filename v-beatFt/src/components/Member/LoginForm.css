@@ -65,3 +65,79 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+/* ===== Mild Glitch ===== */
+@keyframes logo-glitch-soft {
+  0%   { transform: scale(2.8) translate(0, 0); filter: none; }
+  25%  { transform: scale(2.8) translate(-1px, 0); filter: drop-shadow(-2px 0 #ff4a4a); }
+  50%  { transform: scale(2.8) translate(1px, 0);  filter: drop-shadow(2px 0 #00e5ff); }
+  75%  { transform: scale(2.8) translate(-1px, 1px); filter: none; }
+  100% { transform: scale(2.8) translate(0, 0); filter: none; }
+}
+
+.logo-glitch {
+  animation: logo-glitch-soft 160ms linear 1;
+}
+.logo-glitch-wrap {
+  position: relative;
+  display: inline-block;
+  height: 130px;  
+}
+
+/* 복제 레이어 (RGB 분리용) */
+.logo-glitch-wrap::before,
+.logo-glitch-wrap::after {
+  content: '';
+  position: absolute;
+  transform: scale(2.8); 
+  inset: 0;
+  background-image: url('/images/mainlogo.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.logo-glitch-wrap::before {
+  filter: drop-shadow(-6px 0 #ff2a2a) saturate(1.4);
+}
+
+.logo-glitch-wrap::after {
+  filter: drop-shadow(6px 0 #00f0ff) saturate(1.4);
+}
+
+/* ===== 슬라이스 글리치 애니메이션 ===== */
+@keyframes logo-slice-glitch {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+    clip-path: inset(0 0 100% 0);
+  }
+
+  20% {
+    opacity: 1;
+    transform: translateX(-8px);
+    clip-path: inset(10% 0 70% 0);   /* 상단 슬라이스 */
+  }
+
+  40% {
+    transform: translateX(9px);
+    clip-path: inset(45% 0 35% 0);   /* 중앙 슬라이스 */
+  }
+
+  60% {
+    transform: translateX(-6px);
+    clip-path: inset(75% 0 10% 0);   /* 하단 슬라이스 */
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(0);
+    clip-path: inset(0 0 100% 0);
+  }
+}
+
+.logo-glitch-active::before,
+.logo-glitch-active::after {
+  animation: logo-slice-glitch 120ms linear 1;
+}
