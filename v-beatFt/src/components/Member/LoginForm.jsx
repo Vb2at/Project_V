@@ -10,6 +10,7 @@ export default function LoginForm() {
     const emailRef = useRef(null);
     const passwordRef = useRef(null);
     const navigate = useNavigate();
+    const logoRef = useRef(null);
 
     const handleSubmit = () => {
         if (!email) {
@@ -43,9 +44,10 @@ export default function LoginForm() {
         <div
             className="login-form"
             style={{
-                padding: '48px 40px',
+                padding: '56px 48px', 
                 borderRadius: 18,
-                transform: 'translateY(-380px)',
+                transform: 'translateY(-30px)',
+                scale: 1.2,
                 position: 'relative',
                 zIndex: 20,
                 background: 'rgb(56, 56, 56)',
@@ -57,29 +59,30 @@ export default function LoginForm() {
                 textAlign: 'center',
             }}
         >
-            {/* 타이틀 */}
-            <h1
-                className="login-form__title"
+            {/* 상단 로고 */}
+            <div
+                className="hero-logo"
                 style={{
-                    fontSize: 28,
-                    fontWeight: 700,
+                    display: 'flex',              // ✅ 가운데 정렬
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    pointerEvents: 'none',
                     marginBottom: 12,
                 }}
             >
-                대주제
-            </h1>
-
-            {/* 설명 */}
-            <p
-                className="login-form__desc"
-                style={{
-                    fontSize: 14,
-                    opacity: 0.7,
-                    marginBottom: 32,
-                }}
-            >
-                소주제
-            </p>
+                <img
+                    ref={logoRef}
+                    src="/images/mainlogo.png"
+                    alt="V-BEAT"
+                    style={{
+                        height: 130,                 // ✅ 실제 필요한 크기로 축소
+                        maxWidth: '100%',
+                        objectFit: 'contain',
+                        transform: 'scale(2.8)',
+                        filter: 'drop-shadow(0 0 18px rgba(255,255,255,0.35))',
+                    }}
+                />
+            </div>
 
             {/* 입력 폼 */}
             <div className="login-form__fields">
@@ -236,6 +239,6 @@ export default function LoginForm() {
                 </button>
             </div>
 
-        </div>
+        </div >
     );
 }

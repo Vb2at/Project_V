@@ -90,6 +90,8 @@ export default function JoinForm() {
                     width: 560,
                     padding: '48px 40px',
                     borderRadius: 18,
+                    transform: 'translateY(40px)',
+                    scale: 1.2,
                     background: 'rgb(56,56,56)',
                     boxShadow: `
             0 20px 60px rgba(0,0,0,0.6),
@@ -209,6 +211,7 @@ export default function JoinForm() {
                     style={{
                         width: 180,
                         height: 46,
+                        transform: 'translateY(100px)',
                         borderRadius: 12,
                         border: 'none',
                         cursor: 'pointer',

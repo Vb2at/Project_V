@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import './Login.css';
 import LoginForm from '../../components/Member/LoginForm';
 import {
@@ -11,7 +11,6 @@ import LoginNoteRain from './LoginNoteRain';
 export default function Login() {
   const [bgmOn, setBgmOn] = useState(true);
   const LOGIN_BGM_SRC = '/sound/bgm/menu2.mp3';
-  const logoRef = useRef(null);
 
   // ✅ 로그인 진입 시 고정 BGM 자동 재생
   useEffect(() => {
@@ -26,26 +25,6 @@ export default function Login() {
     };
   }, []);
 
-  useEffect(() => {
-    let rafId = 0;
-    const start = performance.now();
-
-    const tick = (now) => {
-      const t = (now - start) / 1000;
-
-      const scale = 1 + Math.sin(t * 1.0) * 0.10;   // 진폭 3%
-
-      if (logoRef.current) {
-        logoRef.current.style.transform =
-          `translateY(-180px) scale(${scale})`;
-      }
-
-      rafId = requestAnimationFrame(tick);
-    };
-
-    rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
-  }, []);
 
   // ✅ BGM 토글 (반드시 singleBgm / stop 사용)
   const toggleBgm = () => {
@@ -130,27 +109,7 @@ export default function Login() {
             gap: 8,
           }}
         >
-          {/* 상단 로고 */}
-          <div
-            className="hero-logo"
-            style={{
-              textAlign: 'center',
-              pointerEvents: 'none',
-            }}
-          >
-            <img
-              ref={logoRef}
-              src="/images/mainlogo.png"
-              alt="V-BEAT"
-              style={{
-                height: 500,
-                maxWidth: '100%',
-                objectFit: 'contain',
-                transform: 'translateY(-180px)',
-                filter: 'drop-shadow(0 0 18px rgba(255,255,255,0.35))',
-              }}
-            />
-          </div>
+
 
           {/* 로그인 폼 */}
           <LoginForm />
