@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import LoadingNoteRain from './gameplay/LoadingNoteRain';   // 경로 맞게 유지
 
+const TIPS = [
+  "SYSTEM · Neural sync stabilizing...",
+  "TIP · 롱노트는 끝까지 유지하면 추가 점수를 얻습니다.",
+  "CORE · Signal latency calibrated.",
+  "TIP · Perfect 판정은 점수 보너스를 제공합니다.",
+];
+
 const DURATION = 1200;   // 이동 연출 시간(ms)
 
 export default function NavigationLoadingPage() {
@@ -10,6 +17,17 @@ export default function NavigationLoadingPage() {
 
   const [loadingPercent, setLoadingPercent] = useState(0);
   const startRef = useRef(0);
+  const [tipIndex, setTipIndex] = useState(
+    () => Math.floor(Math.random() * TIPS.length)
+  );
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTipIndex(i => (i + 1) % TIPS.length);
+    }, 3500);
+
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     startRef.current = performance.now();
@@ -124,6 +142,24 @@ export default function NavigationLoadingPage() {
             }}
           >
             {Math.round(loadingPercent)}%
+          </div>
+
+          {/* === TIP 텍스트 === */}
+          <div
+            style={{
+              position: 'fixed',   // ✅ 여기만 변경
+              bottom: 56,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: 12,
+              opacity: 0.65,
+              color: '#7df9ff',
+              letterSpacing: '0.04em',
+              pointerEvents: 'none',
+              textShadow: '0 0 8px rgba(125,249,255,0.35)',
+            }}
+          >
+            {TIPS[tipIndex]}
           </div>
         </div>
       </div>

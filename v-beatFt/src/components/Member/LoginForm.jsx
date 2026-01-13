@@ -43,16 +43,23 @@ export default function LoginForm() {
         const el = logoRef.current;
         if (!el) return;
 
-        const interval = setInterval(() => {
-            el.classList.add('logo-glitch');
+        const rand = (min, max) => Math.random() * (max - min) + min;
 
-            setTimeout(() => {
-                el.classList.remove('logo-glitch');
-            }, 250);   // 글리치 지속 시간
-        }, 2800);     // 몇 초마다 발생할지
+        const interval = setInterval(() => {
+            // ✅ 좌우는 크게, 상하는 작게
+            const gx = rand(-10, 10);   // X 흔들림 (크게)
+            const gy = rand(-1.5, 1.5); // Y 흔들림 (작게)
+            const hue = rand(-40, 40);
+
+            el.style.setProperty('--gx', `${gx}px`);
+            el.style.setProperty('--gy', `${gy}px`);
+            el.style.setProperty('--hue', `${hue}deg`);
+        }, 120);   // 갱신 주기 (작을수록 지직거림 증가)
 
         return () => clearInterval(interval);
     }, []);
+
+
     return (
         <div
             className="login-form"
@@ -83,18 +90,23 @@ export default function LoginForm() {
                     marginBottom: 12,
                 }}
             >
-                <img
+                <div
+                    className="logo-glitch-wrap glitch"
                     ref={logoRef}
-                    src="/images/mainlogo.png"
-                    alt="V-BEAT"
-                    style={{
-                        height: 130,                 // ✅ 실제 필요한 크기로 축소
-                        maxWidth: '100%',
-                        objectFit: 'contain',
-                        transform: 'scale(2.8)',
-                        filter: 'drop-shadow(0 0 18px rgba(255,255,255,0.35))',
-                    }}
-                />
+                    style={{ filter: 'url(#glitch-filter)' }}
+                >
+                    <img
+                        src="/images/mainlogo.png"
+                        alt="V-BEAT"
+                        style={{
+                            height: 130,
+                            maxWidth: '100%',
+                            objectFit: 'contain',
+                            transform: 'scale(2.8)',
+                            filter: 'drop-shadow(0 0 18px rgba(255,255,255,0.35))',
+                        }}
+                    />
+                </div>
             </div>
 
             {/* 입력 폼 */}
@@ -270,3 +282,20 @@ export default function LoginForm() {
         </div >
     );
 }
+<svg width="0" height="0">
+    <filter id="glitch-filter">
+        <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.015"
+            numOctaves="2"
+            result="noise"
+        />
+        <feDisplacementMap
+            in="SourceGraphic"
+            in2="noise"
+            scale="0"
+            xChannelSelector="R"
+            yChannelSelector="G"
+        />
+    </filter>
+</svg>
