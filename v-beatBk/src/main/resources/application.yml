@@ -58,3 +58,30 @@ google:
   client-id: 136270481858-1lt34e28j8hp9sf09qhb515qrntcvlhl.apps.googleusercontent.com
   client-secret: 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
   redirect-uri: http://localhost:8080/oauth/google/callback
+
+  matgim:
+    base-url: "https://api.matgim.ai/54edkvw2hn"
+    api-key: ${MATGIM_API_KEY}
+    path: "/api-keyword-slang"
+
+    # 실시간 채팅 체감렉 방지용 타임아웃
+    timeout-ms: 800
+
+    # API document 제한
+    doc-max: 1000
+
+    # 장애 로그 스팸 방지
+    log-cooldown-ms: 10000
+
+    # 연속 실패 쿨다운
+    fail-threshold: 3
+    disable-ms: 30000
+
+    # 동일 메시지 캐시
+    cache-ttl-ms: 3000
+    cache-max-size: 5000
+    cache-cleanup-interval-ms: 10000
+
+    
+    
+
