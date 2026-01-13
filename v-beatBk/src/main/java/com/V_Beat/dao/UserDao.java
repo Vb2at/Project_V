@@ -1,5 +1,6 @@
 package com.V_Beat.dao;
 
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
@@ -33,6 +34,11 @@ public interface UserDao {
     	""")
     int uploadProfile(@Param("loginUserId") Integer loginUserId,
     	              @Param("profileImg") String profileImg);
-
+    
+    //회원탈퇴
+    @Delete("""
+    		DELETE FROM `user`
+    			WHERE id = #{loginUserId}
+    		""")
+	int deleteAccount(@Param("loginUserId") Integer loginUserId);
 }
-

@@ -90,7 +90,7 @@ public class UserController {
 		return res;
 	}
 
-	//프로필 이미지 업로드
+	// 프로필 이미지 업로드
 	@PostMapping(value = "/uploadProfile", consumes = "multipart/form-data")
 	public Map<String, Object> uploadProfile(@RequestParam("profileImg") MultipartFile profileImg,
 	                                         HttpSession session) {
@@ -109,14 +109,44 @@ public class UserController {
 	        return res;
 	    }
 
-	    userService.uploadProfile(loginUserId, profileImg);
+	    String result = userService.uploadProfile(loginUserId, profileImg);
 
+	    if ("업로드할 파일이 없습니다.".equals(result) || (result != null && result.endsWith("실패했습니다."))) {
+	        res.put("ok", false);
+	        res.put("message", result);
+	        return res;
+	    }
+
+	    // 성공: result는 저장된 파일명(UUID_원본명)
 	    res.put("ok", true);
 	    res.put("message", "프로필 이미지가 업로드 되었습니다.");
+	    res.put("fileName", result); // 프론트에서 필요하면 사용
 	    return res;
 	}
 
 	//회원탈퇴
-	
-
+	@PostMapping("/deleteAccount")
+	public Map<String, Object> deleteAccount(HttpSession session) {
+		Map<String, Object> res = new HashMap<>();
+		
+		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+		if(loginUserId == null) {
+			res.put("ok", false);
+			res.put("message", "로그인이 필요한 기능입니다.");
+			return res;
+		}
+		
+		String result = this.userService.deleteAccount(loginUserId);
+		if("success".equals(result)) {
+			session.invalidate();
+			res.put("ok", true);
+			res.put("message", "회원탈퇴가 정상적으로 되었습니다.");
+			return res;
+		} else {
+			res.put("ok", false);
+			res.put("message", result);
+		}
+		
+		return res;
+	}
 }

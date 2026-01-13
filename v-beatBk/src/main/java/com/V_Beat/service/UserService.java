@@ -73,5 +73,13 @@ public class UserService {
 	        return "프로필 이미지 저장에 실패했습니다.";
 	    }
 	}
-
+	
+	//회원탈퇴
+	public String deleteAccount(Integer loginUserId) {
+		int deleted = this.userDao.deleteAccount(loginUserId);
+		if(deleted == 1) {
+			return "success";
+		}
+		return "회원탈퇴에 실패했습니다.";
+	}
 }

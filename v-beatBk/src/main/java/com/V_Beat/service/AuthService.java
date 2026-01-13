@@ -93,4 +93,14 @@ public class AuthService {
 		//평문 임시 비밀번호를 이메일로 발송
 		this.emailService.sendTempPw(email, tempPw);
 	}
+
+	public User findBySocialId(String socialId, int i) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	public void joinSocial(User newMember) {
+		// TODO Auto-generated method stub
+		
+	}
 }
