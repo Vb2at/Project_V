@@ -20,7 +20,7 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
-import com.V_Beat.dto.Member;
+import com.V_Beat.dto.User;
 import com.V_Beat.service.BattleSessionService;
 import com.V_Beat.service.OnlineUserService;
 
@@ -79,9 +79,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 							if (session == null) return true;
 
 							Object loginMember = session.getAttribute("loginMember");
-							if (loginMember instanceof Member member) {
+							if (loginMember instanceof User user) {
 								// ✅ 세션에서 userId를 WS sessionAttributes로 넘김
-								attributes.put("userId", member.getId());
+								attributes.put("userId", user.getId());
 							}
 						}
 						return true;

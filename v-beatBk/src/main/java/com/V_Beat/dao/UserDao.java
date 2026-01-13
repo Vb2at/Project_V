@@ -3,8 +3,11 @@ package com.V_Beat.dao;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 import org.springframework.web.multipart.MultipartFile;
+
+import com.V_Beat.dto.User;
 
 @Mapper
 public interface UserDao {
@@ -41,4 +44,18 @@ public interface UserDao {
     			WHERE id = #{loginUserId}
     		""")
 	int deleteAccount(@Param("loginUserId") Integer loginUserId);
+    
+    //유저 단건 조회
+    @Select("""
+        SELECT id,
+               email,
+               nickName,
+               profileImg,
+               loginType,
+               socialId,
+               regDate
+          FROM `user`
+         WHERE id = #{id}
+    """)
+    User findById(@Param("id") int id);
 }

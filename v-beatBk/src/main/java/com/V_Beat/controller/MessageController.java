@@ -29,11 +29,11 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import com.V_Beat.dto.Member;
 import com.V_Beat.dto.Message;
+import com.V_Beat.dto.User;
 import com.V_Beat.service.BattleSessionService;
-import com.V_Beat.service.MemberService;
 import com.V_Beat.service.MessageService;
+import com.V_Beat.service.UserService; // ✅ MemberService 제거 → UserService로 교체
 
 @Controller
 public class MessageController {
@@ -43,16 +43,18 @@ public class MessageController {
     private final MessageService messageService;
     private final SimpMessagingTemplate simpMessagingTemplate;
     private final BattleSessionService battleSessionService;
-    private final MemberService memberService;
+
+    // ✅ 기존 memberService.findById(userId) 쓰던 부분만 userService로 대체
+    private final UserService userService;
 
     public MessageController(BattleSessionService battleSessionService,
                              MessageService messageService,
                              SimpMessagingTemplate simpMessagingTemplate,
-                             MemberService memberService) {
+                             UserService userService) {
         this.messageService = messageService;
         this.simpMessagingTemplate = simpMessagingTemplate;
         this.battleSessionService = battleSessionService;
-        this.memberService = memberService;
+        this.userService = userService;
     }
 
     // =========================
@@ -103,6 +105,7 @@ public class MessageController {
     private static class SlangCacheEntry {
         final String masked;
         final long savedAtMs;
+
         SlangCacheEntry(String masked, long savedAtMs) {
             this.masked = masked;
             this.savedAtMs = savedAtMs;
@@ -501,8 +504,9 @@ public class MessageController {
     }
 
     private String getNickOrDefault(int userId) {
-        Member m = memberService.findById(userId);
-        return (m != null && m.getNickName() != null) ? m.getNickName() : ("user#" + userId);
+        // ✅ 기존 memberService.findById(userId) → userService.findById(userId)
+        User u = userService.findById(userId);
+        return (u != null && u.getNickName() != null) ? u.getNickName() : ("user#" + userId);
     }
 
     // =========================
@@ -567,16 +571,17 @@ public class MessageController {
             return;
         }
 
-        Member m = memberService.findById(userId);
-        if (m == null) {
+        // ✅ 기존 memberService.findById(userId) → userService.findById(userId)
+        User u = userService.findById(userId);
+        if (u == null) {
             sendUserMessage(userId, "error", channelId, "사용자 정보를 찾을 수 없습니다.");
             return;
         }
 
         // ✅ 서버에서 userId/닉/프로필 확정(클라 조작 방지)
         message.setUserId(userId);
-        message.setNickName(m.getNickName());
-        message.setProfileImg(m.getProfileImg());
+        message.setNickName(u.getNickName());
+        message.setProfileImg(u.getProfileImg());
 
         // ✅ 욕설/비속어 마스킹 + 메타데이터 세팅
         FilterResult fr = maskSlangByMatgim(trimmed);

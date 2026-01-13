@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.V_Beat.dao.UserDao;
+import com.V_Beat.dto.User;
 
 @Service
 public class UserService {
@@ -82,4 +83,8 @@ public class UserService {
 		}
 		return "회원탈퇴에 실패했습니다.";
 	}
+	
+    public User findById(int id) {
+        return userDao.findById(id);
+    }
 }
