@@ -313,8 +313,7 @@ public class MemberController {
 	    return memberService.deleteFriend(req.getLoginMemberId(), targetId);
 	}
 	/*
-	 * 대결 초대 보내기
-	 * - targetId에게 대결 초대 생성 + WebSocket 알림
+	 * 대결 초대 보내기	 * - targetId에게 대결 초대 생성 + WebSocket 알림
 	 */
 	@PostMapping("/user/duel/invite")
 	@ResponseBody
@@ -323,10 +322,7 @@ public class MemberController {
 	    return memberService.inviteDuel(req.getLoginMemberId(), targetId, message);
 	}
 
-	/*
-	 * 대결 초대 수락
-	 * - id = DuelInvite.id
-	 */
+	/*	 * 대결 초대 수락	 * - id = DuelInvite.id	 */
 	@PostMapping("/user/duel/accept")
 	@ResponseBody
 	public String duelAccept(int id) {
@@ -334,10 +330,7 @@ public class MemberController {
 	    return memberService.acceptDuelInvite(req.getLoginMemberId(), id);
 	}
 
-	/*
-	 * 대결 초대 거절
-	 * - id = DuelInvite.id
-	 */
+	/*	* 대결 초대 거절 		* - id = DuelInvite.id */
 	@PostMapping("/user/duel/reject")
 	@ResponseBody
 	public String duelReject(int id) {
