@@ -2,7 +2,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import Header from '../../components/Common/Header';
 import { useNavigate } from 'react-router-dom';
-import { playMenuMove, playMenuConfirm, playPreview, stopPreview } from '../../components/engine/SFXManager';
+import { playMenuMove, playMenuConfirm, playPreview, stopPreview, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
 import Visualizer from '../../components/visualizer/Visualizer';
 import { getMenuAnalyser } from '../../components/engine/SFXManager';
 
@@ -32,6 +32,14 @@ export default function MainOverlay() {
   const wheelContainerRef = useRef(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const analyserRef = useRef(null);
+
+  useEffect(() => {
+    const unlocked = localStorage.getItem('bgmUnlocked') === 'true';
+
+    if (unlocked && !isMenuBgmPlaying()) {
+      playMenuBgmRandom();
+    }
+  }, []);
 
   useEffect(() => {
     // singleBgm이 이미 (Start/Login 클릭에서) 실행된 상태라면
