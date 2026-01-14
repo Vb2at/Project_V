@@ -39,22 +39,42 @@
   align-items: center;
   gap: 10px;
 }
+
 .login-btn:active {
   transform: scale(0.96);
   filter: brightness(1.15);
 }
+
 .login-input:focus {
   border-color: #ff0000;
   box-shadow: 0 0 0 2px rgba(0, 204, 255, 0.35);
   outline: none;
 }
+
 @keyframes input-shake {
-  0%   { transform: translateX(0); }
-  20%  { transform: translateX(-4px); }
-  40%  { transform: translateX(4px); }
-  60%  { transform: translateX(-3px); }
-  80%  { transform: translateX(3px); }
-  100% { transform: translateX(0); }
+  0% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-4px);
+  }
+
+  40% {
+    transform: translateX(4px);
+  }
+
+  60% {
+    transform: translateX(-3px);
+  }
+
+  80% {
+    transform: translateX(3px);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
 }
 
 .login-input.is-error {
@@ -62,6 +82,140 @@
   border-color: #ff6b6b;
   box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.35);
 }
+
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* =========================
+   REAL GLITCH (IMG FILTER BASED)
+   ========================= */
+
+.glitch {
+  animation: glitch-jitter 8.0s infinite steps(1);
+  will-change: transform, filter;
+}
+
+@keyframes glitch-jitter {
+  0% { 
+    transform: translate(0, 0);
+    filter: none;
+  }
+
+  3% {
+    transform: translate(-3px, 1px);
+    filter:
+      blur(0.9px)
+      contrast(1.35)
+      saturate(1.4)
+      hue-rotate(20deg)
+      drop-shadow(-3px 0 red)
+      drop-shadow(3px 0 cyan);
+  }
+
+  4% {
+    transform: translate(3px, -1px);
+    filter:
+      blur(1.4px)
+      contrast(1.6)
+      saturate(1.7)
+      hue-rotate(-12deg)
+      drop-shadow(-4px 0 red)
+      drop-shadow(4px 0 cyan);
+  }
+
+  8% {
+    transform: translate(0, 0);
+    filter: none;
+  }
+
+  60% {
+    transform: translate(0, 0);
+    filter: none;
+  }
+
+  61% {
+    transform: translate(-6px, 0);
+    filter:
+      blur(0.9px)
+      contrast(1.35)
+      saturate(1.4)
+      hue-rotate(-25deg)
+      drop-shadow(-3px 0 red)
+      drop-shadow(3px 0 cyan);
+  }
+
+  62% {
+    transform: translate(5px, 0px);
+    filter:
+      blur(1.4px)
+      contrast(1.6)
+      saturate(1.7)
+      hue-rotate(12deg)
+      drop-shadow(-4px 0 red)
+      drop-shadow(4px 0 cyan);
+  }
+
+
+  65% {
+    transform: translate(0, 0);
+    filter: none;
+  }
+
+  100% {
+    transform: translate(0, 0);
+    filter: none;
+  }
+}
+/* =========================
+   NEON LIGHT SOURCE + GLOW (TUNED)
+   ========================= */
+
+.logo-glitch-wrap {
+  position: relative;
+  isolation: isolate; /* 블렌딩 간섭 방지 */
+}
+
+/* 🌈 로고 자체 네온 글로우 */
+.logo-glitch-wrap img {
+  filter:
+    drop-shadow(0 0 6px rgba(255, 80, 80, 0.45))
+    drop-shadow(0 0 14px rgba(255, 80, 80, 0.35))
+    drop-shadow(0 0 30px rgba(120, 255, 255, 0.5));
+  animation: neon-pulse 2.8s ease-in-out infinite;
+  will-change: filter;
+}
+
+/* 💡 빛이 퍼지는 광원 레이어 (과도한 밝기 억제 버전) */
+.logo-glitch-wrap::after {
+  content: '';
+  position: absolute;
+  inset: -22%;                    /* ✅ 광원 범위 축소 */
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(120, 240, 255, 0.18),
+      rgba(120, 240, 255, 0.08) 35%,
+      rgba(120, 240, 255, 0.03) 55%,
+      transparent 70%
+    );
+  filter: blur(12px);             /* ✅ 번짐 감소 */
+  opacity: 0.45;                  /* ✅ 밝기 억제 */
+  mix-blend-mode: screen;         /* ✅ 빛만 더하기 */
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* 🌫️ 광원 확산 펄스 */
+@keyframes neon-light-pulse {
+  0%, 100% {
+    transform: scale(0.96);
+    opacity: 0.4;
+  }
+
+  50% {
+    transform: scale(1.04);
+    opacity: 0.6;
+  }
 }

@@ -15,6 +15,13 @@ public class Interceptor implements HandlerInterceptor {
                              HttpServletResponse response,
                              Object handler) throws Exception {
 
+    	// CORS preflight 방어 (현재는 WebConfig에서 처리됨)
+    	// 보안 설정 변경 시 필요해질 수 있음 -> 필요하게 되면 주석 해제
+//        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+//            response.setStatus(HttpServletResponse.SC_OK);
+//            return true;
+//        }
+        
         String uri = request.getRequestURI();
 
         HttpSession session = request.getSession(false);
@@ -33,8 +40,9 @@ public class Interceptor implements HandlerInterceptor {
         // 로그인 필요한 API prefix 목록
         return uri.startsWith("/api/user/")
             || uri.startsWith("/api/friend/")
-            || uri.startsWith("/api/duel/")
-            || uri.equals("/api/scores")        // POST /api/scores
-            || uri.startsWith("/api/scores/");  // 혹시 나중에 /api/scores/{id} 생기면 대비
+            || uri.startsWith("/api/duel/");
+        // 로그인 기능 만들어지면 주석 해제
+//            || uri.equals("/api/scores")        // POST /api/scores
+//            || uri.startsWith("/api/scores/");  // 혹시 나중에 /api/scores/{id} 생기면 대비
     }
 }

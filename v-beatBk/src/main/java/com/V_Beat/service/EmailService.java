@@ -29,14 +29,12 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             
             helper.setTo(email);  // 수신자
-            helper.setSubject("[DiscoDing] 이메일 인증 코드");  // 제목
+            helper.setSubject("[V-BEAT] 이메일 인증 코드");  // 제목
             
             // HTML 형식 본문
             String htmlContent = "<h2>이메일 인증 코드</h2>" +
                     "<p>아래 인증 코드를 입력해주세요.</p>" +
-                    "<h1 style='color: #0066cc;'>" + code + "</h1>" +
-                    "<p>코드는 5분 동안 유효합니다.</p>"
-                    
+                    "<h1 style='color: #0066cc;'>" + code + "</h1>" 
                     ;
             
             helper.setText(htmlContent, true);  // true: HTML 형식
@@ -54,7 +52,7 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             
             helper.setTo(email);
-            helper.setSubject("[DiscoDing] 임시 비밀번호 발급");
+            helper.setSubject("[V-BEAT] 임시 비밀번호 발급");
             
             String htmlContent = "<h2>임시 비밀번호가 발급되었습니다</h2>" +
                     "<p>아래 임시 비밀번호로 로그인 후 마이페이지에서 변경해주세요.</p>" +

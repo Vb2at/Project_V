@@ -66,7 +66,7 @@ public class AuthController {
 		}
 		
 		res.put("ok", true);
-		res.put("message", String.format("%s는 사용 가능한 닉네임입니다.", nickName));
+		res.put("message", String.format("%s는(은) 사용 가능한 닉네임입니다.", nickName));
 		return res;
 	}
 	
