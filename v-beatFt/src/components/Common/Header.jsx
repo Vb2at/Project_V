@@ -12,7 +12,7 @@ import { useLocation } from 'react-router-dom';
 export default function Header() {
   const HEADER_HEIGHT = 64;
   const [isPlaying, setIsPlaying] = useState(false);
-
+  const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const isGamePage = location.pathname.startsWith('/game');
 
@@ -101,7 +101,7 @@ export default function Header() {
                 <defs>
                   <linearGradient id="grad-toggle" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#5aeaff" />
-                    <stop offset="100%" stopColor="#ff00ea" />
+                    <stop offset="100%" stopColor="#ff0080" />
                   </linearGradient>
                 </defs>
               </svg>
@@ -118,7 +118,7 @@ export default function Header() {
                 <defs>
                   <linearGradient id="grad-toggle" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#5aeaff" />
-                    <stop offset="100%" stopColor="#ff00ea" />
+                    <stop offset="100%" stopColor="#ff0080" />
                   </linearGradient>
                 </defs>
               </svg>
@@ -144,11 +144,74 @@ export default function Header() {
               <defs>
                 <linearGradient id="grad-next" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#5aeaff" />
-                  <stop offset="100%" stopColor="#ff00ea" />
+                  <stop offset="100%" stopColor="#ff0080" />
                 </linearGradient>
               </defs>
             </svg>
           </button>
+        </div>
+      )}
+
+      {/* 우측 모바일 메뉴 버튼 */}
+      <div
+        style={{
+          position: 'absolute',
+          right: '12px',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}
+      >
+        <button
+          className="neon-btn"
+          onClick={() => setMobileOpen(v => !v)}
+          aria-label="mobile menu"
+        >
+          {/* 햄버거 아이콘 */}
+          <svg viewBox="0 0 24 24" width="22" height="22">
+            <path
+              d="M4 6h16M4 12h16M4 18h16"
+              fill="none"
+              stroke="url(#grad-mobile)"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+            <defs>
+              <linearGradient id="grad-mobile" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#5aeaff" />
+                <stop offset="100%" stopColor="#ff0040" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </button>
+      </div>
+
+      {/* 모바일 메뉴 패널 */}
+      {mobileOpen && (
+        <div
+          className="mobile-menu-panel"
+          style={{
+            position: 'absolute',
+            right: '8px',
+            top: HEADER_HEIGHT + 6,
+            background: 'rgba(10,20,30,0.95)',
+            border: '2px solid rgba(90,234,255,0.4)',
+            borderRadius: '10px',
+            padding: '10px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            zIndex: 1100,
+            boxShadow: '0 0 12px rgba(90,234,255,0.4)',
+          }}
+        >
+          <button className="neon-btn">설정</button>
+          <button className="neon-btn">프로필</button>
+          <button className="neon-btn">메세지</button>
+          <button className="neon-btn">로그아웃</button>
+          <button className="neon-btn">로그인</button>
         </div>
       )}
 

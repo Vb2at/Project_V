@@ -11,6 +11,7 @@ import LoadingNoteRain from './LoadingNoteRain';
 import { playCountTick, playCountStart } from '../../components/engine/SFXManager';
 import { playMenuConfirm } from '../../components/engine/SFXManager';
 import Visualizer from '../../components/visualizer/Visualizer';
+import { LOADING_TIPS as TIPS } from '../../constants/LoadingTips';
 
 function GamePlay() {
   const getSongIdFromUrl = () => {
@@ -49,6 +50,18 @@ function GamePlay() {
   const HEADER_HEIGHT = 25;
 
   const navigate = useNavigate();
+
+  const [tipIndex, setTipIndex] = useState(
+    () => Math.floor(Math.random() * TIPS.length)
+  );
+
+  useEffect(() => {
+    const tipTimer = setInterval(() => {
+      setTipIndex(i => (i + 1) % TIPS.length);
+    }, 2200);
+
+    return () => clearInterval(tipTimer);
+  }, []);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -179,8 +192,8 @@ function GamePlay() {
         >
           <div
             style={{
-              width: '460px',
-              height: '180px',
+              width: '600px',
+              height: '800px',
               position: 'relative',
               borderRadius: '14px',
               overflow: 'hidden',
@@ -195,9 +208,10 @@ function GamePlay() {
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
-                fontSize: '32px',
+                fontSize: '50px',
+                fontWeight: 'bold',
                 letterSpacing: '6px',
-                color: '#ff00bfff',
+                color: 'rgb(255, 255, 255)',
                 textShadow: `
                   0 0 8px #ff4a4a,
                   0 0 24px #ff0000,
@@ -208,15 +222,16 @@ function GamePlay() {
             >
               LOADING
             </div>
-            {/* === 로딩 에너지바 === */}
+
+            {/* ===== Loading Bar ===== */}
             <div
               style={{
                 position: 'absolute',
-                bottom: '20px',
+                bottom: '200px',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                width: '320px',
-                height: '10px',
+                width: '500px',
+                height: '20px',
                 background: 'rgba(255,0,0,0.15)',
                 borderRadius: '6px',
                 overflow: 'hidden',
@@ -240,7 +255,7 @@ function GamePlay() {
             <div
               style={{
                 position: 'absolute',
-                bottom: '-5px',
+                bottom: '200px',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 fontSize: '18px',
@@ -252,6 +267,24 @@ function GamePlay() {
             >
               {Math.round(loadingPercent)}%
             </div>
+          </div>
+          {/* === TIP Text === */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '100px',          // 로딩바 위
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: '24px',
+              letterSpacing: '0.04em',
+              color: '#7df9ff',
+              opacity: 0.85,
+              textShadow: '0 0 6px rgba(125,249,255,0.35)',
+              pointerEvents: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {TIPS[tipIndex]}
           </div>
         </div>
       )}

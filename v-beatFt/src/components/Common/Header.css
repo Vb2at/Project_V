@@ -6,14 +6,18 @@
   border: none;
   padding: 6px;
   cursor: pointer;
+
+  /* 아이콘 실루엣 기준 글로우 */
   filter: drop-shadow(0 0 4px rgba(90,234,255,0.4));
-  transition: transform 0.15s ease, filter 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
 }
 
 .neon-btn:hover {
   filter:
-    drop-shadow(0 0 6px rgba(90,234,255,0.7))
-    drop-shadow(0 0 10px rgba(255,0,234,0.5));
+    drop-shadow(0 0 6px rgba(90,234,255,0.75))
+    drop-shadow(0 0 12px rgba(255,0,234,0.55));
 }
 
 .neon-btn:active {

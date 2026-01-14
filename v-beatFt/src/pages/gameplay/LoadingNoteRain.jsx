@@ -1,8 +1,8 @@
 // src/pages/GamePlay/LoadingNoteRain.jsx
 import { useEffect, useState } from 'react';
 
-const WIDTH = 300;   // GamePlay 로딩 박스 width
-const HEIGHT = 180;  // GamePlay 로딩 박스 height
+const WIDTH = 600;   // GamePlay 로딩 박스 width
+const HEIGHT = 800;  // GamePlay 로딩 박스 height
 
 export default function LoadingNoteRain() {
   const [notes, setNotes] = useState([]);
@@ -16,7 +16,7 @@ export default function LoadingNoteRain() {
           id: crypto.randomUUID(),
           x: Math.random() * (WIDTH - 14),
           y: -20,
-          speed: 0.8 + Math.random() * 0.8, // 느린 속도
+          speed: 1.0 + Math.random() * 1.0, // 느린 속도
         },
       ]);
     }, 400); 

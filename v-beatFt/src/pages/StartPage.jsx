@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { stopPreview } from "../components/engine/SFXManager";
-
+import { LOADING_TIPS as TIPS } from "../constants/LoadingTips";
 const TOTAL_DURATION = 1800;
 
 export default function StartPage() {
@@ -19,23 +19,6 @@ export default function StartPage() {
                 0.85;
     const [shake, setShake] = useState(false);
     const [afterGlow, setAfterGlow] = useState(false);
-    const TIPS = [
-        'TIP · Perfect 판정은 점수 보너스를 제공합니다!',
-        'TIP · COMBO 를 유지할수록 더 높은 점수를 얻게 됩니다!',
-        'TIP · 원하는 오디오를 넣어 게임을 플레이해보세요!',
-        'TIP · 친구들과 대결해서 가장 강하다는걸 증명하세요!',
-        '시스템 구성중일까나?',
-        '고수는 게임을 탓하지 않습니다',
-        '딱히 없다.',
-        '난 잘못이 없다. -민원규-',
-        '어... 게임 *같이 만들었네 -장지윤-',
-        '글쎄... -???-',
-        '이제 일어나세요 -???-',
-        '난 합리화의 신이 됐어 -???-',
-        '010-6600-0919 -오경태-',
-        '351-0712-1232-93 -농협-',
-    ];
-
     const [progress, setProgress] = useState(0);
     const [tipIndex, setTipIndex] = useState(
         () => Math.floor(Math.random() * TIPS.length)
