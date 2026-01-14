@@ -1,7 +1,12 @@
 /* 카드 레이아웃 */
 .login-form {
-  width: 420px;
-  max-width: 100%;
+  position: relative;
+  isolation: isolate;
+  border-radius: 18px;
+  background: rgb(39, 39, 39);
+  /* 내부 색 고정 */
+  z-index: 0;
+
 }
 
 /* 입력 영역 레이아웃 */
@@ -88,17 +93,18 @@
     transform: rotate(360deg);
   }
 }
+
 /* =========================
    REAL GLITCH (IMG FILTER BASED)
    ========================= */
 
 .glitch {
-  animation: glitch-jitter 8.0s infinite steps(1);
+  animation: glitch-jitter 6.0s infinite steps(1);
   will-change: transform, filter;
 }
 
 @keyframes glitch-jitter {
-  0% { 
+  0% {
     transform: translate(0, 0);
     filter: none;
   }
@@ -106,59 +112,46 @@
   3% {
     transform: translate(-3px, 1px);
     filter:
-      blur(0.9px)
-      contrast(1.35)
-      saturate(1.4)
-      hue-rotate(20deg)
-      drop-shadow(-3px 0 red)
-      drop-shadow(3px 0 cyan);
+      blur(0.9px) contrast(1.35) saturate(1.4) hue-rotate(20deg) drop-shadow(-3px 0 red) drop-shadow(3px 0 cyan);
   }
 
   4% {
+    transform: translate(-1px, 0.5px);
+    filter:
+      blur(0.6px) contrast(1.2) saturate(1.2);
+  }
+
+  5% {
     transform: translate(3px, -1px);
     filter:
-      blur(1.4px)
-      contrast(1.6)
-      saturate(1.7)
-      hue-rotate(-12deg)
-      drop-shadow(-4px 0 red)
-      drop-shadow(4px 0 cyan);
+      blur(1.4px) contrast(1.6) saturate(1.7) hue-rotate(-12deg) drop-shadow(-4px 0 red) drop-shadow(4px 0 cyan);
+  }
+
+  6% {
+    transform: translate(1px, -0.5px);
+    filter:
+      blur(0.7px) contrast(1.3) saturate(1.3);
+  }
+
+  7% {
+    transform: translate(-6px, 0);
+    filter:
+      blur(0.9px) contrast(1.35) saturate(1.4) hue-rotate(-25deg) drop-shadow(-3px 0 red) drop-shadow(3px 0 cyan);
   }
 
   8% {
-    transform: translate(0, 0);
-    filter: none;
-  }
-
-  60% {
-    transform: translate(0, 0);
-    filter: none;
-  }
-
-  61% {
-    transform: translate(-6px, 0);
+    transform: translate(-2px, 0);
     filter:
-      blur(0.9px)
-      contrast(1.35)
-      saturate(1.4)
-      hue-rotate(-25deg)
-      drop-shadow(-3px 0 red)
-      drop-shadow(3px 0 cyan);
+      blur(0.6px) contrast(1.25);
   }
 
-  62% {
+  9% {
     transform: translate(5px, 0px);
     filter:
-      blur(1.4px)
-      contrast(1.6)
-      saturate(1.7)
-      hue-rotate(12deg)
-      drop-shadow(-4px 0 red)
-      drop-shadow(4px 0 cyan);
+      blur(1.4px) contrast(1.6) saturate(1.7) hue-rotate(12deg) drop-shadow(-4px 0 red) drop-shadow(4px 0 cyan);
   }
 
-
-  65% {
+  11% {
     transform: translate(0, 0);
     filter: none;
   }
@@ -168,54 +161,313 @@
     filter: none;
   }
 }
+
 /* =========================
    NEON LIGHT SOURCE + GLOW (TUNED)
    ========================= */
 
 .logo-glitch-wrap {
   position: relative;
-  isolation: isolate; /* 블렌딩 간섭 방지 */
+  isolation: isolate;
+  /* 블렌딩 간섭 방지 */
 }
 
 /* 🌈 로고 자체 네온 글로우 */
-.logo-glitch-wrap img {
-  filter:
-    drop-shadow(0 0 6px rgba(255, 80, 80, 0.45))
-    drop-shadow(0 0 14px rgba(255, 80, 80, 0.35))
-    drop-shadow(0 0 30px rgba(120, 255, 255, 0.5));
-  animation: neon-pulse 2.8s ease-in-out infinite;
-  will-change: filter;
+@keyframes logo-neon-pulse {
+
+  0%,
+  100% {
+    filter:
+      drop-shadow(0 0 6px rgba(255, 80, 80, 0.5)) drop-shadow(0 0 14px rgba(255, 80, 80, 0.35)) drop-shadow(0 0 28px rgba(120, 255, 255, 0.55)) drop-shadow(0 0 50px rgba(120, 255, 255, 0.35));
+    opacity: 0.95;
+  }
+
+  50% {
+    filter:
+      drop-shadow(0 0 10px rgba(255, 80, 80, 0.9)) drop-shadow(0 0 24px rgba(255, 80, 80, 0.7)) drop-shadow(0 0 45px rgba(120, 255, 255, 0.95)) drop-shadow(0 0 80px rgba(120, 255, 255, 0.7));
+    opacity: 1;
+  }
 }
+
 
 /* 💡 빛이 퍼지는 광원 레이어 (과도한 밝기 억제 버전) */
 .logo-glitch-wrap::after {
   content: '';
   position: absolute;
-  inset: -22%;                    /* ✅ 광원 범위 축소 */
+  inset: -22%;
+  /* ✅ 광원 범위 축소 */
   background:
-    radial-gradient(
-      circle at center,
+    radial-gradient(circle at center,
       rgba(120, 240, 255, 0.18),
       rgba(120, 240, 255, 0.08) 35%,
       rgba(120, 240, 255, 0.03) 55%,
-      transparent 70%
-    );
-  filter: blur(12px);             /* ✅ 번짐 감소 */
-  opacity: 0.45;                  /* ✅ 밝기 억제 */
-  mix-blend-mode: screen;         /* ✅ 빛만 더하기 */
+      transparent 70%);
+  filter: blur(12px);
+  /* ✅ 번짐 감소 */
+  opacity: 0.45;
+  /* ✅ 밝기 억제 */
+  mix-blend-mode: screen;
+  /* ✅ 빛만 더하기 */
   z-index: -1;
   pointer-events: none;
 }
 
-/* 🌫️ 광원 확산 펄스 */
-@keyframes neon-light-pulse {
-  0%, 100% {
-    transform: scale(0.96);
-    opacity: 0.4;
+/* =========================
+   NEON BORDER ONLY (MASK)
+   ========================= */
+
+.login-form::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  pointer-events: none;
+  z-index: 1;
+
+  background: linear-gradient(90deg, #ff4d4d, #2de2ff);
+
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+
+  padding: 4px;
+
+  filter:
+    blur(50px) drop-shadow(0 0 6px rgb(120, 239, 255)) drop-shadow(0 0 14px rgb(255, 80, 159));
+
+  opacity: 0.9;
+
+  animation: border-glitch 6.0s infinite cubic-bezier(.4, 0, .6, 1);
+}
+
+/* ✅ NEON TUBE BORDER (box-shadow 기반 코어) */
+.login-form::after {
+  content: '';
+  position: absolute;
+  inset: 2px;               /* 카드 안쪽으로 살짝 */
+  border-radius: 18px;
+  pointer-events: none;
+  z-index: 2;
+
+  border: 2px solid transparent;
+  background:
+    linear-gradient(90deg, #ff0000, #ff00ea, #5aeaff) border-box;
+
+  -webkit-mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+
+  box-shadow:
+    0 0 6px rgba(255,80,80,0.9),
+    0 0 14px rgba(255,0,200,0.7),
+    0 0 26px rgba(90,234,255,0.6);
+}
+
+
+/* =========================
+   CARD OUTER HALO (STRONG / OUTSIDE ONLY)
+   ========================= */
+.login-form-wrap {
+  position: relative;
+}
+
+.login-form-wrap::after {
+  content: '';
+  position: absolute;
+  inset: -25%;
+  border-radius: 40px;
+  pointer-events: none;
+  z-index: -2;
+
+  background:
+    radial-gradient(circle at left center,
+      rgba(255, 80, 80, 0.65) 0%,
+      rgba(255, 80, 160, 0.35) 35%,
+      rgba(255, 80, 109, 0.18) 55%,
+      transparent 75%),
+    radial-gradient(circle at right center,
+      rgba(120, 240, 255, 0.65) 0%,
+      rgba(120, 240, 255, 0.35) 35%,
+      rgba(120, 240, 255, 0.18) 55%,
+      transparent 75%);
+  filter: blur(60px);
+  opacity: 0.65;
+
+  animation: halo-glitch 6.0s infinite steps(1);
+}
+
+@keyframes neon-border-flicker {
+
+  0%,
+  88%,
+  100% {
+    opacity: 0.9;
+    transform: translate(0, 0);
+    filter:
+      drop-shadow(0 0 8px rgba(120, 240, 255, 0.7)) drop-shadow(0 0 18px rgba(255, 80, 160, 0.5));
   }
 
-  50% {
-    transform: scale(1.04);
+  90% {
+    opacity: 0.5;
+    transform: translate(-1px, 0);
+    filter:
+      drop-shadow(-2px 0 6px rgba(255, 0, 0, 0.6)) drop-shadow(2px 0 8px rgba(0, 255, 255, 0.6));
+  }
+
+  93% {
+    opacity: 1;
+    transform: translate(1px, -1px);
+    filter:
+      drop-shadow(-3px 0 10px rgba(255, 0, 0, 0.9)) drop-shadow(3px 0 14px rgba(0, 255, 255, 0.9));
+  }
+
+  96% {
     opacity: 0.6;
+    transform: translate(-1px, 1px);
+    filter:
+      drop-shadow(0 0 4px rgba(120, 240, 255, 0.4)) drop-shadow(0 0 10px rgba(255, 80, 160, 0.3));
   }
 }
+
+@keyframes border-glitch {
+
+  0%,
+  100% {
+    opacity: 0.9;
+    filter:
+      drop-shadow(0 0 8px rgba(120, 240, 255, 0.7)) drop-shadow(0 0 18px rgba(255, 80, 160, 0.5));
+  }
+
+  3% {
+    opacity: 0.6;
+    filter:
+      hue-rotate(20deg) drop-shadow(-2px 0 red) drop-shadow(2px 0 cyan);
+  }
+
+  4% {
+    opacity: 0.75;
+    filter:
+      drop-shadow(0 0 10px rgba(120, 240, 255, 0.6)) drop-shadow(0 0 16px rgba(255, 80, 160, 0.45));
+  }
+
+  5% {
+    opacity: 1;
+    filter:
+      hue-rotate(-12deg) drop-shadow(-4px 0 red) drop-shadow(4px 0 cyan);
+  }
+
+  6% {
+    opacity: 0.8;
+    filter:
+      drop-shadow(0 0 12px rgba(120, 240, 255, 0.6)) drop-shadow(0 0 18px rgba(255, 80, 160, 0.45));
+  }
+
+  7% {
+    opacity: 0.6;
+    filter:
+      hue-rotate(-25deg) drop-shadow(-3px 0 red) drop-shadow(3px 0 cyan);
+  }
+
+  8% {
+    opacity: 0.75;
+    filter:
+      drop-shadow(0 0 10px rgba(120, 240, 255, 0.55)) drop-shadow(0 0 14px rgba(255, 80, 160, 0.4));
+  }
+
+  9% {
+    opacity: 1;
+    filter:
+      hue-rotate(12deg) drop-shadow(-4px 0 red) drop-shadow(4px 0 cyan);
+  }
+
+  11% {
+    opacity: 0.9;
+    filter:
+      drop-shadow(0 0 8px rgba(120, 240, 255, 0.7)) drop-shadow(0 0 18px rgba(255, 80, 160, 0.5));
+  }
+}
+
+@keyframes halo-glitch {
+
+  0%,
+  100% {
+    opacity: 0.75;
+    filter: blur(70px);
+  }
+
+  3% {
+    opacity: 0.55;
+    filter: blur(60px);
+  }
+
+  4% {
+    opacity: 0.65;
+    filter: blur(75px);
+  }
+
+  5% {
+    opacity: 1;
+    filter: blur(85px);
+  }
+
+  6% {
+    opacity: 0.8;
+    filter: blur(70px);
+  }
+
+  7% {
+    opacity: 0.55;
+    filter: blur(60px);
+  }
+
+  8% {
+    opacity: 0.7;
+    filter: blur(75px);
+  }
+
+  9% {
+    opacity: 1;
+    filter: blur(90px);
+  }
+
+  11% {
+    opacity: 0.75;
+    filter: blur(70px);
+  }
+}
+.login-logo {
+  filter:
+
+    drop-shadow(0 0 1.5px rgba(255,255,255,1))
+    drop-shadow(0 0 4px rgba(255,255,255,0.6))
+    drop-shadow(0 0 8px rgba(255,80,160,0.9))
+    drop-shadow(0 0 14px rgba(255,80,160,0.6))
+    drop-shadow(0 0 10px rgba(120,240,255,0.9))
+    drop-shadow(0 0 18px rgba(120,240,255,0.6));
+
+  mix-blend-mode: screen;
+}
+.logo-glitch-wrap {
+  position: relative;
+  isolation: isolate;
+}
+
+.logo-glitch-wrap::after {
+  content: '';
+  position: absolute;
+  inset: -25%;
+background:
+    radial-gradient(ellipse 120% 45% at left center,
+    rgba(255,80,160,0.35), transparent 70%),
+    radial-gradient(ellipse 120% 45% at right center,
+    rgba(120,240,255,0.35), transparent 70%);
+  filter: blur(26px);
+  opacity: 0.7;
+  z-index: -1;
+  pointer-events: none;
+}
+

@@ -5,7 +5,7 @@ import MainPage from './pages/mainpage/MainPage';
 import GamePlay from './pages/gameplay/GamePlay';
 import Result from './pages/gameplay/Result';
 import Join from './pages/member/Join';
-import NavigationLoadingPage from './pages/NavigationLoadingPage';
+import StartPage from './pages/StartPage';
 import './index.css';
 
 function App() {
@@ -14,8 +14,8 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/join" element={<Join />} />
+        <Route path="/start" element={<StartPage/>} />
         <Route path="/main" element={<MainPage />} />
-        <Route path="/nav-loading" element={<NavigationLoadingPage />} />
         <Route path="/game/play" element={<GamePlay />} />
         <Route path="/game/result" element={<Result />} />
       </Routes>

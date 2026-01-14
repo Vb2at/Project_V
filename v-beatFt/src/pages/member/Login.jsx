@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import './Login.css';
 import LoginForm from '../../components/Member/LoginForm';
 import {
@@ -11,20 +11,6 @@ import LoginNoteRain from './LoginNoteRain';
 export default function Login() {
   const [bgmOn, setBgmOn] = useState(true);
   const LOGIN_BGM_SRC = '/sound/bgm/menu2.mp3';
-
-  // ✅ 로그인 진입 시 고정 BGM 자동 재생
-  useEffect(() => {
-    singleBgm({
-      src: LOGIN_BGM_SRC,
-      loop: true,
-      volume: 0.4,
-    });
-
-    return () => {
-      stopMenuBgm();
-    };
-  }, []);
-
 
   // ✅ BGM 토글 (반드시 singleBgm / stop 사용)
   const toggleBgm = () => {

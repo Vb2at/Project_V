@@ -2,7 +2,9 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import Header from '../../components/Common/Header';
 import { useNavigate } from 'react-router-dom';
-import { playMenuMove, playMenuConfirm } from '../../components/engine/SFXManager';
+import { playMenuMove, playMenuConfirm, playPreview, stopPreview } from '../../components/engine/SFXManager';
+import Visualizer from '../../components/visualizer/Visualizer';
+import { getMenuAnalyser } from '../../components/engine/SFXManager';
 
 const dummySongs = [
   { id: 1, title: 'Song A', artist: 'Artist A', cover: null },
@@ -29,6 +31,22 @@ export default function MainOverlay() {
   const keyLockRef = useRef(false);
   const wheelContainerRef = useRef(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const analyserRef = useRef(null);
+
+  useEffect(() => {
+    // singleBgm이 이미 (Start/Login 클릭에서) 실행된 상태라면
+    // analyserNode가 여기서 잡힙니다.
+    const id = setInterval(() => {
+      const a = getMenuAnalyser();
+      if (a) {
+        analyserRef.current = a;
+        clearInterval(id);
+      }
+    }, 50);
+
+    return () => clearInterval(id);
+  }, []);
+
 
   //loading / errorMsg 상태 (지금 코드에서 setLoading/setErrorMsg 쓰고 있어서 필수)
   const [loading, setLoading] = useState(true);
@@ -121,7 +139,6 @@ export default function MainOverlay() {
   const handleWheel = useCallback((e) => {
     e.preventDefault();
     if (wheelLockRef.current) return;
-
     if (!songs.length) return;
 
     const dir = Math.sign(e.deltaY);
@@ -192,6 +209,14 @@ export default function MainOverlay() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedIndex, songs, navigate]);
+
+  useEffect(() => {
+    const url = songs[selectedIndex]?.previewUrl;
+    if (!url) return;
+
+    playPreview(url, { durationSec: 8 });
+  }, [selectedIndex, songs]);
+
 
   const DIFF_ORDER = ['EASY', 'NORMAL', 'HARD', 'HELL'];
 
@@ -492,6 +517,7 @@ export default function MainOverlay() {
                     onClick={() => {
                       setSelectedIndex(item.songIndex);
                       playMenuConfirm();
+                      stopPreview();
                       navigate(`/game/play?songId=${item.id}&diff=${item.diff}`);
                     }}
                     style={{
@@ -536,6 +562,37 @@ export default function MainOverlay() {
           </section>
         </div>
       </main >
+      <Visualizer
+        size="game"
+        preset="menu"
+        analyserRef={analyserRef}
+        active={true}
+        style={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: '28vh',
+
+          zIndex: -2,
+          pointerEvents: 'none',
+        }}
+      />
+      {/* Soft Blur Overlay */}
+      <div
+        style={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: '100vh',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          background: 'rgba(255,255,255,0.03)',
+          zIndex: -1,
+          pointerEvents: 'none',
+        }}
+      />
     </div >
   );
 }

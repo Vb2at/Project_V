@@ -15,6 +15,13 @@ const PRESET = {
     WOBBLE: 0.25,
     BAR_COUNT: 48,
   },
+  menu: {
+    GAIN: 3.2,
+    MIN_SCALE: 0.05,
+    MAX_SCALE: 1.8,
+    WOBBLE: 0.15,
+    BAR_COUNT: 48,
+  },
 };
 
 export default function Visualizer({
@@ -27,8 +34,9 @@ export default function Visualizer({
   const isGame = size === 'game';
 
   // ✅ size가 game이면 기본 preset은 game
-  const presetKey = preset ?? (isGame ? 'game' : 'game');
-  // (small은 RAF 안 도니 preset 의미 없음. 그래도 안전하게 둡니다)
+
+  const presetKey = preset ?? (isGame ? 'game' : 'menu');
+
 
   const cfg = PRESET[presetKey] ?? PRESET.game;
   const { GAIN, MIN_SCALE, MAX_SCALE, WOBBLE, BAR_COUNT } = cfg;
@@ -74,6 +82,7 @@ export default function Visualizer({
 
     const tick = () => {
       const analyser = analyserRef?.current;
+      console.log('[VIS]', !!analyser, analyser?.fftSize);
 
       // analyser 없거나 비활성이면 계속 대기
       if (!analyser || !activeRef.current) {
@@ -83,6 +92,14 @@ export default function Visualizer({
 
       const data = dataRef.current;
       analyser.getByteFrequencyData(data);
+      let max = 0;
+      for (let i = 0; i < data.length; i++) if (data[i] > max) max = data[i];
+      console.log('[ANALYSER MAX]', max);
+
+
+
+      console.log('freq[0]:', data[0]);
+      console.log('freq sample:', data[0], data[5], data[20]);
 
       // 평균
       let sum = 0;
@@ -119,7 +136,7 @@ export default function Visualizer({
         `visualizer--${size}`,
         active ? 'is-active' : '',
       ].join(' ')}
-      style={style}  
+      style={style}
       aria-hidden="true"
     >
       {Array.from({ length: isGame ? BAR_COUNT : 4 }).map((_, i) => (

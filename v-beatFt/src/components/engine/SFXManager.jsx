@@ -41,6 +41,54 @@ let menuBgmAudio = null;
 let menuBgmPlaying = false;
 let menuBgmUserPaused = false;
 let lastMenuBgmIndex = -1;
+let menuBgmBaseVolume = 0.4;
+
+// Web Audio 관련 변수
+let audioCtx = null;
+let analyserNode = null;
+let sourceNode = null;
+let destConnected = false;
+
+// ✅ [추가] 오디오 노드 연결을 처리하는 내부 공통 함수
+function _connectMenuAudioGraph(audioElement) {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => { });
+  }
+
+  // 기존 소스 노드 연결 해제
+  if (sourceNode) {
+    try { sourceNode.disconnect(); } catch { }
+  }
+
+  // 새로운 소스 생성 및 분석기 연결
+  sourceNode = audioCtx.createMediaElementSource(audioElement);
+
+  if (!analyserNode) {
+    analyserNode = audioCtx.createAnalyser();
+    analyserNode.fftSize = 256;
+  }
+
+  sourceNode.connect(analyserNode);
+
+  if (!destConnected) {
+    analyserNode.connect(audioCtx.destination);
+    destConnected = true;
+  }
+}
+
+export function muteMenuBgm() {
+  if (!menuBgmAudio) return;
+  menuBgmAudio.volume = 0;
+}
+
+export function restoreMenuBgmVolume() {
+  if (!menuBgmAudio) return;
+  menuBgmAudio.volume = menuBgmBaseVolume;
+}
 
 export function playMenuBgmRandom() {
   stopMenuBgm();
@@ -56,8 +104,14 @@ export function playMenuBgmRandom() {
   lastMenuBgmIndex = idx;
 
   menuBgmAudio = new Audio(MENU_BGM_LIST[idx]);
+  menuBgmAudio.crossOrigin = 'anonymous'; // ✅ CORS 문제 해결 (비주얼라이저 데이터 획득용)
   menuBgmAudio.loop = false;
-  menuBgmAudio.volume = 0.4;
+  menuBgmBaseVolume = 0.4;
+  menuBgmAudio.volume = menuBgmBaseVolume;
+
+  // ✅ [수정] Web Audio 그래프 연결 로직 추가
+  _connectMenuAudioGraph(menuBgmAudio);
+
   menuBgmAudio.play().catch(() => { });
 
   // ✅ 곡 종료 시 다음 곡 자동 재생
@@ -77,11 +131,16 @@ export function toggleMenuBgm() {
     menuBgmPlaying = false;
     menuBgmUserPaused = true;
   } else {
+    // 재생 재개 시 AudioContext 상태 확인
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
     menuBgmAudio.play().catch(() => { });
     menuBgmPlaying = true;
     menuBgmUserPaused = false;
   }
 }
+
 export function stopMenuBgm() {
   if (!menuBgmAudio) return;
 
@@ -91,14 +150,11 @@ export function stopMenuBgm() {
   menuBgmPlaying = false;
   menuBgmUserPaused = false;
 
-  // ✅ analyser 정리
-  if (sourceNode) sourceNode.disconnect();
-  if (analyserNode) analyserNode.disconnect();
-  if (audioCtx) audioCtx.close();
-
-  sourceNode = null;
-  analyserNode = null;
-  audioCtx = null;
+  // ✅ analyser 연결 정리
+  if (sourceNode) {
+    try { sourceNode.disconnect(); } catch { }
+    sourceNode = null;
+  }
 }
 
 // ✅ 실제 재생 상태 조회용
@@ -159,38 +215,113 @@ export function stopResultBgm() {
   resultBgmAudio = null;
 }
 
-let audioCtx = null;
-let analyserNode = null;
-let sourceNode = null;
-
 export function singleBgm({
   src,
   loop = true,
   volume = 0.4,
   analyserRef,
 } = {}) {
+  if (menuBgmPlaying && menuBgmAudio && (src === undefined || menuBgmAudio.src.includes(src))) {
+    if (analyserRef && analyserNode) {
+      analyserRef.current = analyserNode;
+    }
+    return;
+  }
+  
+  const finalSrc = src ?? MENU_BGM_LIST[0];
+
   stopMenuBgm();
 
-  menuBgmUserPaused = false;
-
-  const finalSrc = src ?? MENU_BGM_LIST[0];
-  menuBgmAudio = new Audio(finalSrc);
+  menuBgmAudio = new Audio();
+  menuBgmAudio.crossOrigin = 'anonymous';
+  menuBgmAudio.src = finalSrc;
   menuBgmAudio.loop = loop;
-  menuBgmAudio.volume = volume;
+  menuBgmBaseVolume = volume;
+  menuBgmAudio.volume = menuBgmBaseVolume;
+  menuBgmAudio.setAttribute('playsinline', '');
 
-  // ✅ analyser 연결
-  if (analyserRef) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    analyserNode = audioCtx.createAnalyser();
-    analyserNode.fftSize = 256;
+  // ✅ 공통 함수 사용으로 로직 통합
+  _connectMenuAudioGraph(menuBgmAudio);
 
-    sourceNode = audioCtx.createMediaElementSource(menuBgmAudio);
-    sourceNode.connect(analyserNode);
-    analyserNode.connect(audioCtx.destination);
-
-    analyserRef.current = analyserNode;
-  }
+  if (analyserRef) analyserRef.current = analyserNode;
 
   menuBgmAudio.play().catch(() => { });
+
   menuBgmPlaying = true;
+  menuBgmUserPaused = false;
+
+  console.log('[BGM]', { ctx: audioCtx?.state, analyser: !!analyserNode, source: !!sourceNode });
+}
+
+let previewAudio = null;
+let previewTimer = null;
+
+const PREVIEW_ENABLED_KEY = 'previewEnabled';
+export function isPreviewEnabled() {
+  const v = localStorage.getItem(PREVIEW_ENABLED_KEY);
+  return v !== 'false'; // 기본 ON
+}
+
+export function setPreviewEnabled(enabled) {
+  localStorage.setItem(PREVIEW_ENABLED_KEY, enabled ? 'true' : 'false');
+}
+
+export function stopPreview() {
+  if (previewTimer) {
+    clearTimeout(previewTimer);
+    previewTimer = null;
+  }
+
+  if (!previewAudio) return;
+
+  previewAudio.pause();
+  previewAudio.currentTime = 0;
+  previewAudio = null;
+  restoreMenuBgmVolume();
+}
+
+export function playPreview(
+  src,
+  {
+    startSec = 0,
+    durationSec = 8,
+    volume = 0.8,
+  } = {}
+) {
+  if (!isPreviewEnabled()) return;
+
+  stopPreview();
+
+  previewAudio = new Audio(src);
+  previewAudio.volume = volume;
+  previewAudio.currentTime = startSec;
+  muteMenuBgm();
+  previewAudio.play().catch(() => { });
+
+  previewTimer = setTimeout(() => {
+    stopPreview();
+  }, durationSec * 1000);
+}
+
+let unlockGainNode = null;
+
+export function unlockAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => { });
+  }
+
+  // ✅ Chrome에서 graph 안 살아나는 경우 강제 활성화
+  if (!unlockGainNode) {
+    unlockGainNode = audioCtx.createGain();
+    unlockGainNode.gain.value = 0;
+    unlockGainNode.connect(audioCtx.destination);
+  }
+}
+
+export function getMenuAnalyser() {
+  return analyserNode;
 }

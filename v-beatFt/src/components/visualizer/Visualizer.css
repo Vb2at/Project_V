@@ -92,18 +92,3 @@
   opacity: 0;
   pointer-events: none;
 }
-/* =========================
-   GAME VISUALIZER LAYOUT FIX
-   ========================= */
-
-.visualizer--game {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-
-  height: 180px;
-  z-index: 5;
-
-  pointer-events: none;
-}
