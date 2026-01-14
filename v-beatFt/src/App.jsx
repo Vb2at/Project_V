@@ -7,6 +7,8 @@ import Result from './pages/gameplay/Result';
 import Join from './pages/member/Join';
 import NavigationLoadingPage from './pages/NavigationLoadingPage';
 import './index.css';
+import NavLoading from './pages/member/NavLoading';
+
 
 function App() {
   return (
@@ -18,6 +20,7 @@ function App() {
         <Route path="/nav-loading" element={<NavigationLoadingPage />} />
         <Route path="/game/play" element={<GamePlay />} />
         <Route path="/game/result" element={<Result />} />
+        <Route path="/nav-loading" element={<NavLoading />} />
       </Routes>
     </BrowserRouter>
   );

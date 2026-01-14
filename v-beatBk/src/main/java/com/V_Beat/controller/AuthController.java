@@ -3,6 +3,7 @@ package com.V_Beat.controller;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -286,5 +287,23 @@ public class AuthController {
 			res.put("message", "임시 비밀번호 발송에 실패하였습니다.");
 			return res;
 		}
+	}
+	
+	//로그인 상태 확인(프론트에서는 세션값을 직접 알 수 없어 필수)
+	@GetMapping("/login/status")
+	public Map<String, Object> loginStatus(HttpSession session) {
+		Map<String, Object> res = new HashMap<>();
+		
+		Object userId = session.getAttribute("loginUserId");
+		if(userId == null) {
+			res.put("ok", false);
+			return res;
+		}
+		
+		res.put("ok", true);
+		res.put("loginUserId", userId);
+		res.put("loginUser", session.getAttribute("loginUser"));
+		res.put("loginUserNickName", session.getAttribute("loginUserNickName"));
+		return res;
 	}
 }

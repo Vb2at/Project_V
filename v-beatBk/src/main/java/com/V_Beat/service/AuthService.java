@@ -38,12 +38,61 @@ public class AuthService {
 		user.setLoginPw(encoded);
 		this.authDao.join(user);
 	}
+	
+	//소셜 로그인 (kakao, goole)
+	public void joinSocial(User user) {
+		if(user == null) {
+			throw new IllegalArgumentException("user is null");
+		}
+		
+		if(user.getSocialId() == null || user.getSocialId().trim().isEmpty()) {
+			throw new IllegalArgumentException("socialId is null");
+		}
+		
+		//중복 가입 방지
+		User exists = this.authDao.findBySocialId(user.getSocialId(), user.getLoginType());
+		if(exists != null) {
+			return;
+		}
+		
+		//닉네임 중복 방지
+		String baseNick = user.getNickName();
+		if(baseNick == null || baseNick.trim().isEmpty()) {
+			baseNick = "user";
+		}
+		baseNick = baseNick.trim();
+		
+		String candidate = baseNick;
+		int suffix = 1;
+		while(this.authDao.existsByNickName(candidate)) {
+			candidate = baseNick + "_" + suffix;
+			suffix ++;
+			
+			if(suffix > 9999) {
+				candidate = baseNick + "_" + System.currentTimeMillis();
+				break;
+			}
+		}
+		user.setNickName(candidate);
+		//DB에 저장
+		this.authDao.joinBySocialId(user);
+	}
 
 	//로그인 처리
 	public User doLogin(String email, String loginPw) {
 		User user = this.authDao.getUserByEmail(email);
 		
 		if(user == null) {
+			return null;
+		}
+		
+		//소셜 계정이라면 일반 로그인 차단
+		if(user.getLoginType() != 0) {
+			return null;
+		}
+		
+		//비번 입력안하면 로그인 차단 (소셜 로그인은 비번 입력이 없음)
+		if(user.getLoginPw() == null) {
 			return null;
 		}
 		
@@ -94,13 +143,8 @@ public class AuthService {
 		this.emailService.sendTempPw(email, tempPw);
 	}
 
-	public User findBySocialId(String socialId, int i) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public void joinSocial(User newMember) {
-		// TODO Auto-generated method stub
-		
+	//소셜아이디로 조회
+	public User findBySocialId(String socialId, int loginType) {
+		return this.authDao.findBySocialId(socialId, loginType);
 	}
 }

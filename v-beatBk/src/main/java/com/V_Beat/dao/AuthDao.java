@@ -38,6 +38,27 @@ public interface AuthDao {
 			""")
 	void join(User user);
 	
+	//소셜로 가입 (kakao, goole) 비번 null 허용
+	@Insert("""
+			INSERT INTO `user`
+				SET email = #{email},
+					nickName = #{nickName},
+					loginType = #{loginType},
+					socialId = #{socialId},
+					profileImg = #{profileImg},
+					regDate = NOW()
+			""")
+	void joinBySocialId(User user);
+	
+	//소셜 아이디로 유저 조회
+	@Select("""
+			SELECT * 
+				FROM `user`
+				WHERE socialId = #{socialId}
+				AND loginType= #{loginType}
+			""")
+	User findBySocialId(@Param("socialId") String socialId, @Param("loginType") int loginType);
+	
 	//로그인 이메일 확인
 	@Select("""
 			SELECT *
