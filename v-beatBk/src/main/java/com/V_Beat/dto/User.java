@@ -18,7 +18,6 @@ public class User {
 	private String regDate;
 	private int role;
 	private String profileImg;
-	
 	// =========================
 	// 친구 기능용 임시 필드 (DB 컬럼 아님)
 	// - @Param / Map 없이 MyBatis 파라미터 1개로 처리하려고 추가

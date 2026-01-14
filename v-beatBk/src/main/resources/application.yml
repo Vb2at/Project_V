@@ -49,11 +49,6 @@ kakao:
   client-secret: E6JjFumIiEDQs7OUJW496mImFzibO1cR
   redirect-uri: http://localhost:8080/oauth/kakao/callback
 
-github:
-  client-id: Iv23liV6kMdOeCSDEsZB
-  client-secret: 497da41cde1cd7de73401c6100a12e8d1345f373
-  redirect-uri: http://localhost:8080/oauth/github/callback
-
 google:
   client-id: 136270481858-1lt34e28j8hp9sf09qhb515qrntcvlhl.apps.googleusercontent.com
   client-secret: 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
