@@ -27,17 +27,17 @@ public class SongController {
 		this.songService = songService;
 	}
 
-	//음원 조회 API
+	// 음원 조회 API
 	@GetMapping("/{songId}/audio")
 	public ResponseEntity<Resource> getAudio(@PathVariable Long songId) {
 		Song song = this.songService.getSong(songId);
-		
+
 		if (song == null) {
 			System.out.println("-> 404: song null");
 			return ResponseEntity.notFound().build();
 		}
-		
-		if(!this.songService.canPlayWithLogout(song)) {
+
+		if (!this.songService.canPlayWithLogout(song)) {
 			return ResponseEntity.status(403).build();
 		}
 
@@ -63,45 +63,45 @@ public class SongController {
 				.header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getName() + "\"")
 				.contentLength(file.length()).body(resource);
 	}
-	
-	//노트 조회 API
+
+	// 노트 조회 API
 	@GetMapping("/{songId}/notes")
 	public ResponseEntity<SongNotesResult> getNotes(@PathVariable Long songId) {
 		Song song = this.songService.getSong(songId);
-		if(song == null) {
+		if (song == null) {
 			return ResponseEntity.notFound().build();
 		}
-		
-		if(!this.songService.canPlayWithLogout(song)) {
+
+		if (!this.songService.canPlayWithLogout(song)) {
 			return ResponseEntity.status(403).build();
 		}
-		
+
 		return ResponseEntity.ok(this.songService.getSongNotes(songId));
 	}
-	
-	//songId 조회
+
+	// songId 조회
 	@GetMapping("/{songId}")
 	public ResponseEntity<Song> getSongInfo(@PathVariable Long songId) {
 		Song song = this.songService.getSong(songId);
 		if (song == null) {
 			return ResponseEntity.notFound().build();
 		}
-		
-		if(!songService.canPlayWithLogout(song)) {
-		    return ResponseEntity.status(403).build();
+
+		if (!songService.canPlayWithLogout(song)) {
+			return ResponseEntity.status(403).build();
 		}
-		
+
 		return ResponseEntity.ok(song);
 	}
-	
-	//커버 이미지 관련 API
+
+	// 커버 이미지 관련 API
 	@GetMapping("/{songId}/cover")
 	public ResponseEntity<Resource> getCover(@PathVariable Long songId) {
 		Song song = this.songService.getSong(songId);
 		if (song == null)
 			return ResponseEntity.notFound().build();
-		
-		if(!this.songService.canPlayWithLogout(song)) {
+
+		if (!this.songService.canPlayWithLogout(song)) {
 			return ResponseEntity.status(403).build();
 		}
 
@@ -112,17 +112,51 @@ public class SongController {
 		File file = new File(path);
 		if (!file.exists())
 			return ResponseEntity.notFound().build();
-		
+
 		String lower = path.toLowerCase();
 		MediaType type = lower.endsWith(".png") ? MediaType.IMAGE_PNG : MediaType.IMAGE_JPEG;
 
 		Resource resource = new FileSystemResource(file);
 		return ResponseEntity.ok().contentType(type).contentLength(file.length()).body(resource);
 	}
-	
-	//비로그인 시 공개 플레이리스트 API
+
+	// 비로그인 시 공개 플레이리스트 API
 	@GetMapping
 	public ResponseEntity<List<Song>> getPublicSongs() {
 		return ResponseEntity.ok(this.songService.getPublicSongs());
 	}
+
+	// 음원 미리듣기 (싸비 5~10초)
+	@GetMapping("/{songId}/preview")
+	public ResponseEntity<Resource> getPreview(@PathVariable Long songId) {
+	    Song song = this.songService.getSong(songId);
+	    if (song == null) {
+	        return ResponseEntity.notFound().build();
+	    }
+
+	    if (!this.songService.canPlayWithLogout(song)) {
+	        return ResponseEntity.status(403).build();
+	    }
+
+	    String previewPath = song.getPreviewPath();
+	    if (previewPath == null || previewPath.isBlank()) {
+	        return ResponseEntity.notFound().build();
+	    }
+
+	    File file = new File(previewPath);
+	    if (!file.exists()) {
+	        return ResponseEntity.notFound().build();
+	    }
+
+	    Resource resource = new FileSystemResource(file);
+
+	    return ResponseEntity.ok()
+	            .contentType(MediaType.parseMediaType("audio/mpeg"))
+	            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getName() + "\"")
+	            .header(HttpHeaders.CACHE_CONTROL, "no-store")
+	            .contentLength(file.length())
+	            .body(resource);
+	}
+
+	
 }

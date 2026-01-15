@@ -48,12 +48,12 @@ public class AiAnalyzeService {
 	@Transactional
 	public Long analyzeSave(MultipartFile file, String diff) throws Exception {
 
-		//0) diff 기본값
+		// 0) diff 기본값
 		if (diff == null || diff.isBlank()) {
 			diff = "normal";
 		}
 
-		//1) Flask로 파일 + diff 전송
+		// 1) Flask로 파일 + diff 전송
 		MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
 		body.add("file", new ByteArrayResource(file.getBytes()) {
 			@Override
@@ -73,7 +73,7 @@ public class AiAnalyzeService {
 
 		String json = resp.getBody();
 
-		//2) JSON 파싱
+		// 2) JSON 파싱
 		ObjectMapper mapper = new ObjectMapper();
 		JsonNode root = mapper.readTree(json);
 		JsonNode notesNode = root.get("notes");
@@ -81,8 +81,11 @@ public class AiAnalyzeService {
 		if (notesNode == null || !notesNode.isArray()) {
 			throw new IllegalStateException("Flask 응답에 notes 배열이 없습니다.");
 		}
+		//preview 파싱
+		double previewStartSec = root.path("previewStartSec").asDouble(0.0);
+		double previewDurationSec = root.path("previewDurationSec").asDouble(10.0);
 
-		//3) song INSERT (id 생성)
+		// 3) song INSERT (id 생성)
 		Song song = new Song();
 		song.setTitle(file.getOriginalFilename());
 		song.setArtist("unknown");
@@ -94,38 +97,45 @@ public class AiAnalyzeService {
 		this.aiAnalyzeDao.insertSong(song);
 		Long songId = song.getId();
 
-		//4) mp3 파일 저장 (songId로 파일명 고정)
+		// 4) mp3 파일 저장 (songId로 파일명 고정)
 		Files.createDirectories(Path.of(UPLOAD_DIR));
 
 		String original = file.getOriginalFilename();
-		String ext = (original != null && original.contains(".")) ? original.substring(original.lastIndexOf(".")) : ".mp3";
+		String ext = (original != null && original.contains(".")) ? original.substring(original.lastIndexOf("."))
+				: ".mp3";
 
 		String savedPath = UPLOAD_DIR + "/" + songId + ext;
 		file.transferTo(new File(savedPath));
+		
+		//preview생성 + DB저장
+		String previewPath = UPLOAD_DIR + "/" + songId + "_preview.mp3";
+		makePreviewMp3(savedPath, previewPath, previewStartSec, previewDurationSec);
+		this.aiAnalyzeDao.updatePreviewPath(songId, previewPath);
 
-		//5) 메타(artist/duration) 추출 후 DB 업데이트
+		// 5) 메타(artist/duration) 추출 후 DB 업데이트
 		extractAndSaveMeta(savedPath, songId);
 
-		//6) filePath 업데이트
+		// 6) filePath 업데이트
 		song.setId(songId);
 		song.setFilePath(savedPath);
 		this.aiAnalyzeDao.updateSongFilePath(song);
 
-		//7) 커버 추출 후 DB 업데이트
+		// 7) 커버 추출 후 DB 업데이트
 		String coverPath = extractAndSaveCover(savedPath, songId);
 		if (coverPath != null) {
 			song.setCoverPath(coverPath);
 			this.aiAnalyzeDao.updateSongCoverPath(song);
 		}
 
-		//8) notes INSERT
+		// 8) notes INSERT
 		for (JsonNode noteNode : notesNode) {
 			Note note = new Note();
 			note.setSongId(songId);
 			note.setNoteTime(noteNode.get("time").decimalValue());
 			note.setLane(noteNode.get("lane").intValue());
 
-			String type = (noteNode.has("type") && !noteNode.get("type").isNull()) ? noteNode.get("type").asText() : "tap";
+			String type = (noteNode.has("type") && !noteNode.get("type").isNull()) ? noteNode.get("type").asText()
+					: "tap";
 			note.setType(type);
 
 			if ("long".equals(type)) {
@@ -143,7 +153,7 @@ public class AiAnalyzeService {
 		return songId;
 	}
 
-	//MP3 메타(artist, duration) 추출해서 DB 업데이트
+	// MP3 메타(artist, duration) 추출해서 DB 업데이트
 	private void extractAndSaveMeta(String mp3Path, Long songId) {
 		try {
 			AudioFile audioFile = AudioFileIO.read(new File(mp3Path));
@@ -170,27 +180,31 @@ public class AiAnalyzeService {
 
 			this.aiAnalyzeDao.updateSongMeta(s);
 		} catch (Exception e) {
-			//메타 없는 mp3도 많으니 실패해도 저장 프로세스는 진행
+			// 메타 없는 mp3도 많으니 실패해도 저장 프로세스는 진행
 			e.printStackTrace();
 		}
 	}
 
-	//MP3 커버 추출해서 파일로 저장하고 저장 경로 리턴 (없으면 null)
+	// MP3 커버 추출해서 파일로 저장하고 저장 경로 리턴 (없으면 null)
 	private String extractAndSaveCover(String mp3Path, Long songId) {
 		try {
 			AudioFile audioFile = AudioFileIO.read(new File(mp3Path));
 			Tag tag = audioFile.getTag();
-			if (tag == null) return null;
+			if (tag == null)
+				return null;
 
 			Artwork artwork = tag.getFirstArtwork();
-			if (artwork == null) return null;
+			if (artwork == null)
+				return null;
 
 			byte[] imageData = artwork.getBinaryData();
-			if (imageData == null || imageData.length == 0) return null;
+			if (imageData == null || imageData.length == 0)
+				return null;
 
 			String ext = "jpg";
 			String mime = artwork.getMimeType();
-			if (mime != null && mime.toLowerCase().contains("png")) ext = "png";
+			if (mime != null && mime.toLowerCase().contains("png"))
+				ext = "png";
 
 			Files.createDirectories(Path.of(COVER_DIR));
 
@@ -199,8 +213,45 @@ public class AiAnalyzeService {
 
 			return coverPath;
 		} catch (Exception e) {
-			//커버 없는 mp3도 많음 → 정상 케이스
+			// 커버 없는 mp3도 많음 → 정상 케이스
 			return null;
 		}
 	}
+
+	private void makePreviewMp3(String fullPath, String previewPath, double startSec, double durSec) throws Exception {
+	    // 너무 짧은 곡/이상값 방어
+	    if (startSec < 0) startSec = 0;
+	    if (durSec <= 0) durSec = 10;
+
+	    ProcessBuilder pb = new ProcessBuilder(
+	            "ffmpeg",
+	            "-ss", String.valueOf(startSec),
+	            "-t", String.valueOf(durSec),
+	            "-i", fullPath,
+	            "-y",
+	            "-vn",
+	            "-acodec", "libmp3lame",
+	            "-q:a", "4",
+	            previewPath
+	    );
+
+	    pb.redirectErrorStream(true);
+	    Process p = pb.start();
+
+	    try (var r = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()))) {
+	        while (r.readLine() != null) { /* 로그 버림(필요하면 출력) */ }
+	    }
+
+	    int code = p.waitFor();
+	    if (code != 0) {
+	        throw new RuntimeException("ffmpeg failed, exitCode=" + code);
+	    }
+
+	    // 생성 확인(안전)
+	    File out = new File(previewPath);
+	    if (!out.exists() || out.length() <= 0) {
+	        throw new RuntimeException("preview mp3 not created: " + previewPath);
+	    }
+	}
+
 }

@@ -5,6 +5,7 @@ import java.util.List;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
 
 import com.V_Beat.dto.Note;
@@ -48,4 +49,11 @@ public interface AiAnalyzeDao {
 				WHERE id = #{id}
 			""")
 	void updateSongMeta(Song s);
+	
+	@Update("""
+			UPDATE song
+				SET preview_path = #{previewPath}
+				WHERE id = #{songId}
+			""")
+	void updatePreviewPath(@Param("songId") Long songId, @Param("previewPath") String previewPath);
 }

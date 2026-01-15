@@ -69,6 +69,48 @@ PRESET = {
     },
 }
 
+def pick_chorus_window_start(rms_smooth: np.ndarray,
+                             rms_times: np.ndarray,
+                             duration: float,
+                             preview_len: float = 10.0,
+                             intro_skip: float = 15.0,
+                             outro_skip: float = 10.0) -> float:
+    """
+    rms_smooth, rms_times 기반으로 '에너지 큰 구간'을 preview_len초 창으로 찾아 시작 시각을 반환.
+    - intro_skip: 앞부분 제외(인트로 방지)
+    - outro_skip: 끝부분 제외(아웃트로 방지)
+    """
+    if rms_smooth is None or len(rms_smooth) == 0:
+        return 0.0
+
+    # 유효 탐색 범위
+    min_t = float(intro_skip)
+    max_t = float(max(min_t, duration - outro_skip - preview_len))
+    if max_t <= min_t:
+        return 0.0
+
+    # rms_times는 프레임 시간 배열, hop=512 기준 대략 0.01초~0.02초 단위
+    dt = float(np.median(np.diff(rms_times))) if len(rms_times) > 1 else 0.02
+    win_n = max(1, int(round(preview_len / dt)))
+
+    # 창 합산(에너지 총량)으로 후렴 후보 찾기
+    # conv(valid) 결과 i는 "창 시작 index"
+    kernel = np.ones(win_n, dtype=float)
+    energy_sum = np.convolve(rms_smooth, kernel, mode="valid")
+
+    # 창 시작 시간이 min_t~max_t 사이인 후보만 남기기
+    start_times = rms_times[:len(energy_sum)]
+    mask = (start_times >= min_t) & (start_times <= max_t)
+    if not np.any(mask):
+        return 0.0
+
+    idx = int(np.argmax(np.where(mask, energy_sum, -1.0)))
+    start = float(start_times[idx])
+
+    # 보기 좋게 0.5초 단위 스냅(선택)
+    start = round(start * 2) / 2.0
+    return max(0.0, start)
+
 def apply_preset(diff: str):
     diff = (diff or "easy").lower()
     cfg = PRESET.get(diff, PRESET["easy"])
@@ -263,6 +305,18 @@ def analyze():
 
         win = 6
         rms_smooth = np.convolve(rms, np.ones(win) / win, mode="same")
+        
+        duration = float(librosa.get_duration(y=y, sr=sr))
+
+        preview_len = 10.0
+        chorus_start = pick_chorus_window_start(
+             rms_smooth=rms_smooth,
+             rms_times=rms_times,
+             duration=duration,
+             preview_len=preview_len,
+             intro_skip=15.0,
+             outro_skip=10.0
+        )
 
         hard_thr = float(np.percentile(rms_smooth, HARD_PCT))
         very_hard_thr = float(np.percentile(rms_smooth, VERY_HARD_PCT))
@@ -538,11 +592,14 @@ def analyze():
         notes = dedup_exact(notes)
 
         return jsonify({
-            "version": "2026-01-09-guarded-sanitize-hell",
-            "difficulty": diff,
-            "tempo": float(np.atleast_1d(tempo)[0]),
-            "noteCount": len(notes),
-            "notes": notes
+    	"version": "2026-01-09-guarded-sanitize-hell",
+    	"difficulty": diff,
+    	"tempo": float(np.atleast_1d(tempo)[0]),
+    	"duration": duration,
+    	"previewStartSec": chorus_start,
+    	"previewDurationSec": preview_len,
+    	"noteCount": len(notes),
+    	"notes": notes
         })
 
     finally:

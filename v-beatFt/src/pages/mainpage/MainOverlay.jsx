@@ -92,6 +92,7 @@ export default function MainOverlay() {
             title: (s.title ?? '(no title)').replace(/\.mp3$/i, ''),
             artist: s.artist ?? 'unknown',
             cover: s.coverPath ? `/api/songs/${s.id}/cover` : null,
+            previewUrl: `/api/songs/${s.id}/preview`,  //미리 듣기 
 
             bpm: Number.isFinite(Number(s.bpm)) ? Number(s.bpm) : null,
             lengthSec: Number.isFinite(Number(len)) ? Number(len) : null,
@@ -210,6 +211,7 @@ export default function MainOverlay() {
 
         console.log('선택 확정:', songs[selectedIndex]);
         playMenuConfirm();
+        stopPreview();
         navigate(`/game/play?songId=${songs[selectedIndex].id}&diff=${songs[selectedIndex].diff}`);
       }
     };
@@ -219,10 +221,17 @@ export default function MainOverlay() {
   }, [selectedIndex, songs, navigate]);
 
   useEffect(() => {
+    const song = songs[selectedIndex];
     const url = songs[selectedIndex]?.previewUrl;
-    if (!url) return;
+
+    if (!url) {
+      stopPreview();
+      return;
+    }
 
     playPreview(url, { durationSec: 8 });
+    //곡 선택 바뀔 때 이전 소리 겹치는 거 방지
+    return () => stopPreview();
   }, [selectedIndex, songs]);
 
 
@@ -438,7 +447,7 @@ export default function MainOverlay() {
               <div
                 style={{
                   position: 'absolute',
-                  left: 0,
+                  left: 210,
                   top: '-24px',
                   display: 'flex',
                   gap: '12px',

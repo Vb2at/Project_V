@@ -19,4 +19,5 @@ public class Song {
 	private String coverPath;
 	private boolean isPublic;
 	private LocalDateTime createDate;
+	private String previewPath;
 }

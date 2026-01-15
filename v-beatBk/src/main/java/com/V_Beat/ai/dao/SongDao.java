@@ -14,14 +14,15 @@ public interface SongDao {
 	
 	@Select("""
 			SELECT id,
-			title,
-			artist,
-			duration,
-			diff,
-			file_path AS filePath,
-			cover_path AS coverPath,
-			create_date AS createDate,
-			is_public AS isPublic
+				title,
+				artist,
+				duration,
+				diff,
+				file_path AS filePath,
+				cover_path AS coverPath,
+				create_date AS createDate,
+				preview_path AS previewPath,
+				is_public AS isPublic
 			FROM song
 			WHERE id = #{songId}
 			""")
@@ -45,6 +46,7 @@ public interface SongDao {
 				   file_path AS filePath,
 				   cover_path AS coverPath,
 				   create_date AS createDate,
+				   preview_path AS previewPath,
 				   is_public AS isPublic
 				FROM song
 				WHERE is_public = 1
