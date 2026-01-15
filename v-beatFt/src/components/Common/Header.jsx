@@ -311,14 +311,13 @@ export default function Header() {
               {/* 로그인 상태에서만 노출 */}
               {status && (
                 <>
-                  <button className="neon-btn">프로필</button>
+                  <button className="neon-btn" onClick={() => navigate('/mypage')}>마아페이지</button>
                   <button className="neon-btn">메세지</button>
                   <button className="neon-btn" onClick={handleLogout}>
                     로그아웃
                   </button>
                 </>
               )}
-
               {/* 로그아웃 상태에서만 노출 */}
               {!status && (
                 <button className="neon-btn" onClick={() => navigate('/login')}>

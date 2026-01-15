@@ -6,6 +6,7 @@ import GamePlay from './pages/gameplay/GamePlay';
 import Result from './pages/gameplay/Result';
 import Join from './pages/member/Join';
 import StartPage from './pages/StartPage';
+import MyPage from './pages/mypage/Mypage';
 import './index.css';
 import NavLoading from './pages/member/NavLoading';
 import TermsPage from './pages/auth/TermsPage';
@@ -19,6 +20,7 @@ function App() {
         <Route path="/join" element={<Join />} />
         <Route path="/start" element={<StartPage/>} />
         <Route path="/terms" element={<TermsPage />} />
+        <Route path="/mypage" element= {<MyPage/>} />
         <Route path="/main" element={<MainPage />} />
         <Route path="/game/play" element={<GamePlay />} />
         <Route path="/game/result" element={<Result />} />
