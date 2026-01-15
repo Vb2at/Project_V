@@ -245,7 +245,7 @@ export default function LoginForm() {
                         style={{ cursor: 'pointer', transition: 'color 0.2s' }}
                         onMouseOver={(e) => e.target.style.color = '#00ccff'}
                         onMouseOut={(e) => e.target.style.color = '#aaa'}
-                        onClick={() => navigate('/join')}
+                        onClick={() => navigate('/terms')}
                     >
                         회원가입
                     </span>

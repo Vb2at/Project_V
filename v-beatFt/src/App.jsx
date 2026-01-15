@@ -8,6 +8,7 @@ import Join from './pages/member/Join';
 import StartPage from './pages/StartPage';
 import './index.css';
 import NavLoading from './pages/member/NavLoading';
+import TermsPage from './pages/auth/TermsPage';
 
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/join" element={<Join />} />
         <Route path="/start" element={<StartPage/>} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route path="/main" element={<MainPage />} />
         <Route path="/game/play" element={<GamePlay />} />
         <Route path="/game/result" element={<Result />} />

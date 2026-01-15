@@ -1,14 +1,22 @@
 import { useEffect, } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import './Login.css';                 // ✅ 로그인 배경 스타일 재사용
 import LoginNoteRain from './LoginNoteRain';
 import JoinForm from '../../components/Member/JoinForm';
 
 export default function Join() {
-    const JOIN_BGM_SRC = '/sound/bgm/menu2.mp3';
-
+    const { state } = useLocation();
+    const navigate = useNavigate();
+    
     useEffect(() => {
-        return () => {};
-    }, []);
+        if (!state?.terms) {
+            navigate('/login', { replace: true });
+        }
+
+        return () => { };
+    }, [state, navigate]);
+
+
 
     return (
         <div className="login-page">
