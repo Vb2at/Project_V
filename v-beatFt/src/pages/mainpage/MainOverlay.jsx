@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { playMenuMove, playMenuConfirm, playPreview, stopPreview, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
 import Visualizer from '../../components/visualizer/Visualizer';
 import { getMenuAnalyser } from '../../components/engine/SFXManager';
+import RankTable from './RankTable';
 
 const dummySongs = [
   { id: 1, title: 'Song A', artist: 'Artist A', cover: null },
@@ -276,8 +277,8 @@ export default function MainOverlay() {
         <div
           style={{
             position: 'absolute',
-            left: '15%',
-            top: '40%',
+            left: '10%',
+            top: '50%',
             transform: 'translateY(-50%)',
             width: '48%',
             height: '62%',
@@ -285,8 +286,6 @@ export default function MainOverlay() {
             gap: '24px',
           }}
         >
-
-
           {/* Album + Detail Column */}
           <div
             style={{
@@ -418,6 +417,7 @@ export default function MainOverlay() {
               flex: 1,
               overflow: 'hidden',
               perspective: '900px',
+              left: 80
             }}
           >
 
@@ -438,7 +438,7 @@ export default function MainOverlay() {
               <div
                 style={{
                   position: 'absolute',
-                  left: 0,
+                  left: 210,
                   top: '-24px',
                   display: 'flex',
                   gap: '12px',
@@ -568,6 +568,26 @@ export default function MainOverlay() {
               })}
             </div>
           </section>
+        </div>
+        {/* RIGHT RANK PANEL */}
+        <div
+          style={{
+            position: 'absolute',
+            right: '10%',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: '22%',
+            height: '70%',
+            borderRadius: '14px',
+            background: 'rgba(120,0,0,0.35)',
+            boxShadow: '0 0 0 2px rgba(255,80,80,0.6), 0 20px 40px rgba(0,0,0,0.45)',
+            padding: '12px',
+          }}
+        >
+          <RankTable
+            rankings={[]}
+            loading={false}
+          />
         </div>
       </main >
       <Visualizer

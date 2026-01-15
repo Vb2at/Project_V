@@ -45,7 +45,7 @@ export default function LoginForm() {
             return;
         }
 
-        if (!password) {
+        if (!password.trim()) {
             setErrorMessage('비밀번호를 입력하세요.');
             passwordRef.current?.focus();
             passwordRef.current?.classList.add('is-error');
@@ -72,7 +72,7 @@ export default function LoginForm() {
             }
 
             navigate('/nav-loading', { state: { target: '/main' } });
-        } catch  {
+        } catch {
             setErrorMessage('서버 연결에 실패했습니다.');
         } finally {
             setIsLoading(false);
@@ -151,7 +151,12 @@ export default function LoginForm() {
                 </div>
 
                 {/* 입력 폼 영역 */}
-                <form onSubmit={handleSubmit}>
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSubmit();
+                    }}
+                >
                     <div className="login-form__fields" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         <input
                             type="email"

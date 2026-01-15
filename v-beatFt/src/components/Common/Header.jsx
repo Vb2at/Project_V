@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-
+import ProfileAvatar from '../Member/ProfileAvatar';
 import {
   playMenuBgmRandom,
   toggleMenuBgm,
@@ -213,12 +213,48 @@ export default function Header() {
         </div>
       )}
 
+      {/* 닉네임 */}
+      {!statusLoading && status && (
+        <div
+          style={{
+            position: 'absolute',
+            right: 230,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: '#5aeaff',
+            fontSize: 25,
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {status.loginUserNickName}
+        </div>
+      )}
+      {/* 프로필 이미지 */}
+      {!statusLoading && status && (
+        <div
+          style={{
+            position: 'absolute',
+            right: 320,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            zIndex: 1100,
+          }}
+        >
+          <ProfileAvatar
+            profileImg={status.loginUser?.profileImg}
+            userId={status.loginUserId}
+            size={50}
+          />
+        </div>
+      )}
+      
       {/* 우측 모바일 메뉴 버튼 */}
       {!isGamePage && (
         <div
           style={{
             position: 'absolute',
-            right: '12px',
+            right: '50px',
             top: '50%',
             transform: 'translateY(-50%)',
             display: 'flex',
@@ -231,7 +267,7 @@ export default function Header() {
             onClick={() => setMobileOpen((v) => !v)}
             aria-label="mobile menu"
           >
-            <svg viewBox="0 0 24 24" width="22" height="22">
+            <svg viewBox="0 0 24 24" width="50" height="40">
               <path
                 d="M4 6h16M4 12h16M4 18h16"
                 fill="none"
@@ -249,14 +285,13 @@ export default function Header() {
           </button>
         </div>
       )}
-
       {/* 모바일 메뉴 패널 */}
       {!isGamePage && mobileOpen && (
         <div
           className="mobile-menu-panel"
           style={{
             position: 'absolute',
-            right: '8px',
+            right: '30px',
             top: HEADER_HEIGHT + 6,
             background: 'rgba(10,20,30,0.95)',
             border: '2px solid rgba(90,234,255,0.4)',
