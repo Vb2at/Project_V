@@ -1,32 +1,91 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+
 import {
   playMenuBgmRandom,
   toggleMenuBgm,
   stopMenuBgm,
   isMenuBgmPlaying,
 } from '../../components/engine/SFXManager';
-import './Header.css';
+
+import { logoutApi, statusApi } from '../../api/auth'; // 로그아웃/상태조회 api
 import Visualizer from '../visualizer/Visualizer';
-import { useLocation } from 'react-router-dom';
+
+import './Header.css';
 
 export default function Header() {
   const HEADER_HEIGHT = 64;
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const navigate = useNavigate();
   const location = useLocation();
   const isGamePage = location.pathname.startsWith('/game');
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // ✅ 로그인 상태
+  const [status, setStatus] = useState(null); // { loginUserId, loginUser, loginUserNickName }
+  const [statusLoading, setStatusLoading] = useState(true);
 
   const handleToggle = () => {
     toggleMenuBgm();
     setIsPlaying(isMenuBgmPlaying());
   };
 
+  const handleLogout = async () => {
+    try {
+      await logoutApi();
+      setStatus(null);            // ✅ 로그아웃 즉시 UI 반영
+      setMobileOpen(false);
+      navigate('/login');
+    } catch (e) {
+      console.error(e);
+      alert('로그아웃 실패');
+    }
+  };
+
+  // ✅ 로그인 상태 확인 (처음 1회)
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const res = await statusApi();
+
+        if (res.data?.ok !== true) {
+          if (alive) setStatus(null);
+          return;
+        }
+
+        if (alive) {
+          setStatus({
+            loginUserId: res.data.loginUserId,
+            loginUser: res.data.loginUser,
+            loginUserNickName: res.data.loginUserNickName,
+          });
+        }
+      } catch (e) {
+        if (alive) setStatus(null);
+      } finally {
+        if (alive) setStatusLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // ✅ 게임 페이지에서는 메뉴 BGM 끄기
   useEffect(() => {
     if (isGamePage) {
       stopMenuBgm();
+      setIsPlaying(false);
+      setMobileOpen(false);
     }
   }, [isGamePage]);
 
+  // ✅ 게임 페이지가 아닐 때만, 실제 재생상태 polling으로 맞추기
   useEffect(() => {
     if (isGamePage) return;
 
@@ -36,6 +95,7 @@ export default function Header() {
 
     return () => clearInterval(sync);
   }, [isGamePage]);
+
   return (
     <header
       style={{
@@ -63,7 +123,7 @@ export default function Header() {
           src="/images/logo.png"
           alt="V-BEAT"
           style={{
-            height: '130px',   // 필요시 조절
+            height: '130px',
             objectFit: 'contain',
             pointerEvents: 'none',
           }}
@@ -87,9 +147,9 @@ export default function Header() {
           <Visualizer active={isPlaying} size="small" />
 
           {/* 재생 / 일시정지 */}
-          <button className="neon-btn" onClick={handleToggle}>
+          <button className="neon-btn" onClick={handleToggle} aria-label="toggle bgm">
             {isPlaying ? (
-              // ▶ Play
+              // ⏸ Pause (네 코드에서는 반대로 주석이 달려있었음)
               <svg viewBox="0 0 24 24" width="22" height="22">
                 <path
                   d="M8 5v14M16 5v14"
@@ -106,7 +166,7 @@ export default function Header() {
                 </defs>
               </svg>
             ) : (
-              // ⏸ Pause
+              // ▶ Play
               <svg viewBox="0 0 24 24" width="22" height="22">
                 <path
                   d="M7 4l12 8-12 8V4z"
@@ -130,8 +190,9 @@ export default function Header() {
             className="neon-btn"
             onClick={() => {
               playMenuBgmRandom();
-              setIsPlaying(isMenuBgmPlaying());   // ✅ 실제 상태 기준
+              setIsPlaying(isMenuBgmPlaying());
             }}
+            aria-label="random bgm"
           >
             <svg viewBox="0 0 24 24" width="22" height="22">
               <path
@@ -167,10 +228,9 @@ export default function Header() {
         >
           <button
             className="neon-btn"
-            onClick={() => setMobileOpen(v => !v)}
+            onClick={() => setMobileOpen((v) => !v)}
             aria-label="mobile menu"
           >
-            {/* 햄버거 아이콘 */}
             <svg viewBox="0 0 24 24" width="22" height="22">
               <path
                 d="M4 6h16M4 12h16M4 18h16"
@@ -189,8 +249,9 @@ export default function Header() {
           </button>
         </div>
       )}
+
       {/* 모바일 메뉴 패널 */}
-      {mobileOpen && (
+      {!isGamePage && mobileOpen && (
         <div
           className="mobile-menu-panel"
           style={{
@@ -209,10 +270,28 @@ export default function Header() {
           }}
         >
           <button className="neon-btn">설정</button>
-          <button className="neon-btn">프로필</button>
-          <button className="neon-btn">메세지</button>
-          <button className="neon-btn">로그아웃</button>
-          <button className="neon-btn">로그인</button>
+
+          {statusLoading ? null : (
+            <>
+              {/* 로그인 상태에서만 노출 */}
+              {status && (
+                <>
+                  <button className="neon-btn">프로필</button>
+                  <button className="neon-btn">메세지</button>
+                  <button className="neon-btn" onClick={handleLogout}>
+                    로그아웃
+                  </button>
+                </>
+              )}
+
+              {/* 로그아웃 상태에서만 노출 */}
+              {!status && (
+                <button className="neon-btn" onClick={() => navigate('/login')}>
+                  로그인
+                </button>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -224,8 +303,7 @@ export default function Header() {
           bottom: 0,
           width: '100%',
           height: '4px',
-          background:
-            'linear-gradient(to right,#ff0000ff, #ff00eaff, #5aeaff)',
+          background: 'linear-gradient(to right,#ff0000ff, #ff00eaff, #5aeaff)',
           boxShadow:
             '0 0 6px rgba(255,80,80,0.8), 0 0 12px rgba(255,0,200,0.6), 0 0 20px rgba(90,234,255,0.5)',
           pointerEvents: 'none',

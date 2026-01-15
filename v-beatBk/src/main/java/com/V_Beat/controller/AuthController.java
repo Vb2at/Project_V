@@ -15,6 +15,7 @@ import com.V_Beat.service.AuthService;
 import com.V_Beat.service.EmailService;
 import com.V_Beat.service.VerificationService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 
 @RestController
@@ -245,13 +246,17 @@ public class AuthController {
 	
 	//로그아웃 처리
 	@PostMapping("/logout")
-	public Map<String, Object> logout(HttpSession session) {
+	public Map<String, Object> logout(HttpServletRequest request) {
 		Map<String, Object> res = new HashMap<>();
 		
-		session.invalidate();
+		//없으면 만들지 않도록
+		HttpSession session = request.getSession(false);
+		if(session != null) {
+			//있으면 파괴
+			session.invalidate();
+		}
 		
 		res.put("ok", true);
-		res.put("message", "로그아웃 되었습니다.");
 		return res;
 	}
 	
@@ -291,13 +296,27 @@ public class AuthController {
 	
 	//로그인 상태 확인(프론트에서는 세션값을 직접 알 수 없어 필수)
 	@GetMapping("/login/status")
-	public Map<String, Object> loginStatus(HttpSession session) {
+	public Map<String, Object> loginStatus(HttpServletRequest request) {
 		Map<String, Object> res = new HashMap<>();
+		
+		//세션이 없다면 만들기 금지
+		HttpSession session = request.getSession(false);
+		
+		if(session == null) {
+			res.put("ok", false);
+			res.put("loginUserId", null);
+			res.put("loginUser", null);
+			res.put("loginUserNickName", null);
+			return res;
+		}
 		
 		Object userId = session.getAttribute("loginUserId");
 		if(userId == null) {
-			res.put("ok", false);
-			return res;
+	        res.put("ok", false);
+	        res.put("loginUserId", null);
+	        res.put("loginUser", null);
+	        res.put("loginUserNickName", null);
+	        return res;
 		}
 		
 		res.put("ok", true);
