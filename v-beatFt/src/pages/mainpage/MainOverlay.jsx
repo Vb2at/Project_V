@@ -438,11 +438,11 @@ export default function MainOverlay() {
               <div
                 style={{
                   position: 'absolute',
-                  right: 0,
-                  top: '-20px',
+                  left: 0,
+                  top: '-24px',
                   display: 'flex',
                   gap: '12px',
-                  fontSize: '14px',
+                  fontSize: '18px',
                   color: '#cfd8e3',
                   opacity: 0.7,
                 }}

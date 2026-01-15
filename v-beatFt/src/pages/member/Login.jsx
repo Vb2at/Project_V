@@ -1,33 +1,10 @@
-import { useState } from 'react';
 import './Login.css';
 import LoginForm from '../../components/Member/LoginForm';
-import {
-  singleBgm,
-  isMenuBgmPlaying,
-  stopMenuBgm,
-} from '../../components/engine/SFXManager';
 import LoginNoteRain from './LoginNoteRain';
 
 export default function Login() {
-  const [bgmOn, setBgmOn] = useState(true);
   const LOGIN_BGM_SRC = '/sound/bgm/menu2.mp3';
 
-  // ✅ BGM 토글 (반드시 singleBgm / stop 사용)
-  const toggleBgm = () => {
-    const playing = isMenuBgmPlaying();
-
-    if (!playing) {
-      singleBgm({
-        src: LOGIN_BGM_SRC,
-        loop: true,
-        volume: 0.4,
-      });
-      setBgmOn(true);
-    } else {
-      stopMenuBgm();
-      setBgmOn(false);
-    }
-  };
 
   return (
     <div className="login-page">
@@ -63,28 +40,6 @@ export default function Login() {
             `,
           }}
         />
-
-        {/* 우측 상단 BGM 토글 버튼 */}
-        <button
-          onClick={toggleBgm}
-          style={{
-            position: 'absolute',
-            top: 20,
-            right: 24,
-            zIndex: 10,
-            padding: '8px 14px',
-            borderRadius: 10,
-            border: '1px solid rgba(255,255,255,0.25)',
-            background: 'rgba(0,0,0,0.35)',
-            color: '#fff',
-            cursor: 'pointer',
-            backdropFilter: 'blur(6px)',
-            fontSize: 12,
-          }}
-        >
-          {bgmOn ? 'BGM ON' : 'BGM OFF'}
-        </button>
-
         {/* 중앙 컨텐츠 */}
         <div
           className="hero-content"

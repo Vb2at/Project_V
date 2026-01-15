@@ -52,8 +52,8 @@ export default function Header() {
       <div
         style={{
           position: 'absolute',
-          left: '5px',
-          top: '50%',
+          left: '-20px',
+          top: '55%',
           transform: 'translateY(-50%)',
           display: 'flex',
           alignItems: 'center',
@@ -63,7 +63,7 @@ export default function Header() {
           src="/images/logo.png"
           alt="V-BEAT"
           style={{
-            height: '70px',   // 필요시 조절
+            height: '130px',   // 필요시 조절
             objectFit: 'contain',
             pointerEvents: 'none',
           }}
@@ -153,41 +153,42 @@ export default function Header() {
       )}
 
       {/* 우측 모바일 메뉴 버튼 */}
-      <div
-        style={{
-          position: 'absolute',
-          right: '12px',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-        }}
-      >
-        <button
-          className="neon-btn"
-          onClick={() => setMobileOpen(v => !v)}
-          aria-label="mobile menu"
+      {!isGamePage && (
+        <div
+          style={{
+            position: 'absolute',
+            right: '12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
         >
-          {/* 햄버거 아이콘 */}
-          <svg viewBox="0 0 24 24" width="22" height="22">
-            <path
-              d="M4 6h16M4 12h16M4 18h16"
-              fill="none"
-              stroke="url(#grad-mobile)"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-            <defs>
-              <linearGradient id="grad-mobile" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#5aeaff" />
-                <stop offset="100%" stopColor="#ff0040" />
-              </linearGradient>
-            </defs>
-          </svg>
-        </button>
-      </div>
-
+          <button
+            className="neon-btn"
+            onClick={() => setMobileOpen(v => !v)}
+            aria-label="mobile menu"
+          >
+            {/* 햄버거 아이콘 */}
+            <svg viewBox="0 0 24 24" width="22" height="22">
+              <path
+                d="M4 6h16M4 12h16M4 18h16"
+                fill="none"
+                stroke="url(#grad-mobile)"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <defs>
+                <linearGradient id="grad-mobile" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#5aeaff" />
+                  <stop offset="100%" stopColor="#ff0040" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </button>
+        </div>
+      )}
       {/* 모바일 메뉴 패널 */}
       {mobileOpen && (
         <div

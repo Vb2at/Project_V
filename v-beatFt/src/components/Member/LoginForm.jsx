@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { unlockAudioContext, singleBgm } from '../../components/engine/SFXManager';
+import { unlockAudioContext } from '../../components/engine/SFXManager';
 import './LoginForm.css';
 
 export default function LoginForm() {
@@ -34,9 +34,7 @@ export default function LoginForm() {
     };
 
     // 4. 일반 로그인 처리
-    const handleSubmit = async (e) => {
-        if (e) e.preventDefault();
-
+    const handleSubmit = async () => {
         unlockAudioContext();
 
         if (!email) {
@@ -74,7 +72,7 @@ export default function LoginForm() {
             }
 
             navigate('/nav-loading', { state: { target: '/main' } });
-        } catch (e) {
+        } catch  {
             setErrorMessage('서버 연결에 실패했습니다.');
         } finally {
             setIsLoading(false);
