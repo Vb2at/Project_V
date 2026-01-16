@@ -27,8 +27,19 @@ public class UserService {
 	
 	//닉네임 변경
     public String changeNickName(Integer loginUserId, String nickName) {
+    	//중복 체크 (본인 제외)
+    	int cnt = this.userDao.countByNickName(nickName, loginUserId);
+    	if(cnt > 0) {
+    		return "이미 사용 중인 닉네임입니다.";
+    	}
+    	
+    	//변경 없음 (본인 닉네임)
+    	String nick = this.userDao.findNickNameById(loginUserId);
+    	if(nick != null && nick.equals(nickName)) {
+    		return "현재 사용 중인 닉네입입니다..";
+    	}
+    	//새 닉네임으로 업데이트
         int updated = this.userDao.changeNickName(loginUserId, nickName);
-
         if (updated == 1) {
             return "success";
         }
@@ -36,14 +47,20 @@ public class UserService {
     }
 
     //비밀번호 변경
-	public String changePw(Integer loginUserId, String newPw) {
-		String encodedPw = this.passwordEncoder.encode(newPw);
-		int updated = this.userDao.changePw(loginUserId, encodedPw);
-		
-		if(updated == 1) {
-			return "success";
-		}
-		return "비밀번호 변경에 실패했습니다.";
+	public String changePw(Integer loginUserId, String currentPw, String newPw) {
+	    String encodedPw = userDao.selectPwById(loginUserId); 
+	    if (encodedPw == null) return "사용자 정보를 찾을 수 없습니다.";
+
+	    if (!passwordEncoder.matches(currentPw, encodedPw)) {
+	        return "현재 비밀번호가 올바르지 않습니다.";
+	    }
+
+	    String newEncoded = passwordEncoder.encode(newPw);
+	    //새로운 비밀번호 저장
+	    int updated = userDao.changePw(loginUserId, newEncoded); 
+
+	    if (updated == 1) return "success";
+	    return "비밀번호 변경에 실패했습니다.";
 	}
 
 	//프로필 이미지 업로드
@@ -54,21 +71,27 @@ public class UserService {
 
 	    try {
 	    	//경로 변경하기
-	        Path dir = Paths.get("D:/VBeat/profileImg");
+	    	Path dir = Paths.get("C:\\Users\\admin\\Desktop\\jsw\\VBeat\\profileImg");
 	        Files.createDirectories(dir);
 
 	        String original = profileImg.getOriginalFilename();
-	        String safeOriginal = (original == null) ? "profile.png" : original;
+	        String safeOriginal = (original == null) ? "profile.png" : original.replaceAll("[\\\\/]", "_");
 	        String fileName = UUID.randomUUID() + "_" + safeOriginal;
 
 	        Path savePath = dir.resolve(fileName);
 
+	        System.out.println("PROFILE SAVE PATH = " + savePath.toAbsolutePath());
+
 	        Files.copy(profileImg.getInputStream(), savePath, StandardCopyOption.REPLACE_EXISTING);
 
-	        int updated = userDao.uploadProfile(loginUserId, fileName);
+	        //상대경로 저장
+	        String dbPath = "profileImg/" + fileName;
+	        
+	        int updated = userDao.uploadProfile(loginUserId, dbPath);
 	        if (updated != 1) return "프로필 DB 저장에 실패했습니다.";
-
-	        return fileName;
+	        
+	        //프론트에서 /upload/ + dbPath 로 사용 가능
+	        return dbPath;
 
 	    } catch (IOException e) {
 	        return "프로필 이미지 저장에 실패했습니다.";
@@ -87,4 +110,9 @@ public class UserService {
     public User findById(int id) {
         return userDao.findById(id);
     }
+
+    //유저 정보 조회
+	public User selectById(Integer loginUserId) {
+		return this.userDao.selectById(loginUserId);
+	}
 }

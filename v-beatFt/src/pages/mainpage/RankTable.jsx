@@ -1,3 +1,17 @@
+const toImgUrl = (v) => {
+  if (!v) return null;
+  const s = String(v);
+
+  // 이미 절대 URL이면 그대로
+  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+
+  // "/upload/..." 같이 오면 백엔드 붙여줌
+  if (s.startsWith('/')) return `http://localhost:8080${s}`;
+
+  // 파일명만 오면 (DB에 파일명 저장한 케이스)
+  return `http://localhost:8080/upload/profileImg/${s}`;
+};
+
 export default function RankTable({ ranking = [], loading = false }) {
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -65,9 +79,12 @@ export default function RankTable({ ranking = [], loading = false }) {
                                 <div>
                                     {r.profileImg ? (
                                         <img
-                                            src={r.profileImg}
-                                            alt=""
-                                            style={{ width: 28, height: 28, borderRadius: '50%' }}
+                                         src={(() => {
+                                            const url = toImgUrl(r.profileImg);
+                                            return url ? `${url}?t=${Date.now()}` : '';
+                                        })()}
+                                        alt=""
+                                        style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}
                                         />
                                     ) : (
                                         <div

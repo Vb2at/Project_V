@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.V_Beat.dao.UserDao;
 import com.V_Beat.dto.CheckReq;
 import com.V_Beat.dto.User;
 import com.V_Beat.service.AuthService;
@@ -23,14 +24,16 @@ import jakarta.servlet.http.HttpSession;
 public class AuthController {
 
 	private AuthService authService;
+	private UserDao userDao;
 	private EmailService emailService;
 	private VerificationService verificationService;
 	
 	public AuthController(AuthService authService,
-						  EmailService emailService, VerificationService verificationService) {
+						  EmailService emailService, VerificationService verificationService, UserDao userDao) {
 		this.authService = authService;
 		this.emailService = emailService;
 		this.verificationService = verificationService;
+		this.userDao = userDao;
 	}
 	
 	//비밀번호 입력 검증(AJAX)
@@ -297,32 +300,45 @@ public class AuthController {
 	//로그인 상태 확인(프론트에서는 세션값을 직접 알 수 없어 필수)
 	@GetMapping("/login/status")
 	public Map<String, Object> loginStatus(HttpServletRequest request) {
-		Map<String, Object> res = new HashMap<>();
-		
-		//세션이 없다면 만들기 금지
-		HttpSession session = request.getSession(false);
-		
-		if(session == null) {
-			res.put("ok", false);
-			res.put("loginUserId", null);
-			res.put("loginUser", null);
-			res.put("loginUserNickName", null);
-			return res;
-		}
-		
-		Object userId = session.getAttribute("loginUserId");
-		if(userId == null) {
+	    Map<String, Object> res = new HashMap<>();
+
+	    HttpSession session = request.getSession(false);
+	    if (session == null) {
 	        res.put("ok", false);
 	        res.put("loginUserId", null);
 	        res.put("loginUser", null);
 	        res.put("loginUserNickName", null);
 	        return res;
-		}
-		
-		res.put("ok", true);
-		res.put("loginUserId", userId);
-		res.put("loginUser", session.getAttribute("loginUser"));
-		res.put("loginUserNickName", session.getAttribute("loginUserNickName"));
-		return res;
+	    }
+
+	    Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+	    if (loginUserId == null) {
+	        res.put("ok", false);
+	        res.put("loginUserId", null);
+	        res.put("loginUser", null);
+	        res.put("loginUserNickName", null);
+	        return res;
+	    }
+
+	    //항상 DB에서 최신 유저 조회
+	    User fresh = userDao.findById(loginUserId);
+	    if (fresh == null) {
+	        session.invalidate();
+	        res.put("ok", false);
+	        res.put("loginUserId", null);
+	        res.put("loginUser", null);
+	        res.put("loginUserNickName", null);
+	        return res;
+	    }
+
+	    //세션도 최신으로 갱신 
+	    session.setAttribute("loginUser", fresh);
+	    session.setAttribute("loginUserNickName", fresh.getNickName());
+
+	    res.put("ok", true);
+	    res.put("loginUserId", fresh.getId());
+	    res.put("loginUser", fresh);                 
+	    res.put("loginUserNickName", fresh.getNickName()); 
+	    return res;
 	}
 }
