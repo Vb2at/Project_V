@@ -29,7 +29,6 @@ export default function SongReviewDetailModal({
 
                 {/* ===== 메타 ===== */}
                 <section style={sectionRow}>
-                    <Meta label="BPM" value={song.bpm ?? '--'} />
                     <Meta label="LENGTH" value={song.lengthSec ? `${song.lengthSec}s` : '--'} />
                     <Meta label="DIFF" value={song.diff ?? 'NORMAL'} />
                 </section>
