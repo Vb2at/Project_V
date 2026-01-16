@@ -49,15 +49,19 @@ export default function Result() {
     score = 0,
     maxScore = 1,
     maxCombo = 0,
+    isReview = false,
   } = state ?? {};
-
   const ratio = maxScore > 0 ? score / maxScore : 0;
   const grade = getClassByRatio(ratio);
   const gradeStyle = GRADE_STYLE[grade] ?? GRADE_STYLE.F;
   const accuracy = Number((ratio * 100).toFixed(2));
 
-  // db에 결과 저장
   useEffect(() => {
+    if (isReview) {
+      console.log('관리자 테스트 플레이: 기록 저장 안 함');
+      return;
+    }
+
     if (sentRef.current) return;
     sentRef.current = true;
 
@@ -66,13 +70,12 @@ export default function Result() {
       return;
     }
 
-
     postScore({ songId, diff, score, accuracy, grade, maxCombo })
       .catch((err) => {
         console.error("점수 저장 실패:", err);
       });
-  }, [songId, diff, score, accuracy, grade, maxCombo]);
-
+  }, [songId, diff, score, accuracy, grade, maxCombo, isReview]);
+  
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
       <Background />

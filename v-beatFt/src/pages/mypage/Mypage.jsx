@@ -8,6 +8,7 @@ import Friends from './Friends';
 import MyGames from './MyGames';
 import Records from './Records';
 import Policy from './Policy';
+import Manager from './Manager';
 import { getMenuAnalyser, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -29,7 +30,11 @@ export default function MyPage() {
     useEffect(() => {
         (async () => {
             try {
-                const res = await fetch('/api/auth/status', { credentials: 'include' });
+                const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
+                const res = await fetch(`${API_BASE}/api/auth/status`, {
+                    credentials: 'include',
+                });
                 const data = await res.json();
                 if (data?.ok) setStatus(data);
             } catch { }
@@ -71,7 +76,7 @@ export default function MyPage() {
                     display: 'flex',
                     padding: '40px 21%',
                     gap: '0px',
-                    overflowY: 'auto',
+
                 }}
             >
                 {/* 좌측 메뉴 */}
@@ -84,6 +89,8 @@ export default function MyPage() {
                     }}
                 >
                     {[
+                        // user?.loginUser?.role === 'ADMIN' && ['manager', '관리자']
+                        ['manager', '관리자'],
                         ['profile', '프로필'],
                         ['games', '내 게임'],
                         ['records', '플레이 기록'],
@@ -125,7 +132,7 @@ export default function MyPage() {
                         maxHeight: 'calc(100vh - 64px - 80px)',
                     }}
                 >
-                    {tab === 'manager' && <div>관리자</div>}
+                    {tab === 'manager' && <Manager />}
                     {tab === 'profile' && <ProfileSection user={status} />}
                     {tab === 'games' && <MyGames />}
                     {tab === 'records' && <Records />}

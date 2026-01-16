@@ -82,7 +82,6 @@ export default function Visualizer({
 
     const tick = () => {
       const analyser = analyserRef?.current;
-      console.log('[VIS]', !!analyser, analyser?.fftSize);
 
       // analyser 없거나 비활성이면 계속 대기
       if (!analyser || !activeRef.current) {
@@ -94,12 +93,6 @@ export default function Visualizer({
       analyser.getByteFrequencyData(data);
       let max = 0;
       for (let i = 0; i < data.length; i++) if (data[i] > max) max = data[i];
-      console.log('[ANALYSER MAX]', max);
-
-
-
-      console.log('freq[0]:', data[0]);
-      console.log('freq sample:', data[0], data[5], data[20]);
 
       // 평균
       let sum = 0;

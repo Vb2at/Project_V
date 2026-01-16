@@ -1,6 +1,6 @@
 import { useEffect, } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import './Login.css';                 // ✅ 로그인 배경 스타일 재사용
+import './Login.css';
 import LoginNoteRain from './LoginNoteRain';
 import JoinForm from '../../components/Member/JoinForm';
 

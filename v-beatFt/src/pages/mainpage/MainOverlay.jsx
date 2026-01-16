@@ -1,12 +1,13 @@
 // pages/mainpage/MainOverlay.jsx
 import { useRef, useState, useEffect, useCallback } from 'react';
-import Header from '../../components/Common/Header';
 import { useNavigate } from 'react-router-dom';
 import { playMenuMove, playMenuConfirm, playPreview, stopPreview, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
-import Visualizer from '../../components/visualizer/Visualizer';
 import { getMenuAnalyser } from '../../components/engine/SFXManager';
+import Header from '../../components/Common/Header';
 import RankTable from './RankTable';
-
+import Visualizer from '../../components/visualizer/Visualizer';
+import UserProfileModal from "../../components/Common/UserProfileModal";
+import UserReportModal from "../../components/Common/UserReportModal";
 const dummySongs = [
   { id: 1, title: 'Song A', artist: 'Artist A', cover: null },
   { id: 2, title: 'Song B', artist: 'Artist B', cover: null },
@@ -36,7 +37,9 @@ export default function MainOverlay() {
   //랭킹 데이터
   const [ranking, setRanking] = useState([]);
   const [rankLoading, setRankLoading] = useState(false);
-
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   useEffect(() => {
     const unlocked = localStorage.getItem('bgmUnlocked') === 'true';
 
@@ -273,7 +276,7 @@ export default function MainOverlay() {
   })();
   const selectedSong = songs[selectedIndex];
 
-   useEffect(() => {
+  useEffect(() => {
     const s = selectedSong;
 
     if (!s?.id || !s?.diff) {
@@ -301,7 +304,7 @@ export default function MainOverlay() {
         if (!alive) return;
 
         setRanking(Array.isArray(data.ranking) ? data.ranking
-         : []);
+          : []);
       } catch (e) {
         if (!alive) return;
         setRanking([]);
@@ -460,6 +463,64 @@ export default function MainOverlay() {
                         );
                       })}
                     </span>
+                    {/* More (profile / report) */}
+                    <div style={{ position: 'relative', marginLeft: 'auto' }}>
+                      <button
+                        style={moreBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMoreOpen((v) => !v);
+                        }}
+                      >
+                        ⋯
+                      </button>
+
+                      {moreOpen && (
+                        <div style={moreMenu}>
+                          <div
+                            style={menuItem}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMoreOpen(false);
+                              setProfileOpen(true);
+                              // TODO: 제작자 프로필 모달 오픈
+                            }}
+                          >
+                            제작자 프로필
+                          </div>
+                          <div
+                            style={{ ...menuItem, color: '#ff6b6b' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMoreOpen(false);
+                              setReportOpen(true); // 신고 모달 연결 지점
+                            }}
+                          >
+                            신고하기
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <UserProfileModal
+                      open={profileOpen}
+                      user={{
+                        id: selectedSong?.id,          // TODO: 추후 제작자 id
+                        nickname: selectedSong?.artist // 임시
+                      }}
+                      onClose={() => setProfileOpen(false)}
+                    />
+
+                    <UserReportModal
+                      open={reportOpen}
+                      type="CONTENT"
+                      targetId={selectedSong?.id}
+                      targetName={selectedSong?.title}
+                      onClose={() => setReportOpen(false)}
+                      onSubmit={(payload) => {
+                        console.log('CONTENT REPORT:', payload);
+                        setReportOpen(false);
+                      }}
+                    />
                   </div>
                 </>
               ) : (
@@ -683,3 +744,31 @@ export default function MainOverlay() {
     </div >
   );
 }
+const moreBtn = {
+  height: 22,
+  padding: '0 8px',
+  borderRadius: 6,
+  border: '1px solid rgba(255,255,255,0.25)',
+  background: 'transparent',
+  color: '#aaa',
+  cursor: 'pointer',
+};
+
+const moreMenu = {
+  position: 'absolute',
+  right: 0,
+  top: '100%',
+  marginTop: 6,
+  background: '#0b0b0b',
+  border: '1px solid #333',
+  borderRadius: 8,
+  overflow: 'hidden',
+  zIndex: 20,
+};
+
+const menuItem = {
+  padding: '8px 14px',
+  fontSize: 13,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};

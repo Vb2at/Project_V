@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ProfileAvatar from '../../components/Member/ProfileAvatar';
+import UserProfileModal from '../../components/Common/UserProfileModal';
 
 /* ===== 더미 데이터 (API 연결 전) ===== */
 const DUMMY_FRIENDS = [
@@ -15,6 +16,14 @@ export default function Friends() {
     const [friends, setFriends] = useState(DUMMY_FRIENDS);
     const [requests, setRequests] = useState(DUMMY_REQUESTS);
     const [addNick, setAddNick] = useState('');
+    const [profileOpen, setProfileOpen] = useState(false);
+    const [profileUser, setProfileUser] = useState(null);
+
+    function openProfile(user) {
+        setProfileUser(user);
+        setProfileOpen(true);
+    }
+
     const handleAdd = () => {
         if (!addNick.trim()) return;
 
@@ -60,8 +69,12 @@ export default function Friends() {
                 {friends.length === 0 && <Empty>친구 없음</Empty>}
                 {friends.map((u) => (
                     <Row key={u.id}>
-                        <UserInfo nick={u.nick} online={u.online} />
-
+                        <div
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => openProfile(u)}
+                        >
+                            <UserInfo nick={u.nick} online={u.online} />
+                        </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                             <BtnSub>쪽지</BtnSub>
                             <BtnSub>삭제</BtnSub>
@@ -69,7 +82,12 @@ export default function Friends() {
                     </Row>
                 ))}
             </Section>
-        </div>
+            <UserProfileModal
+                open={profileOpen}
+                user={profileUser}
+                onClose={() => setProfileOpen(false)}
+            />
+        </div >
     );
 }
 
