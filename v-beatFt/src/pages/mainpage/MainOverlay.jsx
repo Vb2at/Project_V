@@ -33,6 +33,9 @@ export default function MainOverlay() {
   const wheelContainerRef = useRef(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const analyserRef = useRef(null);
+  //랭킹 데이터
+  const [ranking, setRanking] = useState([]);
+  const [rankLoading, setRankLoading] = useState(false);
 
   useEffect(() => {
     const unlocked = localStorage.getItem('bgmUnlocked') === 'true';
@@ -213,7 +216,7 @@ export default function MainOverlay() {
         console.log('선택 확정:', songs[selectedIndex]);
         playMenuConfirm();
         stopPreview();
-        navigate(`/game/play?songId=${songs[selectedIndex].id}&diff=${songs[selectedIndex].diff}`);
+        navigate(`/game/play?songId=${songs[selectedIndex].id}&diff=${String(songs[selectedIndex].diff).toLowerCase()}`);
       }
     };
 
@@ -269,6 +272,51 @@ export default function MainOverlay() {
     return renderList.findIndex((item) => item.id === id);
   })();
   const selectedSong = songs[selectedIndex];
+
+   useEffect(() => {
+    const s = selectedSong;
+
+    if (!s?.id || !s?.diff) {
+      setRanking([]);
+      return;
+    }
+
+    let alive = true;
+
+    const loadRanking = async () => {
+      try {
+        setRankLoading(true);
+
+        const diffParam = String(s.diff).toLowerCase();
+
+        const res = await fetch(`/api/ranking/${s.id}/${diffParam}`, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          credentials: 'include',
+        });
+
+        if (!res.ok) throw new Error(`랭킹 요청 실패 (${res.status})`);
+
+        const data = await res.json();
+        if (!alive) return;
+
+        setRanking(Array.isArray(data.ranking) ? data.ranking
+         : []);
+      } catch (e) {
+        if (!alive) return;
+        setRanking([]);
+      } finally {
+        if (!alive) return;
+        setRankLoading(false);
+      }
+    };
+
+    loadRanking();
+
+    return () => {
+      alive = false;
+    };
+  }, [selectedSong?.id, selectedSong?.diff]);
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -391,7 +439,9 @@ export default function MainOverlay() {
                     {/* Difficulty */}
                     <span style={{ display: 'flex', gap: '6px' }}>
                       {['EASY', 'NORMAL', 'HARD', 'HELL'].map((d) => {
-                        const active = d === (selectedSong.difficulty ?? selectedSong.diff);
+                        const currentDiff = String(selectedSong?.difficulty ?? selectedSong?.diff ?? 'NORMAL').toUpperCase();
+                        const active = d === currentDiff;
+
 
                         return (
                           <span
@@ -535,7 +585,7 @@ export default function MainOverlay() {
                       setSelectedIndex(item.songIndex);
                       playMenuConfirm();
                       stopPreview();
-                      navigate(`/game/play?songId=${item.id}&diff=${item.diff}`);
+                      navigate(`/game/play?songId=${item.id}&diff=${String(item.diff).toLowerCase()}`);
                     }}
                     style={{
                       height: ITEM_HEIGHT,
@@ -594,8 +644,8 @@ export default function MainOverlay() {
           }}
         >
           <RankTable
-            rankings={[]}
-            loading={false}
+            ranking={ranking}
+            loading={rankLoading}
           />
         </div>
       </main >

@@ -1,4 +1,4 @@
-export default function RankTable({ rankings = [], loading = false }) {
+export default function RankTable({ ranking = [], loading = false }) {
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Header */}
@@ -14,12 +14,12 @@ export default function RankTable({ rankings = [], loading = false }) {
                     gap: '10px',
                     fontSize: '12px',
                     color: '#ffb3b3',
-                    padding: '6px 8px',
+                    padding: '4px 8px',
                     borderBottom: '1px solid rgba(255,255,255,0.12)',
                 }}
             >
                 <div />
-                <div>NAME</div>
+                <div>NICKNAME</div>
                 <div style={{ textAlign: 'right' }}>SCORE</div>
                 <div style={{ textAlign: 'center' }}>ACC</div>
                 <div style={{ textAlign: 'center' }}>GRADE</div>
@@ -30,12 +30,12 @@ export default function RankTable({ rankings = [], loading = false }) {
             <div style={{ flex: 1, overflowY: 'auto' }}>
                 {loading && <div style={{ padding: 12 }}>Loading...</div>}
 
-                {!loading && rankings.length === 0 && (
-                    <div style={{ padding: 12, opacity: 0.6 }}>No Records</div>
+                {!loading && ranking.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: 28, opacity: 0.6 }}>No Records</div>
                 )}
 
                 {!loading &&
-                    rankings.slice(0, 100).map((r, i) => {
+                    ranking.slice(0, 100).map((r, i) => {
                         const isTop = i < 3;
 
                         const gradeColor =
@@ -51,7 +51,7 @@ export default function RankTable({ rankings = [], loading = false }) {
                                     display: 'grid',
                                     gridTemplateColumns: '36px 1.6fr 1.2fr .9fr .8fr 1fr',
                                     gap: '10px',
-                                    padding: '8px 8px',
+                                    padding: '7px 7px',
                                     fontSize: '12px',
                                     color: '#fff',
                                     borderBottom: '1px solid rgba(255,255,255,0.08)',
