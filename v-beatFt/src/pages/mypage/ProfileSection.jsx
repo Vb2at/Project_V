@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import ProfileAvatar from './ProfileAvatar';
+import ProfileAvatar from '../../components/Member/ProfileAvatar';
 
 export default function ProfileSection({ user }) {
   const originNick = user?.loginUserNickName ?? '';

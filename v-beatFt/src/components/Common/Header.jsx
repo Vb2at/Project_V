@@ -43,7 +43,9 @@ export default function Header() {
       alert('로그아웃 실패');
     }
   };
-
+  const [notify, setNotify] = useState({
+    messages: true, // 테스트용
+  });
   // ✅ 로그인 상태 확인 (처음 1회)
   useEffect(() => {
     let alive = true;
@@ -121,11 +123,12 @@ export default function Header() {
       >
         <img
           src="/images/logo.png"
+          onClick={() => navigate('/main')}
           alt="V-BEAT"
           style={{
             height: '130px',
             objectFit: 'contain',
-            pointerEvents: 'none',
+            cursor: 'pointer',
           }}
         />
       </div>
@@ -248,7 +251,7 @@ export default function Header() {
           />
         </div>
       )}
-      
+
       {/* 우측 모바일 메뉴 버튼 */}
       {!isGamePage && (
         <div
@@ -262,27 +265,43 @@ export default function Header() {
             gap: '8px',
           }}
         >
-          <button
-            className="neon-btn"
-            onClick={() => setMobileOpen((v) => !v)}
-            aria-label="mobile menu"
-          >
-            <svg viewBox="0 0 24 24" width="50" height="40">
-              <path
-                d="M4 6h16M4 12h16M4 18h16"
-                fill="none"
-                stroke="url(#grad-mobile)"
-                strokeWidth="2"
-                strokeLinecap="round"
+          <div style={{ position: 'relative' }}>
+            <button
+              className="neon-btn"
+              onClick={() => setMobileOpen((v) => !v)}
+              aria-label="mobile menu"
+            >
+              <svg viewBox="0 0 24 24" width="50" height="40">
+                <path
+                  d="M4 6h16M4 12h16M4 18h16"
+                  fill="none"
+                  stroke="url(#grad-mobile)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+                <defs>
+                  <linearGradient id="grad-mobile" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#5aeaff" />
+                    <stop offset="100%" stopColor="#ff0040" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </button>
+            {notify.messages && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: -2,
+                  right: -2,
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  background: '#ff4d4f',
+                  boxShadow: '0 0 6px rgba(255,77,79,0.8)',
+                }}
               />
-              <defs>
-                <linearGradient id="grad-mobile" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#5aeaff" />
-                  <stop offset="100%" stopColor="#ff0040" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </button>
+            )}
+          </div>
         </div>
       )}
       {/* 모바일 메뉴 패널 */}
@@ -311,8 +330,31 @@ export default function Header() {
               {/* 로그인 상태에서만 노출 */}
               {status && (
                 <>
-                  <button className="neon-btn" onClick={() => navigate('/mypage')}>마아페이지</button>
-                  <button className="neon-btn">메세지</button>
+                  <button className="neon-btn" onClick={() => navigate('/mypage')}>마이페이지</button>
+                  <button
+                    className="neon-btn"
+                    style={{ position: 'relative' }}
+                    onClick={() => {
+                      setMobileOpen(false);
+                      navigate('/mypage', { state: { tab: 'messages' } });
+                    }}
+                  >
+                    메세지
+
+                    {notify.messages && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: 2,
+                          right: 6,
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          background: '#ff4d4f',
+                        }}
+                      />
+                    )}
+                  </button>
                   <button className="neon-btn" onClick={handleLogout}>
                     로그아웃
                   </button>

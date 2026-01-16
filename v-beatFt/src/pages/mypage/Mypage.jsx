@@ -2,14 +2,27 @@
 import { useEffect, useRef } from 'react';
 import Header from '../../components/Common/Header';
 import Visualizer from '../../components/visualizer/Visualizer';
-import ProfileSection from '../../components/Member/ProfileSection';
+import ProfileSection from './ProfileSection';
+import Message from "./Message";
+import Friends from './Friends';
 import { getMenuAnalyser, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
 import { useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faExclamation } from '@fortawesome/free-solid-svg-icons';
+import { useLocation } from 'react-router-dom';
 
 export default function MyPage() {
     const analyserRef = useRef(null);
-    const [tab, setTab] = useState('profile');
+    const location = useLocation();
+
+    const [tab, setTab] = useState(
+        location.state?.tab ?? 'profile'
+    );
     const [status, setStatus] = useState(null);
+    const [notify, setNotify] = useState({
+        messages: true, // 테스트용
+        friends: false,
+    });
 
     useEffect(() => {
         (async () => {
@@ -86,7 +99,12 @@ export default function MyPage() {
                                 fontWeight: tab === key ? 600 : 400,
                             }}
                         >
-                            {label}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{label}</span>
+
+                                {(key === 'messages' && notify.messages) && <AlertMark />}
+                                {(key === 'friends' && notify.friends) && <AlertMark />}
+                            </div>
                         </div>
                     ))}
                 </aside>
@@ -102,11 +120,12 @@ export default function MyPage() {
                         padding: '20px',
                     }}
                 >
+                    {tab === 'manager' && <div>관리자</div>}
                     {tab === 'profile' && <ProfileSection user={status} />}
                     {tab === 'games' && <div>내 게임 목록</div>}
                     {tab === 'records' && <div>플레이 기록</div>}
-                    {tab === 'friends' && <div>친구 목록</div>}
-                    {tab === 'messages' && <div>메시지 목록</div>}
+                    {tab === 'friends' && <Friends user={status} />}
+                    {tab === 'messages' && <Message />}
                     {tab === 'policy' && <div>약관 / 회원탈퇴</div>}
                 </section>
             </main>
@@ -144,5 +163,29 @@ export default function MyPage() {
                 }}
             />
         </div >
+    );
+}
+function Dot() {
+    return (
+        <span
+            style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: '#ff4d4f',
+                display: 'inline-block',
+            }}
+        />
+    );
+}
+function AlertMark() {
+    return (
+        <FontAwesomeIcon
+            icon={faExclamation}
+            style={{
+                color: '#ff4d4f',
+                fontSize: 20,
+            }}
+        />
     );
 }
