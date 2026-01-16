@@ -188,7 +188,6 @@ const pageWrap = {
   gap: 18,
   maxWidth: 820,
   width: '100%',
-  paddingBottom: 40,
 };
 
 const cardStyle = {

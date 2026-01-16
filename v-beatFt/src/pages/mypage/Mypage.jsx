@@ -5,12 +5,14 @@ import Visualizer from '../../components/visualizer/Visualizer';
 import ProfileSection from './ProfileSection';
 import Message from "./Message";
 import Friends from './Friends';
+import MyGames from './MyGames';
+import Records from './Records';
+import Policy from './Policy';
 import { getMenuAnalyser, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faExclamation } from '@fortawesome/free-solid-svg-icons';
 import { useLocation } from 'react-router-dom';
-
 export default function MyPage() {
     const analyserRef = useRef(null);
     const location = useLocation();
@@ -69,6 +71,7 @@ export default function MyPage() {
                     display: 'flex',
                     padding: '40px 21%',
                     gap: '0px',
+                    overflowY: 'auto',
                 }}
             >
                 {/* 좌측 메뉴 */}
@@ -118,15 +121,17 @@ export default function MyPage() {
                         borderRadius: '14px',
                         background: 'rgba(20,22,28,0.65)',
                         padding: '20px',
+                        overflowY: 'auto',
+                        maxHeight: 'calc(100vh - 64px - 80px)',
                     }}
                 >
                     {tab === 'manager' && <div>관리자</div>}
                     {tab === 'profile' && <ProfileSection user={status} />}
-                    {tab === 'games' && <div>내 게임 목록</div>}
-                    {tab === 'records' && <div>플레이 기록</div>}
+                    {tab === 'games' && <MyGames />}
+                    {tab === 'records' && <Records />}
                     {tab === 'friends' && <Friends user={status} />}
                     {tab === 'messages' && <Message />}
-                    {tab === 'policy' && <div>약관 / 회원탈퇴</div>}
+                    {tab === 'policy' && <Policy />}
                 </section>
             </main>
 
