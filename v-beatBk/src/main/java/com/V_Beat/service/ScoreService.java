@@ -16,8 +16,8 @@ public class ScoreService {
 	}
 	
 	@Transactional
-	public void save(Score req) {
-		this.scoreDao.save(req);
+	public void save(Score req, Long userId) {
+		this.scoreDao.save(req, userId);
 	}
 
 }

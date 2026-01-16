@@ -2,6 +2,7 @@ package com.V_Beat.dao;
 
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import com.V_Beat.dto.Score;
 
@@ -9,8 +10,8 @@ import com.V_Beat.dto.Score;
 public interface ScoreDao {
 
 	@Insert("""
-			INSERT INTO score (song_id, diff, score, accuracy, grade, max_combo)
-				VALUES (#{songId}, #{diff}, #{score}, #{accuracy}, #{grade}, #{maxCombo})
+			INSERT INTO score (user_id, song_id, diff, score, accuracy, grade, max_combo)
+				VALUES (#{userId}, #{req.songId}, #{req.diff}, #{req.score}, #{req.accuracy}, #{req.grade}, #{req.maxCombo})
 			""")
-	void save(Score req);
+	void save(@Param("req") Score req, @Param("userId") Long userId);
 }

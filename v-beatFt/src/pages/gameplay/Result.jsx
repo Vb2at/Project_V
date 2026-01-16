@@ -19,6 +19,7 @@ async function postScore(payload) {
   const res = await fetch("http://localhost:8080/api/scores", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",   //세션 쿠키
     body: JSON.stringify(payload),
   });
 

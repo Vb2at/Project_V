@@ -13,6 +13,7 @@ CREATE TABLE `user`(
     ,UNIQUE KEY (email)
     ,UNIQUE KEY (nickName)
 );
+#role 추가하기 default 0, admin 1
 
 INSERT INTO `user`
 (email, loginPw, nickName, loginType)
@@ -59,7 +60,7 @@ DROP TABLE song;
 
 UPDATE song
    SET is_public = TRUE
- WHERE id IN (5); 
+ WHERE id IN (9); 
  
 SELECT note_time, lane, TYPE, end_time, COUNT(*)
 FROM note
@@ -94,7 +95,7 @@ SELECT * FROM note;
 # 점수 저장 테이블(랭킹시스템)
 CREATE TABLE score (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT UNSIGNED NULL,  #추후 로그인 기능 구현 시 not null로 변경
+    user_id BIGINT UNSIGNED NOT NULL,  #추후 로그인 기능 구현 시 not null로 변경
     song_id BIGINT UNSIGNED NOT NULL,
     diff VARCHAR(10) NOT NULL,
     score INT NOT NULL,
