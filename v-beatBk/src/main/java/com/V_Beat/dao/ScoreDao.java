@@ -1,5 +1,6 @@
 package com.V_Beat.dao;
 
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -14,4 +15,11 @@ public interface ScoreDao {
 				VALUES (#{userId}, #{req.songId}, #{req.diff}, #{req.score}, #{req.accuracy}, #{req.grade}, #{req.maxCombo})
 			""")
 	void save(@Param("req") Score req, @Param("userId") Long userId);
+	
+	//회원탈퇴 시 점수 기록 삭제
+	@Delete("""
+			DELETE FROM score
+				WHERE user_id = #{loginUserId}
+			""")
+	int deleteByUserId(@Param("loginUserId") Integer loginUserId);
 }

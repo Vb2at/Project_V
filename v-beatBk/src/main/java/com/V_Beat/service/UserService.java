@@ -9,8 +9,10 @@ import java.util.UUID;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.V_Beat.dao.ScoreDao;
 import com.V_Beat.dao.UserDao;
 import com.V_Beat.dto.User;
 
@@ -18,10 +20,12 @@ import com.V_Beat.dto.User;
 public class UserService {
 	
 	private UserDao userDao;
+	private ScoreDao scoreDao;
 	private PasswordEncoder passwordEncoder;
 	
-	public UserService(UserDao userDao, PasswordEncoder passwordEncoder) {
+	public UserService(UserDao userDao, ScoreDao scoreDao, PasswordEncoder passwordEncoder) {
 		this.userDao = userDao;
+		this.scoreDao = scoreDao;
 		this.passwordEncoder = passwordEncoder;
 	}
 	
@@ -71,7 +75,7 @@ public class UserService {
 
 	    try {
 	    	//경로 변경하기
-	    	Path dir = Paths.get("C:\\Users\\admin\\Desktop\\jsw\\VBeat\\profileImg");
+	    	Path dir = Paths.get("upload", "profileImg");
 	        Files.createDirectories(dir);
 
 	        String original = profileImg.getOriginalFilename();
@@ -99,7 +103,12 @@ public class UserService {
 	}
 	
 	//회원탈퇴
+	@Transactional
 	public String deleteAccount(Integer loginUserId) {
+		//점수 기록 삭제
+		this.scoreDao.deleteByUserId(loginUserId);
+		
+		//유저 삭제
 		int deleted = this.userDao.deleteAccount(loginUserId);
 		if(deleted == 1) {
 			return "success";

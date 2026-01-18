@@ -40,6 +40,6 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
     	registry.addResourceHandler("/upload/**")
-        .addResourceLocations("file:C:/Users/admin/Desktop/jsw/VBeat/");
+        .addResourceLocations("file:./upload/");
     }
 }
