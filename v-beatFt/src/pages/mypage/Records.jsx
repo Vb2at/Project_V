@@ -1,35 +1,34 @@
 // pages/mypage/Records.jsx
-/* ===== 더미 데이터 ===== */
-const DUMMY_RECORDS = [
-  {
-    id: 1,
-    title: 'Neon Rush',
-    score: 982345,
-    acc: 98.2,
-    grade: 'S',
-    combo: 423,
-    playedAt: '2026-01-16 14:32',
-  },
-  {
-    id: 2,
-    title: 'Night Drive',
-    score: 812300,
-    acc: 91.4,
-    grade: 'A',
-    combo: 211,
-    playedAt: '2026-01-15 22:10',
-  },
-];
+import { useEffect, useState } from 'react';
+import { api } from '../../api/client';
 
-export default function Records() {
+export default function record() {
+  const [record, setRecord] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/api/scores/record');
+        setRecord(Array.isArray(res.data) ? res.data : []);
+      } catch(e) {
+        setRecord([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
   return (
     <div style={wrap}>
       <HeaderRow />
 
-      {DUMMY_RECORDS.length === 0 ? (
+      {loading ? (
+        <Empty>불러오는 중...</Empty>
+      ) : record.length === 0 ? (
         <Empty>플레이 기록이 없습니다</Empty>
       ) : (
-        DUMMY_RECORDS.map((r) => <Row key={r.id} record={r} />)
+        record.map((r, idx) => <Row key={idx} record={r} />)
       )}
     </div>
   );
@@ -40,25 +39,29 @@ export default function Records() {
 function HeaderRow() {
   return (
     <div style={{ ...row, opacity: 0.6, fontSize: 12 }}>
-      <div style={{ width: 140 }}>날짜</div>
-      <div style={{ flex: 1 }}>곡</div>
+      <div style={{ width: 140, textAlign: 'center' }}>날짜</div>
+      <div style={{ width: 140, textAlign: 'center' }}>곡</div>
       <div style={{ width: 90, textAlign: 'right' }}>점수</div>
       <div style={{ width: 70, textAlign: 'right' }}>ACC</div>
-      <div style={{ width: 60, textAlign: 'center' }}>등급</div>
+      <div style={{ width: 60, textAlign: 'right' }}> 등급</div>
       <div style={{ width: 70, textAlign: 'right' }}>콤보</div>
     </div>
   );
 }
 
 function Row({ record }) {
+  const playedAt = record.regDate ?? "-";
+  const acc = record.accuracy ?? record.acc ?? 0;
+  const combo = record.maxCombo ?? record.combo ?? 0;
+
   return (
     <div style={row}>
-      <div style={{ width: 140 }}>{record.playedAt}</div>
-      <div style={{ flex: 1 }}>{record.title}</div>
+      <div style={{ width: 140, textAlign: 'center' }}>{playedAt}</div>
+      <div style={{ width: 130, textAlign: 'center' }}>{record.title?.replace(/\.mp3$/i, '')}</div>
       <div style={{ width: 90, textAlign: 'right' }}>{record.score}</div>
-      <div style={{ width: 70, textAlign: 'right' }}>{record.acc}%</div>
-      <div style={{ width: 60, textAlign: 'center' }}>{record.grade}</div>
-      <div style={{ width: 70, textAlign: 'right' }}>{record.combo}</div>
+      <div style={{ width: 70, textAlign: 'right' }}>{acc}%</div>
+      <div style={{ width: 60, textAlign: 'right' }}>{record.grade}</div>
+      <div style={{ width: 70, textAlign: 'right' }}>{combo}</div>
     </div>
   );
 }
