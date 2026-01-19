@@ -278,7 +278,7 @@ export default function Header() {
           }}
         >
           <ProfileAvatar
-            profileImg={profileUrl}
+            profileImg={status.loginUser.profileImg}
             userId={status.loginUserId}
             size={50}
           />

@@ -53,7 +53,8 @@ public interface UserDao {
                profileImg,
                loginType,
                socialId,
-               regDate
+               regDate,
+               `role`
           FROM `user`
          WHERE id = #{id}
     """)

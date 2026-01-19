@@ -40,11 +40,11 @@ function HeaderRow() {
   return (
     <div style={{ ...row, opacity: 0.6, fontSize: 12 }}>
       <div style={{ width: 140, textAlign: 'center' }}>날짜</div>
-      <div style={{ width: 140, textAlign: 'center' }}>곡</div>
-      <div style={{ width: 90, textAlign: 'right' }}>점수</div>
-      <div style={{ width: 70, textAlign: 'right' }}>ACC</div>
-      <div style={{ width: 60, textAlign: 'right' }}> 등급</div>
-      <div style={{ width: 70, textAlign: 'right' }}>콤보</div>
+      <div style={{ flex: 1, textAlign: 'center' }}>곡</div>
+      <div style={{ width: 90, textAlign: 'center' }}>점수</div>
+      <div style={{ width: 70, textAlign: 'center' }}>ACC</div>
+      <div style={{ width: 60, textAlign: 'center' }}> 등급</div>
+      <div style={{ width: 70, textAlign: 'center' }}>콤보</div>
     </div>
   );
 }
@@ -57,11 +57,11 @@ function Row({ record }) {
   return (
     <div style={row}>
       <div style={{ width: 140, textAlign: 'center' }}>{playedAt}</div>
-      <div style={{ width: 130, textAlign: 'center' }}>{record.title?.replace(/\.mp3$/i, '')}</div>
-      <div style={{ width: 90, textAlign: 'right' }}>{record.score}</div>
-      <div style={{ width: 70, textAlign: 'right' }}>{acc}%</div>
-      <div style={{ width: 60, textAlign: 'right' }}>{record.grade}</div>
-      <div style={{ width: 70, textAlign: 'right' }}>{combo}</div>
+      <div style={{ flex: 1, textAlign: 'center' }}>{record.title?.replace(/\.mp3$/i, '')}</div>
+      <div style={{ width: 90, textAlign: 'center' }}>{record.score}</div>
+      <div style={{ width: 70, textAlign: 'center' }}>{acc}%</div>
+      <div style={{ width: 60, textAlign: 'center' }}>{record.grade}</div>
+      <div style={{ width: 70, textAlign: 'center' }}>{combo}</div>
     </div>
   );
 }

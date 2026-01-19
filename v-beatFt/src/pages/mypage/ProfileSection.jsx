@@ -33,10 +33,6 @@ export default function ProfileSection({ myInfo, status }) {
   useEffect(() => {
     setNickname(originNick);
   }, [originNick]);
-  const serverImgPath = status?.loginUser?.profileImg; 
-  const serverImgUrl = serverImgPath
-    ? `http://localhost:8080/upload/${serverImgPath}`
-    : null;
 
   async function saveProfile() {
   try {
@@ -153,7 +149,7 @@ export default function ProfileSection({ myInfo, status }) {
           {/* avatar */}
           <div style={avatarWrap}>
             <ProfileAvatar
-              profileImg={preview || serverImgUrl}
+              profileImg={preview || status?.loginUser?.profileImg}
               userId={status?.loginUserId}
               size={96}
             />
