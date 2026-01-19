@@ -1,5 +1,7 @@
 package com.V_Beat.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,11 @@ public class ScoreService {
 	@Transactional
 	public void save(Score req, Long userId) {
 		this.scoreDao.save(req, userId);
+	}
+	
+	//내 기록 족회
+	public List<Score> findByUserId(Integer userId) {
+		return this.scoreDao.findByUserId(userId);
 	}
 
 }

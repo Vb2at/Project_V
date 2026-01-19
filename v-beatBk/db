@@ -10,10 +10,10 @@ CREATE TABLE `user`(
     ,socialId VARCHAR(80) NULL
     ,regDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ,profileImg VARCHAR(255) NULL
+    ,`role` VARCHAR(15) NOT NULL DEFAULT 'USER'  # USER = 일반 회원, ADMIN = 관리자 , BLOCK = 차단 계정
     ,UNIQUE KEY (email)
     ,UNIQUE KEY (nickName)
 );
-#role 추가하기 default 0, admin 1
 
 INSERT INTO `user`
 (email, loginPw, nickName, loginType)

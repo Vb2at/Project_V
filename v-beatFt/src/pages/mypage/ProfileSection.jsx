@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import ProfileAvatar from '../../components/Member/ProfileAvatar';
+import { api } from '../../api/client';
 
-export default function ProfileSection({ user }) {
-  const originNick = user?.loginUserNickName ?? '';
+export default function ProfileSection({ myInfo, status }) {
+  const originNick = status?.loginUserNickName ?? '';
 
   const [nickname, setNickname] = useState(originNick);
   const [preview, setPreview] = useState(null);
@@ -14,73 +15,133 @@ export default function ProfileSection({ user }) {
   const [newPw2, setNewPw2] = useState('');
 
   // 계정 정보
-  const email = user?.loginUser?.email ?? '-';
-  const joinAt = user?.loginUser?.createdAt
-    ? new Date(user.loginUser.createdAt).toLocaleDateString()
+  const email = myInfo?.email ?? '-';
+  const joinAt = myInfo?.regDate
+    ? new Date(myInfo.regDate).toLocaleDateString()
     : '-';
-  const provider = user?.loginUser?.provider ?? 'LOCAL';
+  
+  const providerMap = { 0: 'LOCAL', 1: 'KAKAO', 2: 'GOOGLE' };
+  const provider = providerMap[myInfo?.loginType] ?? 'LOCAL';
 
-  const roleMap = { USER: '일반', ADMIN: '관리', BLOCKED: '차단' };
-  const role = roleMap[user?.loginUser?.role] ?? '일반';
+  const roleMap = { USER: '일반 회원', ADMIN: '관리자', BLOCK: '차단 계정' };
+  const role = roleMap[myInfo?.role] ?? '일반 회원';
+
+  //비동기 (에러 메시지만, 성공 시 alert로)
+  const [message, setMessage] = useState('');
 
   /* ================= handlers ================= */
+  useEffect(() => {
+    setNickname(originNick);
+  }, [originNick]);
+  const serverImgPath = status?.loginUser?.profileImg; 
+  const serverImgUrl = serverImgPath
+    ? `http://localhost:8080/upload/${serverImgPath}`
+    : null;
 
   async function saveProfile() {
-    try {
-      const file = fileRef.current?.files?.[0];
-      const nickChanged = nickname !== originNick;
+  try {
+    const file = fileRef.current?.files?.[0];
+    const nickChanged = nickname !== originNick;
 
-      if (file) {
-        const form = new FormData();
-        form.append('image', file);
-        await fetch('/api/me/profile-image', {
-          method: 'POST',
-          body: form,
-          credentials: 'include',
-        });
-      }
+    // 이미지 업로드
+    if (file) {
+      const form = new FormData();
+      form.append('profileImg', file);
 
-      if (nickChanged) {
-        await fetch('/api/me/nickname', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ nickname }),
-        });
-      }
-
-      if (file || nickChanged) {
-        window.dispatchEvent(new Event('profile-updated'));
-        alert('프로필 저장 완료');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('프로필 저장 실패');
-    }
-  }
-
-  async function changePassword() {
-    if (!currentPw || !newPw || !newPw2) return alert('모든 비밀번호를 입력해주세요.');
-    if (newPw !== newPw2) return alert('새 비밀번호가 일치하지 않습니다.');
-
-    try {
-      const res = await fetch('/api/me/password', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+      const imgRes = await fetch('/api/user/uploadProfile', {
+        method: 'POST',
+        body: form,
         credentials: 'include',
-        body: JSON.stringify({
-          currentPassword: currentPw,
-          newPassword: newPw,
-        }),
       });
 
-      if (!res.ok) throw new Error();
+      const imgData = await imgRes.json();
+      console.log('uploadProfile response:', imgData); // ✅ 이거 찍어
 
-      alert('비밀번호가 변경되었습니다. 다시 로그인해주세요.');
-      window.location.href = '/login';
+      if (!imgData.ok) {
+        alert(imgData.message || '프로필 이미지 업로드 실패');
+        return;
+      }
+
+      const path =
+        imgData.profileImg || imgData.fileName || imgData.result || imgData.path;
+
+      if (!path) {
+        alert('서버가 이미지 경로를 안 내려줌 (응답 확인 필요)');
+        return;
+      }
+
+      // ✅ 캐시 무시
+      setPreview(`http://localhost:8080/upload/${path}?t=${Date.now()}`);
+    }
+
+    // 닉네임 변경
+    if (nickChanged) {
+      const res = await fetch('/api/user/change-nickname', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ nickName: nickname.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        alert(data.message || '닉네임 변경 실패');
+        return;
+      }
+    }
+
+    if (file || nickChanged) {
+      window.dispatchEvent(new Event('profile-updated'));
+      alert('프로필 저장 완료');
+    } else {
+      alert('변경된 내용이 없습니다.');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('프로필 저장 실패');
+  }
+}
+
+
+  async function changePassword() {
+    if(!currentPw) {
+      setMessage('현재 비밀번호를 입력해주세요.');
+      return;
+    }
+    if(!newPw) {
+      setMessage('새 비밀번호를 입력해주세요.');
+      return;
+    }
+    if(!newPw2) {
+      setMessage('새 비밀번호 확인을 입력해주세요.');
+      return;
+    }
+    if (newPw !== newPw2) {
+      setMessage('새 비밀번호가 일치하지 않습니다');
+      return;
+    }
+
+    try {
+      const { data } = await api.post("/api/user/change-pw", {
+        currentPw,
+        loginPw: newPw,
+      });
+
+      if (!data.ok) {
+        setMessage(data.message);
+        return;
+      }
+
+      //성공 시는 동기
+      setMessage('');
+      alert('비밀번호가 변경되었습니다.');
+
+      setCurrentPw('');
+      setNewPw('');
+      setNewPw2('');
     } catch (e) {
-      console.error(e);
-      alert('현재 비밀번호가 올바르지 않습니다.');
+      setMessage('비밀번호 변경에 실패했습니다');
     }
   }
 
@@ -92,8 +153,8 @@ export default function ProfileSection({ user }) {
           {/* avatar */}
           <div style={avatarWrap}>
             <ProfileAvatar
-              profileImg={preview || user?.loginUser?.profileImg}
-              userId={user?.loginUserId}
+              profileImg={preview || serverImgUrl}
+              userId={status?.loginUserId}
               size={96}
             />
             <button style={btnSub} onClick={() => fileRef.current?.click()}>
@@ -170,6 +231,21 @@ export default function ProfileSection({ user }) {
           />
         </div>
 
+        {/* 알림 메시지*/}
+        <div
+          style={{
+            minHeight: 13,
+            textAlign: 'center',
+            fontSize: 13,
+            color: '#ff6b6b',
+            opacity: message ? 1 : 0, //없으면 투명으로 공간 유지
+            transition: 'opacity 120ms ease',
+            lineHeight: '18px',
+          }}
+        >
+          {message || '\u00A0'}
+        </div>
+
         <div style={cardFooterCenter}>
           <button style={btnMain} onClick={changePassword}>
             비밀번호 변경
@@ -210,7 +286,7 @@ const profileRow = {
 const cardFooterCenter = {
   display: 'flex',
   justifyContent: 'center',
-  marginTop: 14,
+  marginTop: 10,
 };
 
 const avatarWrap = {

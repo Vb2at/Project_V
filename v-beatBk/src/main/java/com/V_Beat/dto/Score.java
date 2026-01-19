@@ -1,5 +1,7 @@
 package com.V_Beat.dto;
 
+import java.time.LocalDate;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -14,4 +16,6 @@ public class Score {
 	private Double accuracy;
 	private String grade;
 	private int maxCombo;
+	private LocalDate regDate;
+	private String title;
 }

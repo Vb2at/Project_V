@@ -9,3 +9,8 @@ export async function logoutApi() {
 export async function statusApi() {
     return api.get("/api/auth/login/status");
 }
+
+//회원탈퇴 API
+export async function deleteAccountApi() {
+    return api.post("/api/user/deleteAccount");
+}

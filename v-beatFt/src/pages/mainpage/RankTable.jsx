@@ -1,3 +1,23 @@
+const toImgUrl = (v) => {
+  if (!v) return null;
+  let s = String(v).trim();
+
+  // 이미 절대 URL이면 그대로
+  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+
+  // "/upload/..." 같이 오면 백엔드 붙여줌
+  if (s.startsWith('/upload/')) return `http://localhost:8080${s}`;
+
+  // "profileImg/xxx.png"로 오는 케이스 -> prefix 제거
+  if (s.startsWith('profileImg/')) s = s.replace(/^profileImg\//, '');
+
+  // 윈도우 경로로 저장된 케이스 대비 (혹시 모름)
+  if (s.includes('\\')) s = s.split('\\').pop();
+
+  // 파일명만 오면 (DB에 파일명 저장한 케이스)
+  return `http://localhost:8080/upload/profileImg/${encodeURIComponent(s)}`;
+};
+
 export default function RankTable({ ranking = [], loading = false }) {
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -65,9 +85,12 @@ export default function RankTable({ ranking = [], loading = false }) {
                                 <div>
                                     {r.profileImg ? (
                                         <img
-                                            src={r.profileImg}
-                                            alt=""
-                                            style={{ width: 28, height: 28, borderRadius: '50%' }}
+                                         src={(() => {
+                                            const url = toImgUrl(r.profileImg);
+                                            return url ? `${url}?t=${Date.now()}` : '';
+                                        })()}
+                                        alt=""
+                                        style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}
                                         />
                                     ) : (
                                         <div

@@ -3,6 +3,7 @@ package com.V_Beat.controller;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -69,15 +70,17 @@ public class UserController {
 			res.put("message", "로그인이 필요한 기능입니다.");
 			return res;
 		}
+		
+		String currentPw = (req.getCurrentPw() == null) ? "" : req.getCurrentPw().trim();
+		String newPw  = (req.getLoginPw() == null) ? "" : req.getLoginPw().trim();
 
-		String newPw = (req.getLoginPw() == null) ? "" : req.getLoginPw().trim();
-		if (newPw.isEmpty()) {
+		if (newPw.isEmpty() || currentPw.isEmpty()) {
 			res.put("ok", false);
 			res.put("message", "비밀번호를 입력하세요");
 			return res;
 		}
-
-		String result = userService.changePw(loginUserId, newPw);
+		
+		String result = userService.changePw(loginUserId, currentPw, newPw);
 
 		if ("success".equals(result)) {
 			res.put("ok", true);
@@ -111,9 +114,11 @@ public class UserController {
 
 	    String result = userService.uploadProfile(loginUserId, profileImg);
 
-	    if ("업로드할 파일이 없습니다.".equals(result) || (result != null && result.endsWith("실패했습니다."))) {
+	    if (result == null || !result.startsWith("profileImg/")) {
 	        res.put("ok", false);
-	        res.put("message", result);
+	        res.put("message", result == null
+	            ? "프로필 이미지 업로드에 실패했습니다."
+	            : result);
 	        return res;
 	    }
 
@@ -147,6 +152,30 @@ public class UserController {
 			res.put("message", result);
 		}
 		
+		return res;
+	}
+	
+	//유저 정보 조회
+	@GetMapping("/myInfo")
+	public Map<String, Object> selectInfo(HttpSession session) {
+		Map<String, Object> res = new HashMap<>();
+		
+		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+		if(loginUserId == null) {
+			res.put("ok", false);
+			res.put("message", "로그인이 필요한 기능입니다.");
+			return res;
+		}
+		
+		User user = this.userService.selectById(loginUserId);
+		if(user == null) {
+			res.put("ok", false);
+			res.put("message", "조회되는 정보가 없습니다.");
+			return res;
+		}
+		
+		res.put("ok", true);
+		res.put("user", user);
 		return res;
 	}
 }

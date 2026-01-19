@@ -16,11 +16,10 @@ public class Interceptor implements HandlerInterceptor {
                              Object handler) throws Exception {
 
     	// CORS preflight 방어 (현재는 WebConfig에서 처리됨)
-    	// 보안 설정 변경 시 필요해질 수 있음 -> 필요하게 되면 주석 해제
-//        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-//            response.setStatus(HttpServletResponse.SC_OK);
-//            return true;
-//        }
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            response.setStatus(HttpServletResponse.SC_OK);
+            return true;
+        }
         
         String uri = request.getRequestURI();
 

@@ -58,4 +58,36 @@ public interface UserDao {
          WHERE id = #{id}
     """)
     User findById(@Param("id") int id);
+    
+    //유저 정보 조회
+    @Select("""
+    		SELECT email, regDate, loginType, `role`
+    			FROM `user`
+    			WHERE id = #{loginUserId}
+    		""")
+	User selectById(Integer loginUserId);
+    
+    @Select("""
+    		SELECT loginPw 
+    			FROM `user`
+    			WHERE id = #{loginUserId}
+    		""")
+	String selectPwById(@Param("loginUserId") Integer loginUserId);
+
+    //닉네임 중복 체크
+    @Select("""
+    		SELECT COUNT(*)
+    			FROM `user`
+    			WHERE nickName = #{nickName}
+    			AND id <> #{loginUserId}
+    		""")
+	int countByNickName(@Param("nickName") String nickName, @Param("loginUserId") Integer loginUserId);
+    
+    //닉네임 중복 체크 (본인 닉네임)
+    @Select("""
+    		SELECT nickName
+    			FROM `user`
+    			WHERE id = #{loginUserId}
+    		""")
+	String findNickNameById(Integer loginUserId);
 }

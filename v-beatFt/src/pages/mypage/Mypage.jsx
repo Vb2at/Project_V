@@ -1,5 +1,5 @@
 // pages/member/MyPage.jsx
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Header from '../../components/Common/Header';
 import Visualizer from '../../components/visualizer/Visualizer';
 import ProfileSection from './ProfileSection';
@@ -10,30 +10,51 @@ import MyGames from './MyGames';
 import Records from './Records';
 import Policy from './Policy';
 import Manager from './Manager';
-import { getMenuAnalyser, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
-import { useState } from 'react';
+import {
+    getMenuAnalyser,
+    playMenuBgmRandom,
+    isMenuBgmPlaying,
+} from '../../components/engine/SFXManager';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faExclamation } from '@fortawesome/free-solid-svg-icons';
 import { useLocation } from 'react-router-dom';
+import { api } from '../../api/client';
+
 export default function MyPage() {
     const analyserRef = useRef(null);
     const location = useLocation();
 
-    const [tab, setTab] = useState(
-        location.state?.tab ?? 'profile'
-    );
+    const [tab, setTab] = useState(location.state?.tab ?? 'profile');
     const [status, setStatus] = useState(null);
     const [notify, setNotify] = useState({
         messages: true, // 테스트용
         friends: false,
     });
+    const [myInfo, setMyInfo] = useState(null);
 
+    // 내 정보 조회
+    useEffect(() => {
+        const fetchMyInfo = async () => {
+            try {
+                const { data } = await api.get('/api/user/myInfo');
+                if (!data.ok) {
+                    alert(data.message);
+                    return;
+                }
+                setMyInfo(data.user);
+            } catch (e) {
+                console.error(e);
+                alert('정보 조회 실패');
+            }
+        };
+        fetchMyInfo();
+    }, []);
+
+    // 로그인 상태 조회
     useEffect(() => {
         (async () => {
             try {
-                const API_BASE = import.meta.env.VITE_API_BASE_URL;
-
-                const res = await fetch(`${API_BASE}/api/auth/status`, {
+                const res = await fetch('/api/auth/login/status', {
                     credentials: 'include',
                 });
                 const data = await res.json();
@@ -49,7 +70,7 @@ export default function MyPage() {
         }
     }, []);
 
-    // analyser 연결 (MainOverlay와 동일 방식)
+    // analyser 연결
     useEffect(() => {
         const id = setInterval(() => {
             const a = getMenuAnalyser();
@@ -61,6 +82,8 @@ export default function MyPage() {
 
         return () => clearInterval(id);
     }, []);
+
+    if (!myInfo) return null;
 
     return (
         <div style={{ position: 'absolute', inset: 0 }}>
@@ -85,8 +108,6 @@ export default function MyPage() {
                     bottom: 0,
                     display: 'flex',
                     padding: '40px 21%',
-                    gap: '0px',
-
                 }}
             >
                 {/* 좌측 메뉴 */}
@@ -99,7 +120,6 @@ export default function MyPage() {
                     }}
                 >
                     {[
-                        // user?.loginUser?.role === 'ADMIN' && ['manager', '관리자']
                         ['manager', '관리자'],
                         ['profile', '프로필'],
                         ['games', '내 게임'],
@@ -119,11 +139,16 @@ export default function MyPage() {
                                 fontWeight: tab === key ? 600 : 400,
                             }}
                         >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                }}
+                            >
                                 <span>{label}</span>
-
-                                {(key === 'messages' && notify.messages) && <AlertMark />}
-                                {(key === 'friends' && notify.friends) && <AlertMark />}
+                                {key === 'messages' && notify.messages && <AlertMark />}
+                                {key === 'friends' && notify.friends && <AlertMark />}
                             </div>
                         </div>
                     ))}
@@ -143,7 +168,9 @@ export default function MyPage() {
                     }}
                 >
                     {tab === 'manager' && <Manager />}
-                    {tab === 'profile' && <ProfileSection user={status} />}
+                    {tab === 'profile' && (
+                        <ProfileSection myInfo={myInfo} status={status} />
+                    )}
                     {tab === 'games' && <MyGames />}
                     {tab === 'records' && <Records />}
                     {tab === 'friends' && <Friends user={status} />}
@@ -184,31 +211,16 @@ export default function MyPage() {
                     pointerEvents: 'none',
                 }}
             />
-        </div >
+        </div>
     );
 }
-function Dot() {
-    return (
-        <span
-            style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: '#ff4d4f',
-                display: 'inline-block',
-            }}
-        />
-    );
-}
+
 function AlertMark() {
     return (
 
         <FontAwesomeIcon
             icon={faExclamation}
-            style={{
-                color: '#ff4d4f',
-                fontSize: 20,
-            }}
+            style={{ color: '#ff4d4f', fontSize: 20 }}
         />
     );
 }
