@@ -5,10 +5,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-@MapperScan({"com.V_Beat.dao", "com.V_Beat.ai.dao"})
+@MapperScan("com.V_Beat")   // ✅ 이 한 줄이 핵심
 public class VBeatApplication {
-
-	public static void main(String[] args) {
-		SpringApplication.run(VBeatApplication.class, args);
-	}
+    public static void main(String[] args) {
+        SpringApplication.run(VBeatApplication.class, args);
+    }
 }

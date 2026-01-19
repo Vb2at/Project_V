@@ -14,4 +14,5 @@ public class CheckReq {
 	private String nickName;
 	private String currentPw;
 	private String newPw;
+	private String role;
 }
