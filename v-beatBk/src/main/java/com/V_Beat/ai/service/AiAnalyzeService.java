@@ -46,7 +46,7 @@ public class AiAnalyzeService {
 	}
 
 	@Transactional
-	public Long analyzeSave(MultipartFile file, String diff) throws Exception {
+	public Long analyzeSave(MultipartFile file, String diff, String reqVisibility, int loginUserId) throws Exception {
 
 		// 0) diff 기본값
 		if (diff == null || diff.isBlank()) {
@@ -72,6 +72,9 @@ public class AiAnalyzeService {
 		ResponseEntity<String> resp = restTemplate.postForEntity(PYTHON_URL, request, String.class);
 
 		String json = resp.getBody();
+		if (json == null || json.isBlank()) {
+			throw new RuntimeException("Flask response body is empty");
+		}
 
 		// 2) JSON 파싱
 		ObjectMapper mapper = new ObjectMapper();
@@ -81,7 +84,7 @@ public class AiAnalyzeService {
 		if (notesNode == null || !notesNode.isArray()) {
 			throw new IllegalStateException("Flask 응답에 notes 배열이 없습니다.");
 		}
-		//preview 파싱
+		// preview 파싱
 		double previewStartSec = root.path("previewStartSec").asDouble(0.0);
 		double previewDurationSec = root.path("previewDurationSec").asDouble(10.0);
 
@@ -93,6 +96,14 @@ public class AiAnalyzeService {
 		song.setDiff(diff);
 		song.setFilePath(null);
 		song.setCoverPath(null);
+
+		String visibility = reqVisibility;
+		if ("PUBLIC".equals(reqVisibility)) {
+			visibility = "PENDING";
+		}
+
+		song.setUserId(loginUserId);
+		song.setVisibility(visibility);
 
 		this.aiAnalyzeDao.insertSong(song);
 		Long songId = song.getId();
@@ -106,8 +117,8 @@ public class AiAnalyzeService {
 
 		String savedPath = UPLOAD_DIR + "/" + songId + ext;
 		file.transferTo(new File(savedPath));
-		
-		//preview생성 + DB저장
+
+		// preview생성 + DB저장
 		String previewPath = UPLOAD_DIR + "/" + songId + "_preview.mp3";
 		makePreviewMp3(savedPath, previewPath, previewStartSec, previewDurationSec);
 		this.aiAnalyzeDao.updatePreviewPath(songId, previewPath);
@@ -219,39 +230,33 @@ public class AiAnalyzeService {
 	}
 
 	private void makePreviewMp3(String fullPath, String previewPath, double startSec, double durSec) throws Exception {
-	    // 너무 짧은 곡/이상값 방어
-	    if (startSec < 0) startSec = 0;
-	    if (durSec <= 0) durSec = 10;
+		// 너무 짧은 곡/이상값 방어
+		if (startSec < 0)
+			startSec = 0;
+		if (durSec <= 0)
+			durSec = 10;
 
-	    ProcessBuilder pb = new ProcessBuilder(
-	            "ffmpeg",
-	            "-ss", String.valueOf(startSec),
-	            "-t", String.valueOf(durSec),
-	            "-i", fullPath,
-	            "-y",
-	            "-vn",
-	            "-acodec", "libmp3lame",
-	            "-q:a", "4",
-	            previewPath
-	    );
+		ProcessBuilder pb = new ProcessBuilder("ffmpeg", "-ss", String.valueOf(startSec), "-t", String.valueOf(durSec),
+				"-i", fullPath, "-y", "-vn", "-acodec", "libmp3lame", "-q:a", "4", previewPath);
 
-	    pb.redirectErrorStream(true);
-	    Process p = pb.start();
+		pb.redirectErrorStream(true);
+		Process p = pb.start();
 
-	    try (var r = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()))) {
-	        while (r.readLine() != null) { /* 로그 버림(필요하면 출력) */ }
-	    }
+		try (var r = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()))) {
+			while (r.readLine() != null) {
+				/* 로그 버림(필요하면 출력) */ }
+		}
 
-	    int code = p.waitFor();
-	    if (code != 0) {
-	        throw new RuntimeException("ffmpeg failed, exitCode=" + code);
-	    }
+		int code = p.waitFor();
+		if (code != 0) {
+			throw new RuntimeException("ffmpeg failed, exitCode=" + code);
+		}
 
-	    // 생성 확인(안전)
-	    File out = new File(previewPath);
-	    if (!out.exists() || out.length() <= 0) {
-	        throw new RuntimeException("preview mp3 not created: " + previewPath);
-	    }
+		// 생성 확인(안전)
+		File out = new File(previewPath);
+		if (!out.exists() || out.length() <= 0) {
+			throw new RuntimeException("preview mp3 not created: " + previewPath);
+		}
 	}
 
 }

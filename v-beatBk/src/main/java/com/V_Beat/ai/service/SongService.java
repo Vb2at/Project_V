@@ -9,33 +9,143 @@ import com.V_Beat.ai.dao.SongDao;
 import com.V_Beat.ai.dto.NoteResult;
 import com.V_Beat.ai.dto.SongNotesResult;
 import com.V_Beat.dto.Song;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.UUID;
 
 @Service
 public class SongService {
-	
+
 	private SongDao songDao;
-	
+
 	public SongService(SongDao songDao) {
 		this.songDao = songDao;
 	}
 
 	@Transactional(readOnly = true)
 	public Song getSong(Long songId) {
-        return songDao.getSong(songId);
+		return songDao.getSong(songId);
 	}
 
 	@Transactional(readOnly = true)
-    public SongNotesResult getSongNotes(Long songId) {
+	public SongNotesResult getSongNotes(Long songId) {
 		List<NoteResult> notes = songDao.getSongNotes(songId);
-	    return new SongNotesResult(songId, notes);
+		return new SongNotesResult(songId, notes);
 	}
-	
+
 	@Transactional(readOnly = true)
 	public List<Song> getPublicSongs() {
 		return this.songDao.getPublicSongs();
 	}
-	
+
 	public boolean canPlayWithLogout(Song song) {
-		return song != null && song.isPublic();
+		return song != null && "PUBLIC".equals(song.getVisibility());
+	}
+
+	@Transactional
+	public void updateSongInfo(Long songId, int loginUserId, String title, String artist, String visibility,
+			MultipartFile cover) {
+
+		Song song = songDao.getSong(songId);
+		if (song == null) {
+			throw new RuntimeException("song not found");
+		}
+
+		if (song.getUserId() != loginUserId) {
+			throw new RuntimeException("no permission");
+		}
+
+		List<String> allowed = List.of("PRIVATE", "UNLISTED");
+		if (!allowed.contains(visibility)) {
+			throw new IllegalArgumentException("invalid visibility");
+		}
+
+		String coverPath = null;
+
+		if (cover != null && !cover.isEmpty()) {
+			try {
+				String uploadDir = "upload/cover/";
+				Files.createDirectories(Paths.get(uploadDir));
+
+				String fileName = UUID.randomUUID() + "_" + cover.getOriginalFilename();
+				Path savePath = Paths.get(uploadDir, fileName);
+
+				cover.transferTo(savePath.toFile());
+				coverPath = savePath.toString();
+
+			} catch (IOException e) {
+				throw new RuntimeException("커버 이미지 저장 실패", e);
+			}
+		}
+
+		if (coverPath != null) {
+			songDao.upadateSongWithCover(songId, title, artist, visibility, coverPath);
+		} else {
+			songDao.upDateSong(songId, title, artist, visibility);
+		}
+	}
+
+	public boolean canAccess(Song song, Integer loginUserId, boolean isAdmin) {
+		if (song == null)
+			return false;
+
+		String v = song.getVisibility();
+
+		if ("PUBLIC".equals(v))
+			return true;
+		if ("UNLISTED".equals(v))
+			return true;
+
+		if ("PRIVATE".equals(v)) {
+			return loginUserId != null && song.getUserId() == loginUserId;
+		}
+
+		if ("PENDING".equals(v)) {
+			return isAdmin || (loginUserId != null && song.getUserId() == loginUserId);
+		}
+
+		if ("BLOCKED".equals(v)) {
+			return isAdmin;
+		}
+
+		return false;
+	}
+
+	@Transactional(readOnly = true)
+	public List<Song> getPendingSongs(boolean isAdmin) {
+		if (!isAdmin)
+			throw new RuntimeException("admin only");
+		return songDao.getPendingSongs();
+	}
+
+	@Transactional
+	public void reviewSong(Long songId, String result, boolean isAdmin) {
+		result = result.toUpperCase();
+
+		if (!"PUBLIC".equals(result) && !"BLOCKED".equals(result)) {
+			throw new RuntimeException("invalid result");
+		}
+
+		if (!isAdmin)
+			throw new RuntimeException("admin only");
+
+		Song song = songDao.getSong(songId);
+		if (song == null)
+			throw new RuntimeException("song not found");
+
+		if (!"PENDING".equals(song.getVisibility())) {
+			throw new RuntimeException("not pending");
+		}
+
+		songDao.updateVisibility(songId, result);
+	}
+
+	@Transactional(readOnly = true)
+	public List<Song> getMySongs(int userId) {
+		return songDao.getMySongs(userId);
 	}
 }
