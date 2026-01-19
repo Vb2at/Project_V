@@ -41,9 +41,10 @@ public class OAuth2Controller {
     // 공통: 로그인 성공 처리
     // -------------------------
     private String onLoginSuccess(User user, HttpSession session) {
-        session.setAttribute("loginUser", user.getEmail());
+        session.setAttribute("loginUser", user);
         session.setAttribute("loginUserNickName", user.getNickName());
         session.setAttribute("loginUserId", user.getId());
+        session.setAttribute("loginUserRole", user.getRole());
 
         // ✅ 프론트로 리다이렉트 (React 라우터에서 처리)
         // 예: /oauth/success 같은 페이지 만들어서 toast 띄우고 /main 이동 등
@@ -94,6 +95,7 @@ public class OAuth2Controller {
                 newMember.setSocialId(socialId);
                 newMember.setLoginPw(null);
                 newMember.setProfileImg(profileImg);
+                newMember.setRole("USER");
 
                 authService.joinSocial(newMember);
                 user = authService.findBySocialId(socialId, 1);
@@ -145,6 +147,7 @@ public class OAuth2Controller {
                 newMember.setSocialId(socialId);
                 newMember.setLoginPw(null);
                 newMember.setProfileImg(profileImg);
+                newMember.setRole("USER");
 
                 authService.joinSocial(newMember);
                 user = authService.findBySocialId(socialId, 2);

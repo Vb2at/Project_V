@@ -198,6 +198,7 @@ public class AuthController {
 			user.setNickName(req.getNickName().trim());
 			user.setLoginPw(req.getLoginPw());
 			user.setLoginType(0);
+			user.setRole(req.getRole());
 			
 			//회원가입
 			this.authService.join(user);
@@ -238,9 +239,10 @@ public class AuthController {
 			return res;
 		}
 		
-		session.setAttribute("loginUser", user.getEmail());
+		session.setAttribute("loginUser", user);
 		session.setAttribute("loginUserNickName", user.getNickName());
 		session.setAttribute("loginUserId", user.getId());
+		session.setAttribute("loginUserRole", user.getRole());
 		
 		res.put("ok", true);
 		res.put("message", String.format("%s님 환영합니다!", user.getNickName()));
@@ -334,11 +336,13 @@ public class AuthController {
 	    //세션도 최신으로 갱신 
 	    session.setAttribute("loginUser", fresh);
 	    session.setAttribute("loginUserNickName", fresh.getNickName());
+	    session.setAttribute("loginUserRole", fresh.getRole());
 
 	    res.put("ok", true);
 	    res.put("loginUserId", fresh.getId());
 	    res.put("loginUser", fresh);                 
 	    res.put("loginUserNickName", fresh.getNickName()); 
+	    res.put("loginUserRole", fresh.getRole());    
 	    return res;
 	}
 }

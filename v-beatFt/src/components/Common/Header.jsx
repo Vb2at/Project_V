@@ -46,11 +46,6 @@ export default function Header() {
   const [notify, setNotify] = useState({
     messages: true, // 테스트용
   });
-
-  const profilePath = status?.loginUser?.profileImg; 
-  const profileUrl = profilePath
-    ? `http://localhost:8080/upload/${profilePath}?t=${Date.now()}`
-    : null;
     
   // ✅ 로그인 상태 확인 (처음 1회)
   useEffect(() => {
@@ -251,7 +246,7 @@ export default function Header() {
           }}
         >
           <ProfileAvatar
-            profileImg={profileUrl}
+            profileImg={status.loginUser.profileImg}
             userId={status.loginUserId}
             size={50}
           />
