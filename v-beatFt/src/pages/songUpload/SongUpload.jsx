@@ -2,15 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-import Header from '../components/Common/Header';
-import Background from '../components/Common/Background';
-import Visualizer from '../components/visualizer/Visualizer';
+import Header from '../../components/Common/Header';
+import Background from '../../components/Common/Background';
+import Visualizer from '../../components/visualizer/Visualizer';
 
 import {
     getMenuAnalyser,
     playMenuBgmRandom,
     isMenuBgmPlaying,
-} from '../components/engine/SFXManager';
+} from '../../components/engine/SFXManager';
 export default function SongUpload() {
     const neonInput = {
         width: '100%',
@@ -22,14 +22,10 @@ export default function SongUpload() {
         outline: 'none',
         boxShadow: 'inset 0 0 6px rgba(0,0,0,0.6)',
     };
-    const neonInputFocus = {
-        border: '1px solid rgba(90,234,255,0.8)',
-        boxShadow: '0 0 8px rgba(90,234,255,0.6)',
-    };
-
 
     const navigate = useNavigate();
     const analyserRef = useRef(null);
+
 
     /* ===== form state ===== */
     const [title, setTitle] = useState('');
@@ -39,6 +35,7 @@ export default function SongUpload() {
     const [audioFile, setAudioFile] = useState(null);
     const [coverPreview, setCoverPreview] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [diff, setDiff] = useState('NORMAL');
 
     /* ===== 메뉴 BGM 유지 ===== */
     useEffect(() => {
@@ -57,40 +54,43 @@ export default function SongUpload() {
         return () => clearInterval(id);
     }, []);
 
+    useEffect(() => {
+        return () => {
+            if (coverPreview) URL.revokeObjectURL(coverPreview);
+        };
+    }, [coverPreview]);
+
     /* ===== 업로드 ===== */
     const handleSubmit = async () => {
-        if (!title || !artist || !coverFile || !audioFile) {
-            alert('모든 항목을 입력해 주세요.');
+        if (loading) return;
+
+        if (!audioFile) {
+            alert('오디오 파일을 선택해 주세요.');
             return;
         }
 
         const form = new FormData();
-        form.append('title', title);
-        form.append('artist', artist);
-        form.append('visibility', visibility);
-        form.append('cover', coverFile);
-        form.append('audio', audioFile);
-
+        form.append('file', audioFile);
+        form.append('visibility', visibility);   // 추가
+        if (coverFile) form.append('cover', coverFile); // (나중에 쓸 거면)
         try {
             setLoading(true);
 
-            const res = await axios.post('/api/songs/upload', form, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-                withCredentials: true,
-            });
-
-            const song = res.data;
-
-            alert(
-                visibility === 'PUBLIC'
-                    ? '업로드 완료! 관리자 심사 후 공개됩니다.'
-                    : '업로드 완료!'
+            const res = await axios.post(
+                `/api/ai/analyze/${diff}`,
+                form,
+                { withCredentials: true }
             );
 
-            navigate(`/song/editor/${song.songId}`, { state: { song } });
+            const songId = res.data;
+
+            alert('분석 완료! 에디터로 이동합니다.');
+
+            navigate(`/song/editor/${songId}`);
+
         } catch (e) {
             console.error(e);
-            alert('업로드 실패');
+            alert('분석 실패');
         } finally {
             setLoading(false);
         }
@@ -158,8 +158,8 @@ export default function SongUpload() {
                     <div
                         style={{
                             width: 500,
-                            height: 350,
-                            marginTop: 50,
+                            height: 380,
+                            marginTop: 40,
                             padding: 20,
                             borderRadius: 18,
                             background: 'rgba(10,20,30,0.85)',
@@ -175,16 +175,9 @@ export default function SongUpload() {
 
                         <input
                             style={neonInput}
-                            placeholder="곡 제목"
+                            placeholder="파일명"
                             value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                        />
-
-                        <input
-                            style={neonInput}
-                            placeholder="아티스트"
-                            value={artist}
-                            onChange={(e) => setArtist(e.target.value)}
+                            readOnly
                         />
 
                         {/* 실제 커버 input (숨김) */}
@@ -196,7 +189,10 @@ export default function SongUpload() {
                             onChange={(e) => {
                                 const file = e.target.files[0];
                                 setCoverFile(file);
-                                if (file) setCoverPreview(URL.createObjectURL(file));
+                                if (file) {
+                                    const url = URL.createObjectURL(file);
+                                    setCoverPreview(url);
+                                }
                             }}
                         />
 
@@ -208,13 +204,39 @@ export default function SongUpload() {
                                 alignItems: 'center',
                                 gap: 20,   // 여기서 간격 조절
                             }}
-                        >   오디오 파일
+                        > 
                             <input
                                 type="file"
                                 accept="audio/*"
-                                onChange={(e) => setAudioFile(e.target.files[0])}
-                            />
+                                onChange={(e) => {
+                                    const file = e.target.files[0];
+                                    setAudioFile(file);
+
+                                    if (file) {
+                                        const name = file.name.replace(/\.[^/.]+$/, '');
+                                        setTitle(name);
+                                        setArtist('Unknown');
+                                    }
+                                }} />
                         </label>
+
+                        {/* ===== 난이도 선택 ===== */}
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            {['EASY', 'NORMAL', 'HARD', 'HELL'].map((value) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    className="neon-btn"
+                                    onClick={() => setDiff(value)}
+                                    style={{
+                                        flex: 1,
+                                        opacity: diff === value ? 1 : 0.4,
+                                    }}
+                                >
+                                    {value}
+                                </button>
+                            ))}
+                        </div>
 
                         {/* ===== 공개 설정 ===== */}
                         <div style={{ display: 'flex', gap: 10 }}>
@@ -255,11 +277,20 @@ export default function SongUpload() {
                             })}
                         </div>
 
-                        {visibility === 'PUBLIC' && (
-                            <div style={{ fontSize: 12, color: '#ff9aa2' }}>
-                                ※ 전체 공개는 관리자 심사 후 노출됩니다.
-                            </div>
-                        )}
+                        {/* ===== 관리자 심사 경고 (자리 고정) ===== */}
+                        <div
+                            style={{
+                                height: 18,
+                                marginTop: 4,
+                                fontSize: 12,
+                                color: '#ff9aa2',
+                                opacity: visibility === 'PUBLIC' ? 1 : 0,
+                                transition: 'opacity 0.15s ease',
+                            }}
+                        >
+                            ※ 전체 공개는 관리자 심사 후 노출됩니다.
+                        </div>
+
 
                         <button className="neon-btn" disabled={loading} onClick={handleSubmit}>
                             {loading ? '업로드 중...' : '업로드'}

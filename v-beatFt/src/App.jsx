@@ -10,7 +10,8 @@ import MyPage from './pages/mypage/Mypage';
 import './index.css';
 import NavLoading from './pages/member/NavLoading';
 import TermsPage from './pages/auth/TermsPage';
-import SongUpload from './pages/SongUpload';
+import SongUpload from './pages/songUpload/SongUpload';
+import SongEditor from './pages/songUpload/SongEditor';
 
 
 function App() {
@@ -19,12 +20,12 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/join" element={<Join />} />
-        <Route path="/start" element={<StartPage/>} />
+        <Route path="/start" element={<StartPage />} />
         <Route path="/terms" element={<TermsPage />} />
-        <Route path="/mypage" element= {<MyPage/>} />
+        <Route path="/mypage" element={<MyPage />} />
         <Route path="/main" element={<MainPage />} />
-        <Route path="/song/upload" element= {<SongUpload/>} />
-        <Route path="/game/play" element={<GamePlay />} />
+        <Route path="/song/upload" element={<SongUpload />} />
+        <Route path="/song/editor/:songId" element={<SongEditor />} />        <Route path="/game/play" element={<GamePlay />} />
         <Route path="/game/result" element={<Result />} />
         <Route path="/nav-loading" element={<NavLoading />} />
       </Routes>

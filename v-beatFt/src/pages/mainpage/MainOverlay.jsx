@@ -40,6 +40,8 @@ export default function MainOverlay() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [listMode, setListMode] = useState('PUBLIC'); // PUBLIC | MY
+
   useEffect(() => {
     const unlocked = localStorage.getItem('bgmUnlocked') === 'true';
 
@@ -74,12 +76,17 @@ export default function MainOverlay() {
   useEffect(() => {
     let mounted = true;
 
-    const loadPublicSongs = async () => {
+    const loadSongs = async () => {
       try {
         setLoading(true);
         setErrorMsg('');
 
-        const res = await fetch('/api/songs', {
+        const url =
+          listMode === 'PUBLIC'
+            ? '/api/songs'
+            : '/api/songs/my';
+
+        const res = await fetch(url, {
           method: 'GET',
           headers: { Accept: 'application/json' },
           credentials: 'include',
@@ -90,7 +97,6 @@ export default function MainOverlay() {
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];
 
-        // UI에서 쓰는 형태로 최소 가공 (title/artist/cover)
         const mapped = list.map((s) => {
           const len = s.length ?? s.duration ?? s.lengthSec;
 
@@ -99,46 +105,28 @@ export default function MainOverlay() {
             title: (s.title ?? '(no title)').replace(/\.mp3$/i, ''),
             artist: s.artist ?? 'unknown',
             cover: s.coverPath ? `/api/songs/${s.id}/cover` : null,
-            previewUrl: `/api/songs/${s.id}/preview`,  //미리 듣기 
-
-            bpm: Number.isFinite(Number(s.bpm)) ? Number(s.bpm) : null,
+            previewUrl: `/api/songs/${s.id}/preview`,
             lengthSec: Number.isFinite(Number(len)) ? Number(len) : null,
-
-            difficulties: Array.isArray(s.difficulties) ? s.difficulties : [],
             diff: (s.diff ? String(s.diff).toUpperCase() : 'NORMAL'),
           };
         });
+
         if (!mounted) return;
 
-        // 서버에서 곡이 오면 dummySongs 대신 덮어씀
-        if (mapped.length > 0) {
-          const DIFF_ORDER = ['EASY', 'NORMAL', 'HARD', 'HELL'];
+        setSongs(mapped);
+        setSelectedIndex(0);
 
-          const sorted = [...mapped].sort((a, b) => {
-            const da = DIFF_ORDER.indexOf(a.diff ?? 'NORMAL');
-            const db = DIFF_ORDER.indexOf(b.diff ?? 'NORMAL');
-            return da - db;
-          });
-
-          setSongs(sorted);
-          setSelectedIndex(0);
-        }
       } catch (err) {
         if (!mounted) return;
         setErrorMsg(err?.message ?? '곡 목록 불러오기 실패');
-        // 실패해도 dummySongs로 화면은 유지
       } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        if (mounted) setLoading(false);
       }
     };
 
-    loadPublicSongs();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    loadSongs();
+    return () => { mounted = false; };
+  }, [listMode]);   // ⭐ listMode 의존성 반드시 추가
 
   // songs 길이가 바뀌면 selectedIndex 범위 보정
   useEffect(() => {
@@ -259,12 +247,10 @@ export default function MainOverlay() {
 
     // 실제 곡들
     group.forEach((song) => {
-      const songIndex = songs.findIndex((s) => s.id === song.id);
-
       renderList.push({
         ...song,
         type: 'song',
-        songIndex,
+        songIndex: songs.findIndex((x) => x.id === song.id),
       });
     });
   });
@@ -540,6 +526,36 @@ export default function MainOverlay() {
               left: 80
             }}
           >
+            {/* 공개곡/my곡 전환 */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end'}}>
+              {[
+                ['PUBLIC', '공개 곡'],
+                ['MY', '내 곡'],
+              ].map(([v, label]) => {
+                const active = listMode === v;
+                return (
+                  <div
+                    key={v}
+                    onClick={() => setListMode(v)}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: 12,
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      color: active ? '#0ff' : '#cfd8e3',
+                      border: active
+                        ? '2px solid rgba(90,234,255,0.9)'
+                        : '2px solid rgba(90,234,255,0.3)',
+                      background: active
+                        ? 'linear-gradient(180deg, rgba(90,234,255,0.25), rgba(10,20,30,0.9))'
+                        : 'linear-gradient(180deg, #0e141b, #0a0f15)',
+                    }}
+                  >
+                    {label}
+                  </div>
+                );
+              })}
+            </div>
 
             {/* 난이도 기준선 */}
             <div
@@ -646,7 +662,7 @@ export default function MainOverlay() {
                       setSelectedIndex(item.songIndex);
                       playMenuConfirm();
                       stopPreview();
-                      navigate(`/game/play?songId=${item.id}&diff=${String(item.diff).toLowerCase()}`);
+                      navigate(`/game/play?songId=${item.id}&diff=${String(item.diff ?? 'NORMAL').toLowerCase()}`);
                     }}
                     style={{
                       height: ITEM_HEIGHT,
