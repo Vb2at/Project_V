@@ -10,6 +10,7 @@ import MyPage from './pages/mypage/Mypage';
 import './index.css';
 import NavLoading from './pages/member/NavLoading';
 import TermsPage from './pages/auth/TermsPage';
+import SongUpload from './pages/SongUpload';
 
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/mypage" element= {<MyPage/>} />
         <Route path="/main" element={<MainPage />} />
+        <Route path="/song/upload" element= {<SongUpload/>} />
         <Route path="/game/play" element={<GamePlay />} />
         <Route path="/game/result" element={<Result />} />
         <Route path="/nav-loading" element={<NavLoading />} />

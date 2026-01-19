@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import Header from '../../components/Common/Header';
 import Visualizer from '../../components/visualizer/Visualizer';
 import ProfileSection from './ProfileSection';
+import Background from '../../components/Common/Background';
 import Message from "./Message";
 import Friends from './Friends';
 import MyGames from './MyGames';
@@ -63,6 +64,15 @@ export default function MyPage() {
 
     return (
         <div style={{ position: 'absolute', inset: 0 }}>
+
+            <Background
+                style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: -3,
+                }}
+            />
+
             <Header />
 
             {/* ===== 메인 콘텐츠 영역 ===== */}
@@ -192,6 +202,7 @@ function Dot() {
 }
 function AlertMark() {
     return (
+
         <FontAwesomeIcon
             icon={faExclamation}
             style={{

@@ -32,6 +32,7 @@ const DUMMY_GAMES = [
         status: 'PUBLIC',
         playCount: 245,
     },
+    
 ];
 
 const FILTERS = ['전체', '비공개', '부분공개', '심사중', '전체공개', '차단'];

@@ -323,6 +323,18 @@ export default function Header() {
             boxShadow: '0 0 12px rgba(90,234,255,0.4)',
           }}
         >
+          {status && (
+            <button
+              className="neon-btn"
+              onClick={() => {
+                setMobileOpen(false);
+                navigate('/song/upload');
+              }}
+            >
+              곡 등록
+            </button>
+          )}
+
           <button className="neon-btn">설정</button>
 
           {statusLoading ? null : (
