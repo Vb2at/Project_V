@@ -9,6 +9,7 @@ import com.V_Beat.report.dto.ReportAction;
 @Mapper
 public interface ReportActionDao {
 
+	//신고 등록
 	@Insert("""
 			INSERT INTO report_action
 				(report_id, admin_id, action_type, action_reason, reg_date)

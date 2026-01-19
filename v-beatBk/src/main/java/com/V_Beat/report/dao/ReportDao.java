@@ -90,7 +90,7 @@ public interface ReportDao {
 			""")
 	List<AdminReportList> getAdminReportList(@Param("status") String status);
 	
-	
+	//아이디로 신고 조회
 	@Select("""
 			SELECT 
 				id,
@@ -113,4 +113,12 @@ public interface ReportDao {
 				WHERE id = #{reportId}
 			""")
 	void updateStatus(@Param("reportId") long reportId, @Param("nextStatus") String nextStatus);
+	
+	//음원 업로드한 사용자 조회
+	@Select("""
+			SELECT user_id
+				FROM song
+				WHERE id = #{targetId}
+			""")
+	Integer findSongOwnerId(long targetId);
 }

@@ -20,7 +20,6 @@ export default function Friends() {
   const [addNick, setAddNick] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileUser, setProfileUser] = useState(null);
-
   const clientRef = useRef(null);
 
   /* =========================

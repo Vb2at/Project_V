@@ -1,4 +1,5 @@
 // pages/mainpage/MainOverlay.jsx
+import { statusApi } from '../../api/auth';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { playMenuMove, playMenuConfirm, playPreview, stopPreview, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
@@ -8,6 +9,7 @@ import RankTable from './RankTable';
 import Visualizer from '../../components/visualizer/Visualizer';
 import UserProfileModal from "../../components/Common/UserProfileModal";
 import UserReportModal from "../../components/Common/UserReportModal";
+
 const dummySongs = [
   { id: 1, title: 'Song A', artist: 'Artist A', cover: null },
   { id: 2, title: 'Song B', artist: 'Artist B', cover: null },
@@ -41,6 +43,29 @@ export default function MainOverlay() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [listMode, setListMode] = useState('PUBLIC'); // PUBLIC | MY
+  const [loginUserId, setLoginUserId] = useState(null);
+
+useEffect(() => {
+  let alive = true;
+
+  (async () => {
+    try {
+      const res = await statusApi();
+      if(!alive) return;
+
+      if(res.data?.ok) {
+        setLoginUserId(Number(res.data.loginUserId));
+      } else {
+        setLoginUserId(null);
+      }
+    } catch(e) {
+      if(!alive) return;
+      setLoginUserId(null);
+    }
+  })();
+
+  return () => { alive = false; };
+}, []);
 
   useEffect(() => {
     const unlocked = localStorage.getItem('bgmUnlocked') === 'true';
@@ -108,6 +133,7 @@ export default function MainOverlay() {
             previewUrl: `/api/songs/${s.id}/preview`,
             lengthSec: Number.isFinite(Number(len)) ? Number(len) : null,
             diff: (s.diff ? String(s.diff).toUpperCase() : 'NORMAL'),
+            uploaderUserId: s.uploaderUserId ?? s.userId ?? s.ownerId ?? null,  //업로드한 유저 Id
           };
         });
 
@@ -261,6 +287,64 @@ export default function MainOverlay() {
     return renderList.findIndex((item) => item.id === id);
   })();
   const selectedSong = songs[selectedIndex];
+
+  const isMySong = 
+    loginUserId != null &&
+    selectedSong?.uploaderUserId != null &&
+    Number(loginUserId) === Number(selectedSong.uploaderUserId);
+
+  //백엔드 reasonCode에 맞추기 (기존 프론트 mainReason, subReason 나눠져 있었음)
+  const makeReasonCode = (p) => {
+    const main = String(p?.mainReason ?? '').trim();
+    const sub = String(p?. subReason ?? '').trim();
+
+    return `${main}:${sub}`;
+  };
+
+  //노래 신고
+ const submitSongReport = async (payload) => {
+  const body = {
+    targetType: 'SONG',
+    targetId: Number(selectedSong?.id),
+    reasonCode: makeReasonCode(payload),
+    description: String(payload?.description ?? ''),
+  };
+
+  const res = await fetch('/api/report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+
+  //먼저 JSON 파싱 시도 (실패하면 null)
+  const data = await res.json().catch(() => null);
+
+  //401
+  if (res.status === 401) {
+    throw new Error(data?.message || '로그인이 필요한 기능입니다.');
+  }
+
+  //409
+  if (res.status === 409) {
+    if (data?.code === 'ALREADY_REPORTED') {
+      throw new Error('이미 접수된 신고입니다.');
+    }
+    throw new Error(data?.message || '이미 접수된 신고입니다.');
+  }
+
+  if (!res.ok) {
+    throw new Error(data?.message || `신고 실패 (${res.status})`);
+  }
+
+  // ok:false 방어
+  if (data?.ok === false) {
+    throw new Error(data?.message ?? '신고 실패');
+  }
+
+  return data;
+};
+
 
   useEffect(() => {
     const s = selectedSong;
@@ -475,11 +559,20 @@ export default function MainOverlay() {
                             제작자 프로필
                           </div>
                           <div
-                            style={{ ...menuItem, color: '#ff6b6b' }}
+                            style={{
+                              ...menuItem,
+                              color: isMySong ? 'rgba(255,255,255,0.35)' : '#ff6b6b',
+                              cursor: isMySong ? 'not-allowed' : 'pointer',
+                            }}
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (isMySong) {
+                                alert('본인이 업로드한 곡은 신고할 수 없습니다.');
+                                setMoreOpen(false);
+                                return;
+                              }
                               setMoreOpen(false);
-                              setReportOpen(true); // 신고 모달 연결 지점
+                              setReportOpen(true);
                             }}
                           >
                             신고하기
@@ -502,9 +595,17 @@ export default function MainOverlay() {
                       targetId={selectedSong?.id}
                       targetName={selectedSong?.title}
                       onClose={() => setReportOpen(false)}
-                      onSubmit={(payload) => {
-                        console.log('CONTENT REPORT:', payload);
-                        setReportOpen(false);
+                      onSubmit={async (payload) => {
+                        console.log('REPORT payload =', payload);
+                          try {
+                            const desc = String(payload?.description ?? '').trim();
+
+                          await submitSongReport(payload);
+                          setReportOpen(false);
+                          alert('신고가 정상적으로 접수되었습니다.');
+                        } catch (e) {
+                          alert(e?.message ?? '신고 처리 중 오류가 발생했습니다.');
+                        }
                       }}
                     />
                   </div>

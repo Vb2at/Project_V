@@ -16,6 +16,7 @@ import com.V_Beat.report.dto.CreateReportReq;
 import com.V_Beat.report.dto.Report;
 import com.V_Beat.report.dto.ReportAction;
 import com.V_Beat.report.dto.ReportTargetSnapshot;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
@@ -34,37 +35,37 @@ public class ReportService {
 
     //신고 접수 (reports + snapshot 저장)
     @Transactional
-    public Long createReport(long reporterUserId, CreateReportReq req) throws Exception {
-    	//대상 존재 여부 검증
-    	boolean exists = false;
-    	String type = req.getTargetType();
-    	long targetId = req.getTargetId();
-    	
-    	if("USER".equals(type)) {
-    		exists = this.reportDao.existsUser(targetId) > 0;
-    	} else if("SONG".equals(type)) {
-    		exists = this.reportDao.existsSong(targetId) > 0;
-    	} else if("COMMENT".equals(type)) {
-    		exists = this.reportDao.existsComment(targetId) > 0;
-    	}
-    	
-    	if(!exists) {
-    		throw new IllegalArgumentException("존재하지 않은 신고대상입니다.");
-    	}
-    	
-        //중복 신고 방지
-        int dup = reportDao.countPending(
-                reporterUserId,
-                req.getTargetType(),
-                req.getTargetId(),
-                req.getReasonCode()
-        );
+    public Long createReport(long reporterUserId, CreateReportReq req) {
 
+        // 대상 존재 여부 검증
+        boolean exists = false;
+        String type = req.getTargetType();
+        long targetId = req.getTargetId();
+
+        if ("USER".equals(type)) {
+            exists = reportDao.existsUser(targetId) > 0;
+            
+            Integer ownerId = this.reportDao.findSongOwnerId(targetId);
+            if(ownerId != null && ownerId.longValue() == reporterUserId) {
+            	throw new IllegalStateException("본인이 업로드한 곡은 신고할 수 없습니다.");
+            }
+            	} else if ("SONG".equals(type)) {
+            exists = reportDao.existsSong(targetId) > 0;
+        } else if ("COMMENT".equals(type)) {
+            exists = reportDao.existsComment(targetId) > 0;
+        }
+
+        if (!exists) {
+            throw new IllegalArgumentException("존재하지 않은 신고대상입니다.");
+        }
+
+        // 중복 신고 방지
+        int dup = reportDao.countPending(reporterUserId, req.getTargetType(), req.getTargetId(), req.getReasonCode());
         if (dup > 0) {
             throw new IllegalStateException("이미 접수된 신고입니다.");
         }
-        
-        //reports insert
+
+        // reports insert
         Report report = new Report();
         report.setReporterUserId(reporterUserId);
         report.setTargetType(req.getTargetType());
@@ -73,13 +74,11 @@ public class ReportService {
         report.setDescription(req.getDescription());
         report.setStatus("PENDING");
 
-        reportDao.insert(report); 
+        reportDao.insert(report);
 
-        //snapshot insert
+        // snapshot insert
         ReportTargetSnapshot snap = new ReportTargetSnapshot();
         snap.setReportId(report.getId());
-
-        //최소 스냅샷(구조 검증용)
         snap.setTargetName(req.getTargetType() + "#" + req.getTargetId());
 
         Map<String, Object> extra = new HashMap<>();
@@ -87,7 +86,13 @@ public class ReportService {
         extra.put("targetId", req.getTargetId());
         extra.put("reasonCode", req.getReasonCode());
 
-        snap.setTargetExtra(om.writeValueAsString(extra)); // JSON 문자열
+        try {
+            snap.setTargetExtra(om.writeValueAsString(extra));
+        } catch (JsonProcessingException e) {
+            // 여기서 500으로 죽지 말고 런타임으로 감싸서 "서버 오류" 처리되게
+            throw new RuntimeException("신고 스냅샷 JSON 생성 실패", e);
+        }
+
         reportSnapshotDao.insert(snap);
 
         return report.getId();
@@ -125,6 +130,5 @@ public class ReportService {
 		String nextStatus = "IGNORE".equals(actionType) ? "REJECTED" : "RESOLVED";
 		
 		this.reportDao.updateStatus(reportId, nextStatus);
-		
 	}
 }

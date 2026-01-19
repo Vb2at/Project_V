@@ -16,16 +16,6 @@ CREATE TABLE `user`(
     ,UNIQUE KEY (nickName)
 );
 
-INSERT INTO `user`
-(email, loginPw, nickName, loginType)
-VALUES
-(
-  'test@vbeat.com',
-  '$2a$10$7a9pQZ2lYpF2B4bXjZ2n9uM6lUQmZbJZJ6pZq5J6JrGkQ0gKx1q1e',
-  '테스트유저',
-  0
-);
-
 DROP TABLE `user`;
 SELECT * FROM `user`;
 
@@ -45,7 +35,7 @@ CREATE TABLE Message (
 # 음원 관련 테이블
 CREATE TABLE song(
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY
-    ,userId INT UNSIGNED NOT NULL 
+    ,user_Id INT UNSIGNED NOT NULL 
     ,title VARCHAR(100) NOT NULL
     ,artist VARCHAR(100) NOT NULL
     ,duration VARCHAR(200) NOT NULL
@@ -55,7 +45,7 @@ CREATE TABLE song(
     ,cover_path VARCHAR(500) NULL
     ,preview_path VARCHAR(500) NULL
     ,visibility ENUM('PRIVATE','UNLISTED','PENDING','PUBLIC','BLOCKED') NOT NULL DEFAULT 'PRIVATE'
-    ,FOREIGN KEY (userId) REFERENCES `user`(id) ON DELETE CASCADE 
+    ,FOREIGN KEY (user_Id) REFERENCES `user`(id) ON DELETE CASCADE 
 );
 
 SELECT * FROM song;
@@ -110,25 +100,107 @@ CREATE TABLE score (
     INDEX idx_rank (song_id, diff, score, accuracy, max_combo, reg_date),
     INDEX idx_user (user_id, song_id, diff)
 );
-DESC song;
+
 SELECT * FROM score;
 DROP TABLE score;
 
-CREATE TABLE privateMessage (
+
+# 친구 추가 관련 테이블
+CREATE TABLE FriendRequest (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    fromUserId INT NOT NULL COMMENT '친구 요청 보낸 유저',
+    toUserId INT NOT NULL COMMENT '친구 요청 받은 유저',
+    STATUS TINYINT NOT NULL COMMENT '0=요청중, 1=친구',
+    regDate DATETIME NOT NULL DEFAULT NOW(),
+    updateDate DATETIME NOT NULL DEFAULT NOW() ON UPDATE NOW(),
+
+    UNIQUE KEY uq_from_to (fromUserId, toUserId),
+    INDEX idx_to_status (toUserId, STATUS),
+    INDEX idx_from_status (fromUserId, STATUS)
+);
+
+
+CREATE TABLE private_message (
   id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
   fromUserId INT UNSIGNED NOT NULL,
-  toUserId   INT UNSIGNED NOT NULL,
+  to_user_id INT UNSIGNED NOT NULL,
   title   VARCHAR(120) NULL,
   content TEXT NOT NULL,
-  isRead TINYINT(1) NOT NULL DEFAULT 0,
+  is_read TINYINT(1) NOT NULL DEFAULT 0,
   readDate DATETIME NULL,
   regDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idxToReadDate (toUserId, isRead, regDate),
+  INDEX idxToReadDate (to_user_id, is_read, regDate),
   INDEX idxFromDate (fromUserId, regDate),
   
   FOREIGN KEY (fromUserId) REFERENCES `user`(id) ON DELETE CASCADE,
-  FOREIGN KEY (toUserId)   REFERENCES `user`(id) ON DELETE CASCADE
+  FOREIGN KEY (to_user_id)   REFERENCES `user`(id) ON DELETE CASCADE
 );
 
-SELECT * FROM privateMessage;
-DROP TABLE privateMessage;
+SELECT * FROM private_message;
+DROP TABLE private_message;
+
+
+# 신고 접수 테이블
+CREATE TABLE report (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    reporter_user_id INT(10) UNSIGNED NOT NULL,
+    target_type ENUM('USER', 'SONG', 'COMMENT') NOT NULL,
+    target_id BIGINT UNSIGNED NOT NULL,
+    reason_code VARCHAR(30) NOT NULL,
+    `description` TEXT,
+    # pending = 접수, resolved = 처리 완료, rejected = 기각/문제없음
+    STATUS ENUM('PENDING', 'RESOLVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+    reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_report_reporter
+        FOREIGN KEY (reporter_user_id)
+        REFERENCES USER(id)
+        ON DELETE CASCADE,
+    INDEX idx_report_pending
+    (reporter_user_id, target_type, target_id, reason_code, `status`)
+);
+
+SELECT * FROM report;
+DROP TABLE report;
+
+
+# 신고에 대한 관리자 조치 테이블
+CREATE TABLE report_action (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    report_id BIGINT UNSIGNED NOT NULL,
+    admin_id INT UNSIGNED NULL,
+    action_type ENUM('WARN','BLOCK','DELETE_CONTENT','IGNORE') NOT NULL,
+    action_reason TEXT,
+    reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_report_action_report
+        FOREIGN KEY (report_id)
+        REFERENCES report(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_report_action_admin
+        FOREIGN KEY (admin_id)
+        REFERENCES `user`(id)
+        ON DELETE SET NULL
+);
+
+SELECT * FROM report_action;
+DROP TABLE report_action;
+
+
+# 신고 당시 내용 보존 테이블
+CREATE TABLE report_target_snapshot (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    report_id BIGINT UNSIGNED NOT NULL,
+    target_name VARCHAR(100) NOT NULL,
+    target_extra JSON,
+    reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_snapshot_report
+        FOREIGN KEY (report_id)
+        REFERENCES report(id)
+        ON DELETE CASCADE
+);
+
+SELECT * FROM report_target_snapshot;
+DROP TABLE report_target_snapshot;

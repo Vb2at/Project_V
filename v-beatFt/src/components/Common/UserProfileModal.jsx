@@ -6,6 +6,42 @@ export default function UserProfileModal({ open, user, onClose }) {
 
     if (!open || !user) return null;
 
+const submitUserReport = async (payload) => {
+  const main = String(payload?.mainReason ?? '').trim();
+  const sub = String(payload?.subReason ?? '').trim();
+  if (!main || !sub) throw new Error('신고 사유를 선택해주세요.');
+
+  const reasonCode = `${main}_${sub}`;
+
+  const targetId = Number(user?.otherUserId ?? user?.id);
+  const targetName =
+    user?.otherNickName ?? user?.nickName ?? user?.nickname ?? user?.nick ?? '유저';
+
+  if (!Number.isFinite(targetId)) {
+    throw new Error('신고 대상 유저 정보가 올바르지 않습니다.');
+  }
+
+  const body = {
+    targetType: 'USER',
+    targetId,
+    reasonCode,
+    description: String(payload?.description ?? ''),
+  };
+
+  const res = await fetch('/api/report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data?.ok === false) {
+    throw new Error(data?.message ?? `신고에 실패하였습니다. (${res.status})`);
+  }
+  return data;
+};
+
     return (
         <>
             <div
@@ -51,9 +87,17 @@ export default function UserProfileModal({ open, user, onClose }) {
                 targetId={user.id}
                 targetName={user.nickname}
                 onClose={() => setReportOpen(false)}
-                onSubmit={(payload) => {
-                    console.log('USER REPORT:', payload);
+                onSubmit={async (payload) => {
+                    try {
+                        await submitUserReport(payload);
+                        alert('신고가 정상적으로 접수되었습니다.');
+                        setReportOpen(false);
+                        onClose();
+                    } catch (e) {
+                        alert(e?.message ?? '신고 처리 중 오류가 발생했습니다.');
+                    }
                 }}
+
             />
         </>
     );
