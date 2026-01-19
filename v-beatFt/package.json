@@ -17,12 +17,14 @@
     "@pixi/mesh": "^7.4.3",
     "@pixi/mesh-extras": "^7.4.3",
     "@pixi/particle-emitter": "^5.0.8",
+    "@stomp/stompjs": "^7.2.1",
     "axios": "^1.13.2",
     "howler": "^2.2.4",
     "pixi.js": "^8.14.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^6.30.2"
+    "react-router-dom": "^6.30.2",
+    "sockjs-client": "^1.6.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

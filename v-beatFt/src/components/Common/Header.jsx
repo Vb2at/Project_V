@@ -37,21 +37,27 @@ export default function Header() {
       await logoutApi();
       setStatus(null);            // ✅ 로그아웃 즉시 UI 반영
       setMobileOpen(false);
+
+      // ✅ 로그아웃하면 알림 뱃지도 끄기
+      setNotify({ messages: false });
+
       navigate('/login');
     } catch (e) {
       console.error(e);
       alert('로그아웃 실패');
     }
   };
+
+  // ✅ 알림 상태 (message unread 기반)
   const [notify, setNotify] = useState({
-    messages: true, // 테스트용
+    messages: false, // ✅ 테스트용 true 제거
   });
 
-  const profilePath = status?.loginUser?.profileImg; 
+  const profilePath = status?.loginUser?.profileImg;
   const profileUrl = profilePath
     ? `http://localhost:8080/upload/${profilePath}?t=${Date.now()}`
     : null;
-    
+
   // ✅ 로그인 상태 확인 (처음 1회)
   useEffect(() => {
     let alive = true;
@@ -81,6 +87,26 @@ export default function Header() {
 
     return () => {
       alive = false;
+    };
+  }, []);
+
+  // ✅ Message.jsx가 쏘는 pm:unread 이벤트를 받아서 빨간점 on/off
+  useEffect(() => {
+    const onUnread = (e) => {
+      const count = Number(e?.detail?.count ?? 0);
+      const hasUnread = Number.isFinite(count) && count > 0;
+
+      setNotify((prev) => {
+        // 불필요 렌더 방지
+        if (prev.messages === hasUnread) return prev;
+        return { ...prev, messages: hasUnread };
+      });
+    };
+
+    window.addEventListener('pm:unread', onUnread);
+
+    return () => {
+      window.removeEventListener('pm:unread', onUnread);
     };
   }, []);
 
@@ -158,7 +184,7 @@ export default function Header() {
           {/* 재생 / 일시정지 */}
           <button className="neon-btn" onClick={handleToggle} aria-label="toggle bgm">
             {isPlaying ? (
-              // ⏸ Pause (네 코드에서는 반대로 주석이 달려있었음)
+              // ⏸ Pause
               <svg viewBox="0 0 24 24" width="22" height="22">
                 <path
                   d="M8 5v14M16 5v14"
@@ -239,6 +265,7 @@ export default function Header() {
           {status.loginUserNickName}
         </div>
       )}
+
       {/* 프로필 이미지 */}
       {!statusLoading && status && (
         <div
@@ -293,6 +320,8 @@ export default function Header() {
                 </defs>
               </svg>
             </button>
+
+            {/* ✅ 안읽은 쪽지 있을 때만 점 */}
             {notify.messages && (
               <span
                 style={{
@@ -310,6 +339,7 @@ export default function Header() {
           </div>
         </div>
       )}
+
       {/* 모바일 메뉴 패널 */}
       {!isGamePage && mobileOpen && (
         <div
@@ -349,6 +379,7 @@ export default function Header() {
               {status && (
                 <>
                   <button className="neon-btn" onClick={() => navigate('/mypage')}>마이페이지</button>
+
                   <button
                     className="neon-btn"
                     style={{ position: 'relative' }}
@@ -359,6 +390,7 @@ export default function Header() {
                   >
                     메세지
 
+                    {/* ✅ 안읽은 쪽지 있을 때만 점 */}
                     {notify.messages && (
                       <span
                         style={{
@@ -373,11 +405,13 @@ export default function Header() {
                       />
                     )}
                   </button>
+
                   <button className="neon-btn" onClick={handleLogout}>
                     로그아웃
                   </button>
                 </>
               )}
+
               {/* 로그아웃 상태에서만 노출 */}
               {!status && (
                 <button className="neon-btn" onClick={() => navigate('/login')}>

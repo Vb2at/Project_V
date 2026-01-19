@@ -19,6 +19,8 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.web.socket.server.HandshakeInterceptor;
+import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
+import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
 
 import com.V_Beat.dto.User;
 import com.V_Beat.service.BattleSessionService;
@@ -30,9 +32,6 @@ import jakarta.servlet.http.HttpSession;
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-	// =========================
-	// 접속자 / 관전자 / 플레이어 관리 서비스 (DI)
-	// =========================
 	private final OnlineUserService onlineUserService;
 	private final BattleSessionService battleSessionService;
 
@@ -42,61 +41,80 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 		this.battleSessionService = battleSessionService;
 	}
 
-	// =========================
-	// 메시지 브로커 설정
-	// =========================
 	@Override
 	public void configureMessageBroker(MessageBrokerRegistry config) {
-
-		// ✅ /queue 추가 (convertAndSendToUser 용)
 		config.enableSimpleBroker("/topic", "/queue");
-
-		// ✅ 클라 -> 서버 prefix
 		config.setApplicationDestinationPrefixes("/app");
-
-		// ✅ user destination prefix (명시)
 		config.setUserDestinationPrefix("/user");
 	}
 
-	// =========================
-	// WebSocket 엔드포인트 등록
-	// =========================
 	@Override
 	public void registerStompEndpoints(StompEndpointRegistry registry) {
 
 		registry.addEndpoint("/ws")
-				.addInterceptors(new HandshakeInterceptor() {
+				.addInterceptors(
+						new HttpSessionHandshakeInterceptor(),
+						new HandshakeInterceptor() {
+							@Override
+							public boolean beforeHandshake(ServerHttpRequest request,
+							                               ServerHttpResponse response,
+							                               WebSocketHandler wsHandler,
+							                               Map<String, Object> attributes) throws Exception {
 
-					@Override
-					public boolean beforeHandshake(ServerHttpRequest request,
-					                               ServerHttpResponse response,
-					                               WebSocketHandler wsHandler,
-					                               Map<String, Object> attributes) throws Exception {
+								if (request instanceof ServletServerHttpRequest servletRequest) {
+									HttpSession session = servletRequest.getServletRequest().getSession(false);
+									if (session == null) return true;
 
-						if (request instanceof ServletServerHttpRequest servletRequest) {
-							// 세션 없으면 그대로 통과(= 이후 CONNECT에서 차단)
-							HttpSession session = servletRequest.getServletRequest().getSession(false);
-							if (session == null) return true;
+									// ✅ 1) loginMember(User) 우선
+									Object loginMember = session.getAttribute("loginMember");
+									if (loginMember instanceof User user) {
+										attributes.put("userId", user.getId());
+										return true;
+									}
 
-							Object loginMember = session.getAttribute("loginMember");
-							if (loginMember instanceof User user) {
-								// ✅ 세션에서 userId를 WS sessionAttributes로 넘김
-								attributes.put("userId", user.getId());
+									// ✅ 2) loginUserId도 지원(프로젝트에서 흔히 같이 씀)
+									Object loginUserId = session.getAttribute("loginUserId");
+									Integer id = parseIntSafe(loginUserId);
+									if (id != null) {
+										attributes.put("userId", id);
+									}
+								}
+								return true;
+							}
+
+							@Override
+							public void afterHandshake(ServerHttpRequest request,
+							                           ServerHttpResponse response,
+							                           WebSocketHandler wsHandler,
+							                           Exception exception) {
+								// no-op
+							}
+
+							private Integer parseIntSafe(Object v) {
+								if (v == null) return null;
+								if (v instanceof Integer) return (Integer) v;
+								if (v instanceof Number) return ((Number) v).intValue();
+								if (v instanceof String s) {
+									try { return Integer.parseInt(s); } catch (Exception e) { return null; }
+								}
+								return null;
 							}
 						}
-						return true;
-					}
+				)
 
+				// ✅ handshake 단계에서 Principal 확정
+				.setHandshakeHandler(new DefaultHandshakeHandler() {
 					@Override
-					public void afterHandshake(ServerHttpRequest request,
-					                           ServerHttpResponse response,
-					                           WebSocketHandler wsHandler,
-					                           Exception exception) {
-						// no-op
+					protected Principal determineUser(ServerHttpRequest request,
+					                                  WebSocketHandler wsHandler,
+					                                  Map<String, Object> attributes) {
+						Object uid = attributes.get("userId");
+						if (uid == null) return null;
+						String name = String.valueOf(uid);
+						return () -> name; // Principal.name = userId
 					}
 				})
 
-				// ✅ (선택) localhost만 허용: 지금 OK
 				.setAllowedOriginPatterns(
 						"http://localhost:*",
 						"http://127.0.0.1:*"
@@ -104,43 +122,37 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 				.withSockJS();
 	}
 
-	// =========================
-	// Inbound 인터셉터
-	// =========================
 	@Override
 	public void configureClientInboundChannel(ChannelRegistration registration) {
 
 		registration.interceptors(new ChannelInterceptor() {
-
 			@Override
 			public Message<?> preSend(Message<?> message, MessageChannel channel) {
 
 				StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
 
-				// 1️⃣ command null 방어 (heartbeat 등)
 				StompCommand cmd = accessor.getCommand();
 				if (cmd == null) return message;
 
-				// 2️⃣ sessionAttributes에서 userId 안전 파싱
 				Map<String, Object> attrs = accessor.getSessionAttributes();
 				Integer userId = getUserIdSafe(attrs);
 
-				// =========================
-				// 🚫 CONNECT 차단 정책
-				// =========================
+				// ✅ CONNECT: userId 없으면 차단(정상 정책)
 				if (StompCommand.CONNECT.equals(cmd)) {
 
-					// ❗ 로그인 안 된 WebSocket 연결 차단
+					System.out.println("[WS CONNECT] userId=" + userId + ", attrs=" + attrs
+							+ ", principal=" + (accessor.getUser() != null ? accessor.getUser().getName() : null));
+
 					if (userId == null) {
 						return null;
 					}
 
-					// ✅ Principal 세팅 (convertAndSendToUser 필수)
+					// 보험: Principal 비어있으면 세팅
 					if (accessor.getUser() == null) {
 						accessor.setUser((Principal) () -> String.valueOf(userId));
 					}
 
-					// ✅ 동일 세션 CONNECT 중복 방지
+					// 중복 CONNECT 방지
 					if (attrs != null && Boolean.TRUE.equals(attrs.get("onlineAdded"))) {
 						return message;
 					}
@@ -150,19 +162,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 					return message;
 				}
 
-				// =========================
-				// 🚫 CONNECT 이후에도 userId 없으면 무시
-				// =========================
-				if (userId == null) {
-					return null;
-				}
+				// CONNECT 이후에도 userId 없으면 무시
+				if (userId == null) return null;
 
-				// =========================
-				// DISCONNECT
-				// =========================
+				// DISCONNECT 처리
 				if (StompCommand.DISCONNECT.equals(cmd)) {
 
-					// DISCONNECT 중복 방지
 					if (attrs != null && Boolean.TRUE.equals(attrs.get("disconnected"))) {
 						return message;
 					}
@@ -170,7 +175,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
 					onlineUserService.removeUser(userId);
 
-					// 방 / 관전자 상태 정리
 					battleSessionService.spectatorLeaveAll(userId);
 					battleSessionService.playerLeaveAll(userId);
 				}
@@ -178,9 +182,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 				return message;
 			}
 
-			/**
-			 * ✅ sessionAttributes에서 userId 안전 파싱
-			 */
 			private Integer getUserIdSafe(Map<String, Object> attrs) {
 				if (attrs == null) return null;
 
