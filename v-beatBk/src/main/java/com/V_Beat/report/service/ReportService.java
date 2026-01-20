@@ -43,14 +43,20 @@ public class ReportService {
         long targetId = req.getTargetId();
 
         if ("USER".equals(type)) {
-            exists = reportDao.existsUser(targetId) > 0;
+            exists = this.reportDao.existsUser(targetId) > 0;
             
+            //본인 신고 방지
+            if(targetId == reporterUserId) {
+            	throw new IllegalStateException("본인은 신고할 수 없습니다");
+            }
+        } else if ("SONG".equals(type)) {
+            exists = reportDao.existsSong(targetId) > 0;
+            
+            //본인이 업로드한 곡 신고 방지
             Integer ownerId = this.reportDao.findSongOwnerId(targetId);
             if(ownerId != null && ownerId.longValue() == reporterUserId) {
             	throw new IllegalStateException("본인이 업로드한 곡은 신고할 수 없습니다.");
             }
-            	} else if ("SONG".equals(type)) {
-            exists = reportDao.existsSong(targetId) > 0;
         } else if ("COMMENT".equals(type)) {
             exists = reportDao.existsComment(targetId) > 0;
         }

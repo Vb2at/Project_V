@@ -14,6 +14,20 @@ import {
   deleteFriend,
 } from '../../api/friend';
 
+const toImgUrl = (v) => {
+  if (!v) return null;
+  const s = String(v);
+
+  // 이미 절대 URL이면 그대로
+  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+
+  // "/upload/..." 같이 오면 백엔드 붙여줌
+  if (s.startsWith('/')) return `http://localhost:8080${s}`;
+
+  // "upload/..." 같이 오면 그대로 붙여줌
+  return `http://localhost:8080/${s}`;
+};
+
 export default function Friends({ onClickMessage }) {
   const [friends, setFriends] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -203,7 +217,11 @@ export default function Friends({ onClickMessage }) {
         {requests.length === 0 && <Empty>요청 없음</Empty>}
         {requests.map((u) => (
           <Row key={u.id}>
-            <UserInfo nick={u.otherNickName ?? u.nickName ?? u.nick} />
+            <UserInfo
+              nick={u.otherNickName ?? u.nickName ?? u.nick}
+              online={u.online}
+              profileImg={u.otherProfileImg}
+            />
             <div style={{ display: 'flex', gap: 8 }}>
               <BtnMain onClick={() => handleAccept(u.id)}>수락</BtnMain>
               <BtnSub onClick={() => handleReject(u.id)}>거절</BtnSub>
@@ -221,8 +239,13 @@ export default function Friends({ onClickMessage }) {
           return (
             <Row key={u.otherUserId ?? u.id}>
               <div style={{ cursor: 'pointer' }} onClick={() => openProfile(u)}>
-                <UserInfo nick={nick} online={u.online} />
+                <UserInfo
+                  nick={nick}
+                  online={u.online}
+                  profileImg={u.otherProfileImg}
+                />
               </div>
+
               <div style={{ display: 'flex', gap: 8 }}>
                 <BtnSub
                   onClick={() => {
@@ -268,10 +291,32 @@ function Row({ children }) {
   return <div style={row}>{children}</div>;
 }
 
-function UserInfo({ nick, online }) {
+function UserInfo({ nick, online, profileImg }) {
+  const src = toImgUrl(profileImg);
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <ProfileAvatar size={36} />
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            objectFit: 'cover',
+            border: '1px solid rgba(255,255,255,0.25)',
+            background: '#111',
+          }}
+          onError={(e) => {
+            // 이미지 깨질 때 fallback
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+      ) : (
+        <ProfileAvatar size={36} />
+      )}
+
       <span>{nick}</span>
       {online && <Dot />}
     </div>

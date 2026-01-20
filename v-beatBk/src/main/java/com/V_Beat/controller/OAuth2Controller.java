@@ -13,6 +13,7 @@ import com.V_Beat.dto.User;
 import com.V_Beat.service.AuthService;
 import com.V_Beat.service.GoogleOAuthService;
 import com.V_Beat.service.KakaoOAuthService;
+import com.V_Beat.service.UserService;
 
 import jakarta.servlet.http.HttpSession;
 
@@ -22,6 +23,7 @@ public class OAuth2Controller {
     private final KakaoOAuthService kakaoOAuthService;
     private final GoogleOAuthService googleOAuthService;
     private final AuthService authService;
+    private final UserService userService;
 
     // ✅ 프론트 주소 (환경별로 바뀌니 yml로 빼는 게 좋음)
     @Value("${app.front-base-url:http://localhost:5173}")
@@ -30,11 +32,13 @@ public class OAuth2Controller {
     public OAuth2Controller(
             KakaoOAuthService kakaoOAuthService,
             GoogleOAuthService googleOAuthService,
-            AuthService authService
+            AuthService authService,
+            UserService userService
     ) {
         this.kakaoOAuthService = kakaoOAuthService;
         this.googleOAuthService = googleOAuthService;
         this.authService = authService;
+        this.userService = userService;
     }
 
     // -------------------------
@@ -82,12 +86,13 @@ public class OAuth2Controller {
             String nickname = (String) userInfo.get("nickname");
             String profileImg = (String) userInfo.get("profileImg");
 
-            if (email == null || email.isBlank()) email = "kakao_" + socialId + "@local";
-            if (nickname == null || nickname.isBlank()) nickname = "kakao_" + socialId;
+            if(email == null || email.isBlank()) email = "kakao_" + socialId + "@local";
+            if(nickname == null || nickname.isBlank()) nickname = "kakao_" + socialId;
 
             User user = authService.findBySocialId(socialId, 1);
+            
 
-            if (user == null) {
+            if(user == null) {
                 User newMember = new User();
                 newMember.setEmail(email);
                 newMember.setNickName(nickname);
@@ -134,12 +139,12 @@ public class OAuth2Controller {
             String nickname = (String) userInfo.get("nickname");
             String profileImg = (String) userInfo.get("profileImg");
 
-            if (email == null || email.isBlank()) email = "google_" + socialId + "@local";
-            if (nickname == null || nickname.isBlank()) nickname = "google_" + socialId;
-
+            if(email == null || email.isBlank()) email = "google_" + socialId + "@local";
+            if(nickname == null || nickname.isBlank()) nickname = "google_" + socialId;
+            
             User user = authService.findBySocialId(socialId, 2);
 
-            if (user == null) {
+            if(user == null) {
                 User newMember = new User();
                 newMember.setEmail(email);
                 newMember.setNickName(nickname);

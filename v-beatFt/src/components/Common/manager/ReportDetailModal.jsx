@@ -1,34 +1,65 @@
 import { useState } from 'react';
+import { reportActionApi } from '../../../api/report';
 
 const ACTIONS = [
     { key: 'WARN', label: '경고' },
     { key: 'BLOCK', label: '차단' },
-    { key: 'DELETE', label: '삭제' },
-    { key: 'IGNORE', label: '무시' },
+    { key: 'DELETE_CONTENT', label: '삭제' },
+    { key: 'IGNORE', label: '반려' },
 ];
 
-export default function ReportDetailModal({ report, onClose, onAction }) {
+
+
+export default function ReportDetailModal({ report, onClose, onAction, onRefresh, onLocalMove }) {
     const [action, setAction] = useState('');
     const [memo, setMemo] = useState('');
+    const [loading, setLoading] = useState(false);
+    const isPending = (report?.status ?? 'PENDING') === 'PENDING';
+
+    const handleComplete = async () => {
+        console.log('[REPORT] complete click', report?.id, action, memo);
+
+        const reportId = report?.id ?? report?.reportId ?? report?.report_id ?? report?.rptId;
+        if (!reportId) return;
+
+        const needMemo = action !== 'IGNORE';
+        if (needMemo && memo.trim().length < 2) {
+            alert('처리 사유를 입력하세요');
+            return;
+        }
+
+        try {
+            setLoading(true);
+
+            await reportActionApi(reportId, action, memo.trim());
+            onLocalMove?.(reportId, action);    //즉시 대기에서 제거 시킴
+            onRefresh?.();  //처리완료, 반려 탭으로 이동 반영
+            onAction?.('REPORT_APPLIED', { reportId, action });
+            onClose?.();
+        } catch (e) {
+            alert(e?.message ?? '처리 중 오류 발생');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div style={overlay}>
             <div style={modal}>
-                <h3 style={{ marginBottom: 12 }}>신고 상세</h3>
+                <h3 style={{ marginBottom: 5 }}>신고 상세내용</h3>
 
                 {/* 대상 정보 */}
                 <section style={section}>
-                    <span style={sectionTitle}>대상</span>
-                    <div>타입: {report.type}</div>
-                    <div>ID: {report.targetId}</div>
-                    <div>이름: {report.targetName}</div>
+                    <span style={sectionTitle}>신고 대상</span>
+                    <div>닉네임: {report.targetName}</div>
+                    <div>타입: {report.reasonCode}</div>
                 </section>
 
                 {/* 신고 내용 */}
                 <section style={section}>
                     <span style={sectionTitle}>신고 내용</span>
-                    <div>사유: {report.reason}</div>
-                    <div>시각: {report.createdAt}</div>
+                    <div>일시: {report.regDate?.replace('T', ' ')}</div>
+                    <div>사유: {report.description}</div>
                     <textarea
                         readOnly
                         value={report.description}
@@ -37,32 +68,41 @@ export default function ReportDetailModal({ report, onClose, onAction }) {
                 </section>
 
                 {/* 조치 */}
-                <section style={section}>
-                    <span style={sectionTitle}>조치</span>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        {ACTIONS.map((a) => (
-                            <button
-                                key={a.key}
-                                onClick={() => setAction(a.key)}
-                                style={{
-                                    ...actionBtn,
-                                    ...(action === a.key
-                                        ? actionBtnActive
-                                        : {}),
-                                }}
-                            >
-                                {a.label}
-                            </button>
-                        ))}
-                    </div>
+                {isPending ? (
+                    <section style={section}>
+                        <span style={sectionTitle}>신고 처리</span>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {ACTIONS.map((a) => (
+                                <button
+                                    key={a.key}
+                                    onClick={() => setAction(a.key)}
+                                    style={{
+                                        ...actionBtn,
+                                        ...(action === a.key
+                                            ? actionBtnActive
+                                            : {}),
+                                    }}
+                                >
+                                    {a.label}
+                                </button>
+                            ))}
+                        </div>
 
-                    <textarea
-                        placeholder="조치 사유 입력"
-                        value={memo}
-                        onChange={(e) => setMemo(e.target.value)}
-                        style={textarea}
-                    />
-                </section>
+                        <textarea
+                            placeholder="처리 사유를 입력하세요."
+                            value={memo}
+                            onChange={(e) => setMemo(e.target.value)}
+                            style={textarea}
+                        />
+                    </section>
+                ) : (
+                    <section style={section}>
+                        <span style={sectionTitle}>처리 정보</span>
+                        <div>처리 상태: {report.status}</div>
+                        <div>처리 유형: {report.actionType}</div>
+                        <div>처리 사유: {report.actionReason}</div>
+                    </section>
+                )}
 
                 {/* 하단 버튼 */}
                 <div
@@ -79,16 +119,17 @@ export default function ReportDetailModal({ report, onClose, onAction }) {
                         onClick={onClose}
                     >
                         닫기
+
                     </button>
-                    <button
-                        style={footerBtn}
-                        disabled={!action}
-                        onClick={() => {
-                            onAction?.('REPORT_APPLY', { action, memo, report });
-                        }}
-                    >
-                        조치 확정
-                    </button>
+                    {isPending && (
+                        <button
+                            style={footerBtn}
+                            disabled={!action || loading}
+                            onClick={handleComplete}
+                        >
+                            완료
+                        </button>
+                    )}
                 </div>
             </div>
         </div >

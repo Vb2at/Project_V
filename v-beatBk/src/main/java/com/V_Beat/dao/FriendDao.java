@@ -64,7 +64,8 @@ public interface FriendDao {
           fr.update_date  AS updateDate,
           u.id            AS otherUserId,
           u.nickName      AS otherNickName,
-          u.email         AS otherEmail
+          u.email         AS otherEmail,
+          u.profile_img   AS otherProfileImg
         FROM FriendRequest fr
         JOIN `user` u ON fr.from_user_id = u.id
         WHERE fr.to_user_id = #{myId}
@@ -84,7 +85,8 @@ public interface FriendDao {
           fr.update_date  AS updateDate,
           u.id            AS otherUserId,
           u.nickName      AS otherNickName,
-          u.email         AS otherEmail
+          u.email         AS otherEmail,
+          u.profile_img   AS otherProfileImg
         FROM FriendRequest fr
         JOIN `user` u ON fr.to_user_id = u.id
         WHERE fr.from_user_id = #{myId}
@@ -98,7 +100,8 @@ public interface FriendDao {
         SELECT
           CASE WHEN fr.from_user_id = #{myId} THEN u2.id ELSE u1.id END AS otherUserId,
           CASE WHEN fr.from_user_id = #{myId} THEN u2.nickName ELSE u1.nickName END AS otherNickName,
-          CASE WHEN fr.from_user_id = #{myId} THEN u2.email ELSE u1.email END AS otherEmail
+          CASE WHEN fr.from_user_id = #{myId} THEN u2.email ELSE u1.email END AS otherEmail,
+          CASE WHEN fr.from_user_id = #{myId} THEN u2.profile_img ELSE u1.profile_img END AS otherProfileImg
         FROM FriendRequest fr
         JOIN `user` u1 ON fr.from_user_id = u1.id
         JOIN `user` u2 ON fr.to_user_id   = u2.id

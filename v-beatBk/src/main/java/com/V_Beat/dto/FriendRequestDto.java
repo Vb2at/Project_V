@@ -20,4 +20,5 @@ public class FriendRequestDto {
     private int otherUserId;
     private String otherNickName;
     private String otherEmail;
+    private String otherProfileImg;
 }

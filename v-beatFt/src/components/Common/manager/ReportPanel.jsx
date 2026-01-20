@@ -15,6 +15,10 @@ export default function ReportPanel({ onAction }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
+  const applyLocalMove = (reportId, actionType) => {
+    setReports(prev => prev.filter(r => r.id !== reportId));
+  };
+
   const loadReports = async () => {
     try {
       setLoading(true);
@@ -121,6 +125,7 @@ export default function ReportPanel({ onAction }) {
           onClose={() => setSelected(null)}
           onAction={onAction}
           onRefresh={loadReports}
+          onLocalMove={applyLocalMove}
         />
       )}
     </div>

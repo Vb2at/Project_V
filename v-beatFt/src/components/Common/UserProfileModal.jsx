@@ -6,41 +6,45 @@ export default function UserProfileModal({ open, user, onClose }) {
 
     if (!open || !user) return null;
 
-const submitUserReport = async (payload) => {
-  const main = String(payload?.mainReason ?? '').trim();
-  const sub = String(payload?.subReason ?? '').trim();
-  if (!main || !sub) throw new Error('신고 사유를 선택해주세요.');
+    console.log('USER OBJ =', user);
 
-  const reasonCode = `${main}_${sub}`;
+    const toImgUrl = (v) => {
+        if (!v) return null;
+        const s = String(v);
 
-  const targetId = Number(user?.otherUserId ?? user?.id);
-  const targetName =
-    user?.otherNickName ?? user?.nickName ?? user?.nickname ?? user?.nick ?? '유저';
+        if (s.startsWith('http://') || s.startsWith('https://')) return s;
+        if (s.startsWith('/')) return `http://localhost:8080${s}`;
+        return `http://localhost:8080/${s}`;
+    };
 
-  if (!Number.isFinite(targetId)) {
-    throw new Error('신고 대상 유저 정보가 올바르지 않습니다.');
-  }
+    const targetProfileImg =
+        user?.otherProfileImg ?? null;
 
-  const body = {
-    targetType: 'USER',
-    targetId,
-    reasonCode,
-    description: String(payload?.description ?? ''),
-  };
+    const submitUserReport = async (payload) => {
+        const body = {
+            targetType: payload.targetType,
+            targetId: Number(payload.targetId),
+            reasonCode: String(payload.reasonCode ?? '').trim(),
+            description: String(payload.description ?? ''),
+        };
 
-  const res = await fetch('/api/report', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(body),
-  });
+        if (!body.targetType || !Number.isFinite(body.targetId) || !body.reasonCode) {
+            throw new Error('신고 정보가 올바르지 않습니다.');
+        }
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data?.ok === false) {
-    throw new Error(data?.message ?? `신고에 실패하였습니다. (${res.status})`);
-  }
-  return data;
-};
+        const res = await fetch('/api/report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data?.ok === false) {
+            throw new Error(data?.message ?? `신고에 실패하였습니다. (${res.status})`);
+        }
+        return data;
+    };
 
     return (
         <>
@@ -54,14 +58,14 @@ const submitUserReport = async (payload) => {
             <div style={modal}>
                 <div style={header}>
                     <div style={avatarWrap}>
-                        {user.profileImg ? (
-                            <img src={user.profileImg} alt="" style={avatarImg} />
+                        {targetProfileImg ? (
+                            <img src={toImgUrl(targetProfileImg)} alt="target profile" style={avatarImg} />
                         ) : (
                             <div style={avatarDummy} />
                         )}
                     </div>
 
-                    <div style={name}>{user.nickname}</div>
+                    <div style={name}>{user?.otherNickName ?? user?.nickname}</div>
                 </div>
 
                 <div style={btnRow}>
@@ -84,8 +88,9 @@ const submitUserReport = async (payload) => {
             <UserReportModal
                 open={reportOpen}
                 type="USER"
-                targetId={user.id}
-                targetName={user.nickname}
+                targetId={user?.otherUserId ?? user?.id}
+                targetName={user?.otherNickName ?? user?.nickname ?? user?.nickName}
+                targetProfileImg={targetProfileImg}  //신고 모달에 상대 프로필 이미지 URL 전달
                 onClose={() => setReportOpen(false)}
                 onSubmit={async (payload) => {
                     try {

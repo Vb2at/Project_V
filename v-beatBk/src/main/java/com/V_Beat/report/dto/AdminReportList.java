@@ -26,6 +26,10 @@ public class AdminReportList {
 	
 	//snapshot
 	private Long snapshotId;
-	private String targetName;
+	private String targetName;	//신고당한 유저 닉네임
 	private String targetExtra; //JSON 문자열
+	
+	private String actionType;
+	private String actionReason;
+	private LocalDateTime actionDate;
 }

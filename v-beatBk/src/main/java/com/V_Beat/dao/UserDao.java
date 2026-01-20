@@ -62,7 +62,7 @@ public interface UserDao {
     
     //유저 정보 조회
     @Select("""
-    		SELECT email, reg_date AS regDate, login_type AS loginType, `role`
+    		SELECT email, reg_date AS regDate, login_type AS loginType, `role`, profile_img AS profileImg
     			FROM `user`
     			WHERE id = #{loginUserId}
     		""")

@@ -12,4 +12,5 @@ public class FriendDto {
     private String otherNickName;
     private String otherEmail;
     private boolean online;
+    private String otherProfileImg;
 }

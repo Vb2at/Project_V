@@ -53,24 +53,39 @@ export default function UserReportModal({
     type, // 'CONTENT' | 'USER'
     targetId,
     targetName,
+    targetProfileImg,
     onClose,
     onSubmit,
 }) {
     const [mainReason, setMainReason] = useState('');
     const [reason, setReason] = useState('');
     const [desc, setDesc] = useState('');
+    console.log('targetProfileImg:', targetProfileImg);
+
 
     if (!open) return null;
 
     function handleSubmit() {
-        if (!reason) return alert('신고 사유를 선택해주세요.');
+        console.log('SUBMIT state', { mainReason, reason, type, targetId });
+
+        if (!mainReason) {
+            alert('신고 사유를 선택해주세요.');
+            return;
+        }
+
+        const targetType = type; //user content
+
+        // 소분류 없으면 mainReason로 대체(예: 기타만 있는 경우)
+        const sub = reason || mainReason;
+
+        // reasonCode 생성 (공백/슬래시 같은거 안전하게)
+        const norm = (s) => String(s).trim().replace(/\s+/g, '_').replace(/[\/]/g, '_');
+        const reasonCode = `${norm(mainReason)}_${norm(sub)}`;
 
         onSubmit?.({
-            reportType: type,   // CONTENT | USER
-            mainReason,         // 콘텐츠 | 커뮤니티 | 기타
-            subReason: reason,  // 실제 사유
+            targetType,
             targetId,
-            targetName,
+            reasonCode,                
             description: desc,
         });
 
@@ -87,19 +102,39 @@ export default function UserReportModal({
 
                 {/* 대상 */}
                 <section style={section}>
-                    <span style={sectionTitle}>대상</span>
-                    <div>{type}</div>
-                    <div>{targetName}</div>
+                    <span style={sectionTitle}>신고 대상</span>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={avatarWrap}>
+                            {targetProfileImg ? (
+                                <img
+                                    src={targetProfileImg}
+                                    alt="target profile"
+                                    style={avatarImg}
+                                    onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                    }}
+                                />
+                            ) : null}
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <div>{type}</div>
+                            <div>{targetName}</div>
+                        </div>
+                    </div>
                 </section>
 
                 {/* 사유 - 대분류 */}
                 <section style={section}>
-                    <span style={sectionTitle}>사유 (대분류)</span>
+                    <span style={sectionTitle}>사유</span>
                     <div style={{ display: 'flex', gap: 8 }}>
                         {(MAIN_REASONS_BY_TYPE[type] || []).map((m) => (
                             <button
+                                type="button"
                                 key={m}
                                 onClick={() => {
+                                    console.log('CLICK main:', m);
                                     setMainReason(m);
                                     setReason('');
                                 }}
@@ -153,11 +188,11 @@ export default function UserReportModal({
 
                 {/* 하단 버튼 */}
                 <div style={footer}>
-                    <button style={footerBtn} onClick={onClose}>
+                    <button type="button" style={footerBtn} onClick={onClose}>
                         취소
                     </button>
-                    <button style={footerBtnMain} onClick={handleSubmit}>
-                        신고 제출
+                    <button type="button" style={footerBtnMain} onClick={handleSubmit}>
+                        신고
                     </button>
                 </div>
             </div>
@@ -197,6 +232,23 @@ const section = {
 const sectionTitle = {
     fontWeight: 600,
     color: '#5aeaff',
+};
+
+const avatarWrap = {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    overflow: 'hidden',
+    border: '1px solid rgba(255,255,255,0.2)',
+    background: '#111',
+    flex: '0 0 auto',
+};
+
+const avatarImg = {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    display: 'block',
 };
 
 const textarea = {

@@ -71,15 +71,38 @@ public interface ReportDao {
 				r.description AS description,
 				r.status AS status,
 				r.reg_date AS regDate,
-				u.nickName as reporterNickName,
+				
+				tu.nickName AS targetName,
+				u.nickName AS reporterNickName,
+				
 				s.id AS snapshotId,
 				s.target_name AS targetName,
-				s.target_extra AS targetExtra
+				s.target_extra AS targetExtra,
+				
+				ra.action_type AS actionType,
+			    ra.action_reason AS actionReason,
+			    ra.reg_date AS actionDate
+			    
 			FROM report r
 			JOIN `user` u
 				ON u.id = r.reporter_user_id
+				
+			LEFT JOIN `user` tu
+				ON r.target_type = 'USER'
+				AND tu.id = r.target_id
+				
 			LEFT JOIN report_target_snapshot s
 				ON s.report_id = r.id
+				
+			LEFT JOIN report_action ra
+				ON ra.id = (
+					SELECT id
+					FROM report_action
+					WHERE report_id = r.id
+					ORDER BY reg_date DESC
+					LIMIT 1
+				)
+				
 			<where>
 				<if test="status != null and status != ''">
 					r.status = #{status}

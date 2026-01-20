@@ -1,199 +1,188 @@
-DROP DATABASE IF EXISTS vbeat; 
-CREATE DATABASE Vbeat;
-USE Vbeat;
+DROP DATABASE IF EXISTS vbeat;
+CREATE DATABASE vbeat;
+USE vbeat;
 
-CREATE TABLE `user`(
-    id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT 
-    ,email VARCHAR(100) NOT NULL
-    ,loginPw VARCHAR(255) NULL
-    ,nickName VARCHAR(50) NOT NULL
-    ,loginType TINYINT NOT NULL DEFAULT 0 COMMENT '0=일반, 1=카카오, 2=구글'
-    ,socialId VARCHAR(80) NULL
-    ,regDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ,profileImg VARCHAR(255) NULL
-    ,`role` VARCHAR(15) NOT NULL DEFAULT 'USER'  # USER = 일반 회원, ADMIN = 관리자 , BLOCK = 차단 계정
-    ,UNIQUE KEY (email)
-    ,UNIQUE KEY (nickName)
+-- =========================
+-- 1) USER
+-- =========================
+CREATE TABLE `user` (
+    id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    email VARCHAR(100) NOT NULL,
+    login_pw VARCHAR(255) NULL,
+    nick_name VARCHAR(50) NOT NULL,
+    login_type TINYINT NOT NULL DEFAULT 0 COMMENT '0=일반, 1=카카오, 2=구글',
+    social_id VARCHAR(80) NULL,
+    reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    profile_img VARCHAR(255) NOT NULL DEFAULT '/upload/profileImg/default.png',
+    `role` VARCHAR(15) NOT NULL DEFAULT 'USER' COMMENT 'USER=일반, ADMIN=관리자, BLOCK=차단',
+    UNIQUE KEY uq_user_email (email),
+    UNIQUE KEY uq_user_nick (nick_name)
 );
 
-DROP TABLE `user`;
-SELECT * FROM `user`;
+-- =========================
+-- 2) MESSAGE (채널 테이블이 아직 없으면 FK는 보류)
+-- =========================
+CREATE TABLE message (
+    id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    channel_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NULL,
+    content TEXT NOT NULL,
+    `type` INT UNSIGNED DEFAULT 0 COMMENT '0=일반, 1=시스템, 2=파일, 3=Git, 4=코드',
+    filtered TINYINT(1) NOT NULL DEFAULT 0,
+    filter_type VARCHAR(20) NULL,
+    reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-# 추후 컬럼 수정 
-CREATE TABLE Message (
-    id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT 
-    ,channelId INT UNSIGNED NOT NULL 
-    ,userId  INT UNSIGNED
-    ,content TEXT NOT NULL 
-    ,`type` INT UNSIGNED DEFAULT 0 # 0=일반, 1=시스템, 2=파일, 3=Git, 4=코드
-    ,filtered TINYINT(1) NOT NULL DEFAULT 0     -- ✅ 추가
-    ,filter_type VARCHAR(20) NULL               -- ✅ 추가
-    ,regDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ,FOREIGN KEY (channelId) REFERENCES `Channel`(id) ON DELETE CASCADE
-    ,FOREIGN KEY (userId) REFERENCES `User`(id) ON DELETE SET NULL
-)
+    INDEX idx_message_channel_date (channel_id, reg_date),
+    INDEX idx_message_user_date (user_id, reg_date)
 
-
-# 음원 관련 테이블
-CREATE TABLE song(
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY
-    ,user_Id INT UNSIGNED NOT NULL 
-    ,title VARCHAR(100) NOT NULL
-    ,artist VARCHAR(100) NOT NULL
-    ,duration VARCHAR(200) NOT NULL
-    ,diff ENUM('easy','normal','hard','hell') NOT NULL DEFAULT 'normal'
-    ,file_path VARCHAR(500) NULL
-    ,create_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ,cover_path VARCHAR(500) NULL
-    ,preview_path VARCHAR(500) NULL
-    ,visibility ENUM('PRIVATE','UNLISTED','PENDING','PUBLIC','BLOCKED') NOT NULL DEFAULT 'PRIVATE'
-    ,FOREIGN KEY (user_Id) REFERENCES `user`(id) ON DELETE CASCADE 
+    -- Channel 테이블 생기면 아래 FK 활성화
+    -- ,FOREIGN KEY (channel_id) REFERENCES `channel`(id) ON DELETE CASCADE
+    -- ,FOREIGN KEY (user_id) REFERENCES `user`(id) ON DELETE SET NULL
 );
 
-SELECT * FROM song;
-DROP TABLE song;
+-- =========================
+-- 3) SONG
+-- =========================
+CREATE TABLE song (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    title VARCHAR(100) NOT NULL,
+    artist VARCHAR(100) NOT NULL,
+    duration VARCHAR(200) NOT NULL,
+    diff ENUM('easy','normal','hard','hell') NOT NULL DEFAULT 'normal',
+    file_path VARCHAR(500) NULL,
+    create_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    cover_path VARCHAR(500) NULL,
+    preview_path VARCHAR(500) NULL,
+    visibility ENUM('PRIVATE','UNLISTED','PENDING','PUBLIC','BLOCKED') NOT NULL DEFAULT 'PRIVATE',
 
-UPDATE song
-   SET is_public = TRUE
- WHERE id IN (9); 
- 
-SELECT note_time, lane, TYPE, end_time, COUNT(*)
-FROM note
-WHERE song_id = 6
-GROUP BY note_time, lane, TYPE, end_time
-HAVING COUNT(*) > 1;
+    INDEX idx_song_user_date (user_id, create_date),
+    FOREIGN KEY (user_id) REFERENCES `user`(id) ON DELETE CASCADE
+);
 
-
-# 음원분석 후 노트 저장 테이블
+-- =========================
+-- 4) NOTE
+-- =========================
 CREATE TABLE note (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     song_id BIGINT UNSIGNED NOT NULL,
-    note_time DECIMAL(10,3) NOT NULL,   -- Flask에서 3자리로 라운딩된 time
+    note_time DECIMAL(10,3) NOT NULL,
     lane TINYINT UNSIGNED NOT NULL,
     `type` ENUM('tap', 'long') NOT NULL DEFAULT 'tap',
-    end_time DECIMAL(10,3) NULL,        -- long만 사용, tap은 NULL
-    -- tap/end_time NULL 문제 해결용 (중복 방지 핵심)
+    end_time DECIMAL(10,3) NULL,
+
+    -- tap/end_time NULL 중복 방지용
     end_time_nn DECIMAL(10,3)
         GENERATED ALWAYS AS (IFNULL(end_time, -1.000)) STORED,
+
     create_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    -- 조회용 인덱스
-    INDEX idx_song_time (song_id, note_time),
-    INDEX idx_song_end (song_id, end_time),
-    -- 🔒 최종 중복 차단 (같은 시각/레인/타입 노트 절대 불가)
-    UNIQUE KEY uq_note_dedup (song_id, note_time, lane, `type`, end_time_nn)
+
+    INDEX idx_note_song_time (song_id, note_time),
+    INDEX idx_note_song_end (song_id, end_time),
+
+    UNIQUE KEY uq_note_dedup (song_id, note_time, lane, `type`, end_time_nn),
+
+    FOREIGN KEY (song_id) REFERENCES song(id) ON DELETE CASCADE
 );
 
-DROP TABLE note
-SELECT * FROM note;
-
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
-# 점수 저장 테이블(랭킹시스템)
+-- =========================
+-- 5) SCORE
+-- =========================
 CREATE TABLE score (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    userId BIGINT UNSIGNED NOT NULL,  #추후 로그인 기능 구현 시 not null로 변경
-    songid BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    song_id BIGINT UNSIGNED NOT NULL,
     diff VARCHAR(10) NOT NULL,
     score INT NOT NULL,
     accuracy DECIMAL(5,2) NOT NULL,
     grade CHAR(1) NOT NULL,
     max_combo INT NOT NULL,
     reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
+
     INDEX idx_rank (song_id, diff, score, accuracy, max_combo, reg_date),
     INDEX idx_user (user_id, song_id, diff)
+
+    -- 필요 시 FK 추가 (타입 맞추고 걸어)
+    -- ,FOREIGN KEY (user_id) REFERENCES `user`(id) ON DELETE CASCADE
+    -- ,FOREIGN KEY (song_id) REFERENCES song(id) ON DELETE CASCADE
 );
 
-SELECT * FROM score;
-DROP TABLE score;
-
-
-# 친구 추가 관련 테이블
-CREATE TABLE FriendRequest (
+-- =========================
+-- 6) FRIEND REQUEST
+-- =========================
+CREATE TABLE friend_request (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    fromUserId INT NOT NULL COMMENT '친구 요청 보낸 유저',
-    toUserId INT NOT NULL COMMENT '친구 요청 받은 유저',
-    STATUS TINYINT NOT NULL COMMENT '0=요청중, 1=친구',
-    regDate DATETIME NOT NULL DEFAULT NOW(),
-    updateDate DATETIME NOT NULL DEFAULT NOW() ON UPDATE NOW(),
+    from_user_id INT UNSIGNED NOT NULL COMMENT '친구 요청 보낸 유저',
+    to_user_id INT UNSIGNED NOT NULL COMMENT '친구 요청 받은 유저',
+    `status` TINYINT NOT NULL COMMENT '0=요청중, 1=친구',
+    reg_date DATETIME NOT NULL DEFAULT NOW(),
+    update_date DATETIME NOT NULL DEFAULT NOW() ON UPDATE NOW(),
 
-    UNIQUE KEY uq_from_to (fromUserId, toUserId),
-    INDEX idx_to_status (toUserId, STATUS),
-    INDEX idx_from_status (fromUserId, STATUS)
+    UNIQUE KEY uq_from_to (from_user_id, to_user_id),
+    INDEX idx_to_status (to_user_id, `status`),
+    INDEX idx_from_status (from_user_id, `status`),
+
+    FOREIGN KEY (from_user_id) REFERENCES `user`(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_user_id) REFERENCES `user`(id) ON DELETE CASCADE
 );
 
-
+-- =========================
+-- 7) PRIVATE MESSAGE
+-- =========================
 CREATE TABLE private_message (
-  id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
-  fromUserId INT UNSIGNED NOT NULL,
-  to_user_id INT UNSIGNED NOT NULL,
-  title   VARCHAR(120) NULL,
-  content TEXT NOT NULL,
-  filtered TINYINT(1) NOT NULL DEFAULT 0,     -- ✅ 추가
-  filter_type VARCHAR(20) NULL,               -- ✅ 추가
-  is_read TINYINT(1) NOT NULL DEFAULT 0,
-  readDate DATETIME NULL,
-  regDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idxToReadDate (to_user_id, is_read, regDate),
-  INDEX idxFromDate (fromUserId, regDate),
-  
-  FOREIGN KEY (fromUserId) REFERENCES `user`(id) ON DELETE CASCADE,
-  FOREIGN KEY (to_user_id)   REFERENCES `user`(id) ON DELETE CASCADE
+    id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    from_user_id INT UNSIGNED NOT NULL,
+    to_user_id INT UNSIGNED NOT NULL,
+    title VARCHAR(120) NULL,
+    content TEXT NOT NULL,
+    filtered TINYINT(1) NOT NULL DEFAULT 0,
+    filter_type VARCHAR(20) NULL,
+    is_read TINYINT(1) NOT NULL DEFAULT 0,
+    read_date DATETIME NULL,
+    reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_to_read_date (to_user_id, is_read, reg_date),
+    INDEX idx_from_date (from_user_id, reg_date),
+
+    FOREIGN KEY (from_user_id) REFERENCES `user`(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_user_id)   REFERENCES `user`(id) ON DELETE CASCADE
 );
 
-SELECT * FROM private_message;
-DROP TABLE private_message;
-
-
-# 신고 접수 테이블
+-- =========================
+-- 8) REPORT
+-- =========================
 CREATE TABLE report (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    reporter_user_id INT(10) UNSIGNED NOT NULL,
+    reporter_user_id INT UNSIGNED NOT NULL,
     target_type ENUM('USER', 'SONG', 'COMMENT') NOT NULL,
     target_id BIGINT UNSIGNED NOT NULL,
     reason_code VARCHAR(30) NOT NULL,
     `description` TEXT,
-    # pending = 접수, resolved = 처리 완료, rejected = 기각/문제없음
-    STATUS ENUM('PENDING', 'RESOLVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+    `status` ENUM('PENDING', 'RESOLVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
     reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_report_reporter
-        FOREIGN KEY (reporter_user_id)
-        REFERENCES USER(id)
-        ON DELETE CASCADE,
-    INDEX idx_report_pending
-    (reporter_user_id, target_type, target_id, reason_code, `status`)
+    INDEX idx_report_pending (reporter_user_id, target_type, target_id, reason_code, `status`),
+    FOREIGN KEY (reporter_user_id) REFERENCES `user`(id) ON DELETE CASCADE
 );
 
-SELECT * FROM report;
-DROP TABLE report;
-
-
-# 신고에 대한 관리자 조치 테이블
+-- =========================
+-- 9) REPORT ACTION
+-- =========================
 CREATE TABLE report_action (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     report_id BIGINT UNSIGNED NOT NULL,
     admin_id INT UNSIGNED NULL,
-    # warn = 경고, block = 차단, delete_content = 컨텐츠 삭제, ignore = 반려
     action_type ENUM('WARN','BLOCK','DELETE_CONTENT','IGNORE') NOT NULL,
     action_reason TEXT,
     reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_report_action_report
-        FOREIGN KEY (report_id)
-        REFERENCES report(id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT fk_report_action_admin
-        FOREIGN KEY (admin_id)
-        REFERENCES `user`(id)
-        ON DELETE SET NULL
+    FOREIGN KEY (report_id) REFERENCES report(id) ON DELETE CASCADE,
+    FOREIGN KEY (admin_id) REFERENCES `user`(id) ON DELETE SET NULL
 );
 
-SELECT * FROM report_action;
-DROP TABLE report_action;
-
-
-# 신고 당시 내용 보존 테이블
+-- =========================
+-- 10) REPORT TARGET SNAPSHOT
+-- =========================
 CREATE TABLE report_target_snapshot (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     report_id BIGINT UNSIGNED NOT NULL,
@@ -201,11 +190,10 @@ CREATE TABLE report_target_snapshot (
     target_extra JSON,
     reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_snapshot_report
-        FOREIGN KEY (report_id)
-        REFERENCES report(id)
-        ON DELETE CASCADE
+    FOREIGN KEY (report_id) REFERENCES report(id) ON DELETE CASCADE
 );
 
-SELECT * FROM report_target_snapshot;
-DROP TABLE report_target_snapshot;
+-- =========================
+-- (선택) 관리자 권한 부여 예시
+-- =========================
+-- UPDATE `user` SET `role` = 'ADMIN' WHERE id = 2;
