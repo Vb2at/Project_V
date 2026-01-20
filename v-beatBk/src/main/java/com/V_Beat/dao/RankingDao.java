@@ -12,14 +12,14 @@ public interface RankingDao {
 	
 	@Select("""
 			SELECT
-	            u.nickName   AS nickname,
-	            u.profileImg,
-	            s.score       AS score,
-	            s.accuracy    AS accuracy,
-	            s.grade       AS grade,
-	            s.max_combo   AS maxCombo
+	            u.nickName      AS nickname,
+	            u.profile_img   AS profileImg,
+	            s.score         AS score,
+	            s.accuracy      AS accuracy,
+	            s.grade         AS grade,
+	            s.max_combo     AS maxCombo
 	        FROM score s
-	        LEFT JOIN user u ON u.id = s.user_id
+	        LEFT JOIN `user` u ON u.id = s.user_id
 	        WHERE s.song_id = #{songId}
 	          AND s.diff = #{diff}
 	        ORDER BY

@@ -23,7 +23,7 @@ public interface UserDao {
     //비밀번호 변경
     @Update("""
         UPDATE `user`
-           SET loginPw = #{encodedPw}
+           SET login_pw = #{encodedPw}
            WHERE id = #{loginUserId}
     """)
     int changePw(@Param("loginUserId") Integer loginUserId,
@@ -32,7 +32,7 @@ public interface UserDao {
     //프로필 이미지 업로드
     @Update("""
     	    UPDATE `user`
-    	       SET profileImg = #{profileImg}
+    	       SET profile_img = #{profileImg}
     	       WHERE id = #{loginUserId}
     	""")
     int uploadProfile(@Param("loginUserId") Integer loginUserId,
@@ -50,10 +50,10 @@ public interface UserDao {
         SELECT id,
                email,
                nickName,
-               profileImg,
-               loginType,
-               socialId,
-               regDate,
+               profile_img AS profileImg,
+               login_type AS loginType,
+               social_id AS socialId,
+               reg_date AS regDate,
                `role`
           FROM `user`
          WHERE id = #{id}
@@ -62,14 +62,14 @@ public interface UserDao {
     
     //유저 정보 조회
     @Select("""
-    		SELECT email, regDate, loginType, `role`
+    		SELECT email, reg_date AS regDate, login_type AS loginType, `role`
     			FROM `user`
     			WHERE id = #{loginUserId}
     		""")
 	User selectById(Integer loginUserId);
     
     @Select("""
-    		SELECT loginPw 
+    		SELECT login_pw as loginPw 
     			FROM `user`
     			WHERE id = #{loginUserId}
     		""")

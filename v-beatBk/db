@@ -169,6 +169,7 @@ CREATE TABLE report_action (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     report_id BIGINT UNSIGNED NOT NULL,
     admin_id INT UNSIGNED NULL,
+    # warn = 경고, block = 차단, delete_content = 컨텐츠 삭제, ignore = 반려
     action_type ENUM('WARN','BLOCK','DELETE_CONTENT','IGNORE') NOT NULL,
     action_reason TEXT,
     reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

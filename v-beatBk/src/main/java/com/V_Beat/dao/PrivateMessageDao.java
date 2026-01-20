@@ -24,7 +24,7 @@ public interface PrivateMessageDao {
           pm.reg_date     AS regDate,
           u.nickName      AS fromNickName
         FROM private_message pm
-        JOIN user u ON u.id = pm.from_user_id
+        JOIN `user` u ON u.id = pm.from_user_id
         WHERE pm.to_user_id = #{userId}
         ORDER BY pm.id DESC
     """)
@@ -45,7 +45,7 @@ public interface PrivateMessageDao {
           pm.reg_date     AS regDate,
           u.nickName      AS toNickName
         FROM private_message pm
-        JOIN user u ON u.id = pm.to_user_id
+        JOIN `user` u ON u.id = pm.to_user_id
         WHERE pm.from_user_id = #{userId}
         ORDER BY pm.id DESC
     """)
@@ -67,8 +67,8 @@ public interface PrivateMessageDao {
           uf.nickName     AS fromNickName,
           ut.nickName     AS toNickName
         FROM private_message pm
-        JOIN user uf ON uf.id = pm.from_user_id
-        JOIN user ut ON ut.id = pm.to_user_id
+        JOIN `user` uf ON uf.id = pm.from_user_id
+        JOIN `user` ut ON ut.id = pm.to_user_id
         WHERE pm.id = #{id}
     """)
     PrivateMessageDto findById(@Param("id") int id);
@@ -125,9 +125,9 @@ public interface PrivateMessageDao {
     // =========================
     // 유틸
     // =========================
-    @Select("SELECT id FROM user WHERE nickName = #{nickName}")
+    @Select("SELECT id FROM `user` WHERE nickName = #{nickName}")
     Integer findUserIdByNick(@Param("nickName") String nickName);
 
-    @Select("SELECT nickName FROM user WHERE id = #{userId}")
+    @Select("SELECT nickName FROM `user` WHERE id = #{userId}")
     String findNickById(@Param("userId") int userId);
 }

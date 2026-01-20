@@ -83,9 +83,9 @@ public class SongService {
 		}
 
 		if (coverPath != null) {
-			songDao.upadateSongWithCover(songId, title, artist, visibility, coverPath);
+			songDao.updateSongWithCover(songId, title, artist, visibility, coverPath);
 		} else {
-			songDao.upDateSong(songId, title, artist, visibility);
+			songDao.updateSong(songId, title, artist, visibility);
 		}
 	}
 

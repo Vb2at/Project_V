@@ -16,7 +16,7 @@ public interface AiAnalyzeDao {
         INSERT INTO song(
             title, artist, duration, diff,
             file_path, cover_path,
-            userId, visibility
+            user_id, visibility
         )
         VALUES (
             #{title}, #{artist}, #{duration}, #{diff},
@@ -35,30 +35,30 @@ public interface AiAnalyzeDao {
 
     @Update("""
         UPDATE song
-           SET file_path = #{filePath}
-         WHERE id = #{id}
+        SET file_path = #{filePath}
+        WHERE id = #{id}
     """)
     void updateSongFilePath(Song song);
 
     @Update("""
         UPDATE song
-           SET cover_path = #{coverPath}
-         WHERE id = #{id}
+        SET cover_path = #{coverPath}
+        WHERE id = #{id}
     """)
     void updateSongCoverPath(Song song);
 
     @Update("""
         UPDATE song
-           SET artist = #{artist},
-               duration = #{duration}
-         WHERE id = #{id}
+        SET artist = #{artist},
+            duration = #{duration}
+        WHERE id = #{id}
     """)
     void updateSongMeta(Song s);
 
     @Update("""
         UPDATE song
-           SET preview_path = #{previewPath}
-         WHERE id = #{songId}
+        SET preview_path = #{previewPath}
+        WHERE id = #{songId}
     """)
     void updatePreviewPath(
         @Param("songId") Long songId,
