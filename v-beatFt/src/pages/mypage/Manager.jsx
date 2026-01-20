@@ -7,7 +7,7 @@ import UserBlockModal from '../../components/Common/manager/UserBlockModal';
 const TABS = [
     { key: 'songs', label: '곡 심사' },
     { key: 'reports', label: '신고 관리' },
-    { key: 'users', label: '유저 관리' },
+    { key: 'users', label: '사용자 관리' },
 ];
 
 /* ================= Action Types ================= */

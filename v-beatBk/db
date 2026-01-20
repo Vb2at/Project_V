@@ -2,26 +2,23 @@ DROP DATABASE IF EXISTS vbeat;
 CREATE DATABASE vbeat;
 USE vbeat;
 
--- =========================
--- 1) USER
--- =========================
+# USER - 사용자 테이블
 CREATE TABLE `user` (
     id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
     email VARCHAR(100) NOT NULL,
     login_pw VARCHAR(255) NULL,
-    nick_name VARCHAR(50) NOT NULL,
+    nickName VARCHAR(50) NOT NULL,
     login_type TINYINT NOT NULL DEFAULT 0 COMMENT '0=일반, 1=카카오, 2=구글',
     social_id VARCHAR(80) NULL,
     reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     profile_img VARCHAR(255) NOT NULL DEFAULT '/upload/profileImg/default.png',
     `role` VARCHAR(15) NOT NULL DEFAULT 'USER' COMMENT 'USER=일반, ADMIN=관리자, BLOCK=차단',
     UNIQUE KEY uq_user_email (email),
-    UNIQUE KEY uq_user_nick (nick_name)
+    UNIQUE KEY uq_user_nick (nickName)
 );
 
--- =========================
--- 2) MESSAGE (채널 테이블이 아직 없으면 FK는 보류)
--- =========================
+
+# MESSAGE (채널 테이블이 아직 없으면 FK는 보류)
 CREATE TABLE message (
     id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
     channel_id INT UNSIGNED NOT NULL,
@@ -40,9 +37,8 @@ CREATE TABLE message (
     -- ,FOREIGN KEY (user_id) REFERENCES `user`(id) ON DELETE SET NULL
 );
 
--- =========================
--- 3) SONG
--- =========================
+
+# SONG - 노래 정보 테이블
 CREATE TABLE song (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id INT UNSIGNED NOT NULL,
@@ -55,14 +51,17 @@ CREATE TABLE song (
     cover_path VARCHAR(500) NULL,
     preview_path VARCHAR(500) NULL,
     visibility ENUM('PRIVATE','UNLISTED','PENDING','PUBLIC','BLOCKED') NOT NULL DEFAULT 'PRIVATE',
+    review_reason VARCHAR(255) NULL,
+    review_by INT UNSIGNED NULL,
+    review_at DATETIME NULL,
 
     INDEX idx_song_user_date (user_id, create_date),
+    INDEX idx_song_visibility (visibility),
     FOREIGN KEY (user_id) REFERENCES `user`(id) ON DELETE CASCADE
 );
 
--- =========================
--- 4) NOTE
--- =========================
+
+# NOTE - 노트 정보 테이블
 CREATE TABLE note (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     song_id BIGINT UNSIGNED NOT NULL,
@@ -85,9 +84,8 @@ CREATE TABLE note (
     FOREIGN KEY (song_id) REFERENCES song(id) ON DELETE CASCADE
 );
 
--- =========================
--- 5) SCORE
--- =========================
+
+# SCORE - 게임 기록 저장 테이블(랭킹시스템)
 CREATE TABLE score (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNSIGNED NOT NULL,
@@ -101,16 +99,11 @@ CREATE TABLE score (
 
     INDEX idx_rank (song_id, diff, score, accuracy, max_combo, reg_date),
     INDEX idx_user (user_id, song_id, diff)
-
-    -- 필요 시 FK 추가 (타입 맞추고 걸어)
-    -- ,FOREIGN KEY (user_id) REFERENCES `user`(id) ON DELETE CASCADE
-    -- ,FOREIGN KEY (song_id) REFERENCES song(id) ON DELETE CASCADE
 );
 
--- =========================
--- 6) FRIEND REQUEST
--- =========================
-CREATE TABLE friend_request (
+
+# FRIEND REQUEST - 친구 요청 테이블
+CREATE TABLE friendrequest (
     id INT AUTO_INCREMENT PRIMARY KEY,
     from_user_id INT UNSIGNED NOT NULL COMMENT '친구 요청 보낸 유저',
     to_user_id INT UNSIGNED NOT NULL COMMENT '친구 요청 받은 유저',
@@ -125,10 +118,9 @@ CREATE TABLE friend_request (
     FOREIGN KEY (from_user_id) REFERENCES `user`(id) ON DELETE CASCADE,
     FOREIGN KEY (to_user_id) REFERENCES `user`(id) ON DELETE CASCADE
 );
+DROP TABLE friend_request;
 
--- =========================
--- 7) PRIVATE MESSAGE
--- =========================
+# PRIVATE MESSAGE
 CREATE TABLE private_message (
     id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
     from_user_id INT UNSIGNED NOT NULL,
@@ -148,9 +140,8 @@ CREATE TABLE private_message (
     FOREIGN KEY (to_user_id)   REFERENCES `user`(id) ON DELETE CASCADE
 );
 
--- =========================
--- 8) REPORT
--- =========================
+
+# REPORT - 신고 접수 테이블
 CREATE TABLE report (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     reporter_user_id INT UNSIGNED NOT NULL,
@@ -165,13 +156,13 @@ CREATE TABLE report (
     FOREIGN KEY (reporter_user_id) REFERENCES `user`(id) ON DELETE CASCADE
 );
 
--- =========================
--- 9) REPORT ACTION
--- =========================
+
+# REPORT ACTION - 관리자 신고 처리 테이블
 CREATE TABLE report_action (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     report_id BIGINT UNSIGNED NOT NULL,
     admin_id INT UNSIGNED NULL,
+    # wanr = 경고, block = 차단, delete_content = 삭제, ignore = 보류
     action_type ENUM('WARN','BLOCK','DELETE_CONTENT','IGNORE') NOT NULL,
     action_reason TEXT,
     reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -180,9 +171,8 @@ CREATE TABLE report_action (
     FOREIGN KEY (admin_id) REFERENCES `user`(id) ON DELETE SET NULL
 );
 
--- =========================
--- 10) REPORT TARGET SNAPSHOT
--- =========================
+
+# REPORT TARGET SNAPSHOT - 신고 내역 기록 테이블
 CREATE TABLE report_target_snapshot (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     report_id BIGINT UNSIGNED NOT NULL,
@@ -193,7 +183,6 @@ CREATE TABLE report_target_snapshot (
     FOREIGN KEY (report_id) REFERENCES report(id) ON DELETE CASCADE
 );
 
--- =========================
--- (선택) 관리자 권한 부여 예시
--- =========================
--- UPDATE `user` SET `role` = 'ADMIN' WHERE id = 2;
+
+# 관리자 권한 부여
+UPDATE `user` SET `role` = 'ADMIN' WHERE id = 1;

@@ -85,7 +85,7 @@ export default function ReportPanel({ onAction }) {
 
       {loading && <div style={{ opacity: 0.6 }}>불러오는 중...</div>}
       {!loading && err && <div style={{ color: '#ff6b6b' }}>{err}</div>}
-      {!loading && !err && reports.length === 0 && <div style={{ opacity: 0.6 }}>목록이 없습니다.</div>}
+      {!loading && !err && reports.length === 0 && <div style={{ marginTop: '45px', textAlign: 'center', opacity: 0.6 }}>목록이 없습니다.</div>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {reports.map((r) => (
@@ -113,7 +113,7 @@ export default function ReportPanel({ onAction }) {
             </div>
 
             <div style={{ fontSize: 12, opacity: 0.5 }}>
-              {r.regDate ?? ''}
+              {r.regDate ?.replace('T', ' ') }
             </div>
           </div>
         ))}

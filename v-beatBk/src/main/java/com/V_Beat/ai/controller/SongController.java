@@ -233,5 +233,9 @@ public class SongController {
 			return ResponseEntity.badRequest().build();
 		}
 	}
+	
+	//공개 요청 API
+//	@PostMapping("/{songId}/request-review")
+	
 
 }
