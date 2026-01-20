@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import com.V_Beat.dto.Message;
@@ -11,16 +12,36 @@ import com.V_Beat.dto.Message;
 @Mapper
 public interface MessageDao {
 
-    // 메시지 생성
+    // ✅ 기존 호환 메서드 유지 (filtered=0, filter_type=NULL로 저장)
     @Insert("""
         INSERT INTO Message
-            (channel_id, user_id, content, `type`, reg_date)
+            (channel_id, user_id, content, `type`, filtered, filter_type, reg_date)
         VALUES
-            (#{channelId}, #{userId}, #{content}, #{type}, NOW())
+            (#{channelId}, #{userId}, #{content}, #{type}, 0, NULL, NOW())
         """)
-    void createMessage(int channelId, int userId, String content, int type);
+    void createMessage(
+            @Param("channelId") int channelId,
+            @Param("userId") int userId,
+            @Param("content") String content,
+            @Param("type") int type
+    );
 
-    // 채널별 메시지 조회 (최근 100개)
+    // ✅ 완성형 저장 (filtered + filter_type 저장)
+    @Insert("""
+        INSERT INTO Message
+            (channel_id, user_id, content, `type`, filtered, filter_type, reg_date)
+        VALUES
+            (#{channelId}, #{userId}, #{content}, #{type}, #{filtered}, #{filterType}, NOW())
+        """)
+    void createMessageWithFilter(
+            @Param("channelId") int channelId,
+            @Param("userId") int userId,
+            @Param("content") String content,
+            @Param("type") int type,
+            @Param("filtered") boolean filtered,
+            @Param("filterType") String filterType
+    );
+
     @Select("""
         SELECT
             m.id,
@@ -28,6 +49,8 @@ public interface MessageDao {
             m.user_id      AS userId,
             m.content,
             m.`type`,
+            m.filtered     AS filtered,
+            m.filter_type  AS filterType,
             m.reg_date     AS regDate,
             u.nickName,
             u.profile_img  AS profileImg
@@ -37,5 +60,5 @@ public interface MessageDao {
         ORDER BY m.reg_date ASC
         LIMIT 100
         """)
-    List<Message> getMessages(int channelId);
+    List<Message> getMessages(@Param("channelId") int channelId);
 }

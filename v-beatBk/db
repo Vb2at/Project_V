@@ -26,6 +26,8 @@ CREATE TABLE Message (
     ,userId  INT UNSIGNED
     ,content TEXT NOT NULL 
     ,`type` INT UNSIGNED DEFAULT 0 # 0=일반, 1=시스템, 2=파일, 3=Git, 4=코드
+    ,filtered TINYINT(1) NOT NULL DEFAULT 0     -- ✅ 추가
+    ,filter_type VARCHAR(20) NULL               -- ✅ 추가
     ,regDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ,FOREIGN KEY (channelId) REFERENCES `Channel`(id) ON DELETE CASCADE
     ,FOREIGN KEY (userId) REFERENCES `User`(id) ON DELETE SET NULL
@@ -126,6 +128,8 @@ CREATE TABLE private_message (
   to_user_id INT UNSIGNED NOT NULL,
   title   VARCHAR(120) NULL,
   content TEXT NOT NULL,
+  filtered TINYINT(1) NOT NULL DEFAULT 0,     -- ✅ 추가
+  filter_type VARCHAR(20) NULL,               -- ✅ 추가
   is_read TINYINT(1) NOT NULL DEFAULT 0,
   readDate DATETIME NULL,
   regDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

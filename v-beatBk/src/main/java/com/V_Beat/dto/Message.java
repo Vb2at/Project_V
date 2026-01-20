@@ -10,12 +10,14 @@ import lombok.NoArgsConstructor;
 public class Message {
     private int id;
     private int channelId;
-    private Integer userId; 
+    private Integer userId;       // FK라 NULL 가능(ON DELETE SET NULL)
     private String content;
     private int type;
     private String regDate;
-    private String nickName; 
+    // JOIN user 정보
+    private String nickName;
     private String profileImg;
-    private boolean filtered;     // 마스킹 여부
-    private String filterType;    // "MATGIM" (선택)
+    // 필터 메타데이터 (DB 저장/조회)
+    private boolean filtered;     // m.filtered
+    private String filterType;    // m.filter_type (예: "MATGIM")
 }

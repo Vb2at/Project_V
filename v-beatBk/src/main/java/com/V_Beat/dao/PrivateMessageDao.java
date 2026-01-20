@@ -19,6 +19,8 @@ public interface PrivateMessageDao {
           pm.to_user_id   AS toUserId,
           pm.title,
           pm.content,
+          pm.filtered     AS filtered,
+          pm.filter_type  AS filterType,
           pm.is_read      AS isRead,
           pm.read_date    AS readDate,
           pm.reg_date     AS regDate,
@@ -40,6 +42,8 @@ public interface PrivateMessageDao {
           pm.to_user_id   AS toUserId,
           pm.title,
           pm.content,
+          pm.filtered     AS filtered,
+          pm.filter_type  AS filterType,
           pm.is_read      AS isRead,
           pm.read_date    AS readDate,
           pm.reg_date     AS regDate,
@@ -61,6 +65,8 @@ public interface PrivateMessageDao {
           pm.to_user_id   AS toUserId,
           pm.title,
           pm.content,
+          pm.filtered     AS filtered,
+          pm.filter_type  AS filterType,
           pm.is_read      AS isRead,
           pm.read_date    AS readDate,
           pm.reg_date     AS regDate,
@@ -74,18 +80,20 @@ public interface PrivateMessageDao {
     PrivateMessageDto findById(@Param("id") int id);
 
     // =========================
-    // 쪽지 전송
+    // ✅ 쪽지 전송 (완성형: filtered, filter_type 저장)
     // =========================
     @Insert("""
         INSERT INTO private_message
-        (from_user_id, to_user_id, title, content)
+        (from_user_id, to_user_id, title, content, filtered, filter_type, is_read, reg_date)
         VALUES
-        (#{fromUserId}, #{toUserId}, #{title}, #{content})
+        (#{fromUserId}, #{toUserId}, #{title}, #{content}, #{filtered}, #{filterType}, 0, NOW())
     """)
     int insert(@Param("fromUserId") int fromUserId,
                @Param("toUserId") int toUserId,
                @Param("title") String title,
-               @Param("content") String content);
+               @Param("content") String content,
+               @Param("filtered") boolean filtered,
+               @Param("filterType") String filterType);
 
     // =========================
     // 읽음 처리

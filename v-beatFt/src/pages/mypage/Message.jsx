@@ -66,9 +66,14 @@ async function sendMessage({ toNickName, content, title }) {
 }
 
 // ============================
-// 화면 코드 (refreshKey + onReadDone 지원)
+// 화면 코드 (refreshKey + onReadDone + composeTo 지원)
 // ============================
-export default function Message({ refreshKey = 0, onReadDone }) {
+export default function Message({
+  refreshKey = 0,
+  onReadDone,
+  composeTo,
+  onConsumeComposeTo,
+}) {
   const [tab, setTab] = useState('inbox'); // inbox | sent
 
   const [inbox, setInbox] = useState([]);
@@ -138,9 +143,22 @@ export default function Message({ refreshKey = 0, onReadDone }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ✅ Friends에서 "쪽지" 눌러서 composeTo가 들어오면:
+  //    모달 오픈 + 받는 사람 자동 설정 + 친구목록 갱신 + 1회 소비
+  useEffect(() => {
+    if (!composeTo) return;
+
+    setIsWriteOpen(true);
+    setToUser(composeTo);
+    setContent('');
+    refreshFriends();
+
+    onConsumeComposeTo?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composeTo]);
+
   // ✅ MyPage에서 NEW_MESSAGE 받았을 때 refreshKey가 증가 → 즉시 목록 갱신
   useEffect(() => {
-    // refreshKey 변경 시 받은쪽지함이 즉시 반영되게 refresh
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
@@ -185,8 +203,8 @@ export default function Message({ refreshKey = 0, onReadDone }) {
         // ✅ 받은쪽지면 읽음 처리 + (중요) MyPage의 ! 갱신(onReadDone) 호출
         if (tab === 'inbox') {
           await markRead(selectedId).catch(() => {});
-          await onReadDone?.();      // ✅ unread-count 다시 동기화 (왼쪽 ! 즉시 갱신)
-          await refresh();           // ✅ 리스트에 isRead 반영
+          await onReadDone?.();
+          await refresh();
         }
       } catch (e) {
         console.error(e);
@@ -238,7 +256,6 @@ export default function Message({ refreshKey = 0, onReadDone }) {
   const handleDelete = async () => {
     if (selectedId == null) return;
 
-    // inbox만 먼저 열어두는 정책(보낸쪽 삭제는 백엔드 정책 결정 후)
     if (tab !== 'inbox') {
       window.alert('보낸 쪽지 삭제는 아직 지원하지 않습니다.');
       return;
@@ -257,7 +274,7 @@ export default function Message({ refreshKey = 0, onReadDone }) {
       window.alert('삭제되었습니다.');
 
       await refresh();
-      await onReadDone?.(); // ✅ 삭제로 인해 unread가 바뀔 수 있으니 한번 동기화
+      await onReadDone?.();
     } catch (e) {
       console.error(e);
       window.alert('삭제 중 오류가 발생했습니다.');

@@ -13,6 +13,10 @@ public class PrivateMessageDto {
     private String title;
     private String content;
 
+    // ✅ 욕설 필터 메타데이터
+    private boolean filtered;
+    private String filterType;
+
     private boolean isRead;
     private LocalDateTime readDate;
     private LocalDateTime regDate;

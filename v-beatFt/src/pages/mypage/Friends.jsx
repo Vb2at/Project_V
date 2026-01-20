@@ -14,7 +14,7 @@ import {
   deleteFriend,
 } from '../../api/friend';
 
-export default function Friends() {
+export default function Friends({ onClickMessage }) {
   const [friends, setFriends] = useState([]);
   const [requests, setRequests] = useState([]);
   const [addNick, setAddNick] = useState('');
@@ -215,22 +215,31 @@ export default function Friends() {
       {/* 친구 목록 */}
       <Section title="친구 목록">
         {friends.length === 0 && <Empty>친구 없음</Empty>}
-        {friends.map((u) => (
-          <Row key={u.otherUserId ?? u.id}>
-            <div style={{ cursor: 'pointer' }} onClick={() => openProfile(u)}>
-              <UserInfo
-                nick={u.otherNickName ?? u.nickName ?? u.nick}
-                online={u.online}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <BtnSub>쪽지</BtnSub>
-              <BtnSub onClick={() => handleDelete(u.otherUserId ?? u.id)}>
-                삭제
-              </BtnSub>
-            </div>
-          </Row>
-        ))}
+        {friends.map((u) => {
+          const nick = u.otherNickName ?? u.nickName ?? u.nick;
+
+          return (
+            <Row key={u.otherUserId ?? u.id}>
+              <div style={{ cursor: 'pointer' }} onClick={() => openProfile(u)}>
+                <UserInfo nick={nick} online={u.online} />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <BtnSub
+                  onClick={() => {
+                    if (!nick) return;
+                    onClickMessage?.(nick); // ✅ MyPage로 위임
+                  }}
+                >
+                  쪽지
+                </BtnSub>
+
+                <BtnSub onClick={() => handleDelete(u.otherUserId ?? u.id)}>
+                  삭제
+                </BtnSub>
+              </div>
+            </Row>
+          );
+        })}
       </Section>
 
       <UserProfileModal
@@ -330,10 +339,14 @@ const row = {
 };
 
 const BtnMain = ({ children, ...props }) => (
-  <button style={btnMain} {...props}>{children}</button>
+  <button style={btnMain} {...props}>
+    {children}
+  </button>
 );
 const BtnSub = ({ children, ...props }) => (
-  <button style={btnSub} {...props}>{children}</button>
+  <button style={btnSub} {...props}>
+    {children}
+  </button>
 );
 
 const ACCENT = '#5aeaff';

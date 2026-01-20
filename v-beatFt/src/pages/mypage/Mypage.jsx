@@ -49,6 +49,9 @@ export default function MyPage() {
   // ✅ NEW_MESSAGE 수신 시 Message.jsx inbox 즉시 갱신 트리거
   const [messageRefreshKey, setMessageRefreshKey] = useState(0);
 
+  // ✅ Friends -> Message "쪽지 쓰기 프리셋"
+  const [composeTo, setComposeTo] = useState(null);
+
   // ✅ 최신 tab 추적 (클로저 문제 해결)
   useEffect(() => {
     tabRef.current = tab;
@@ -67,6 +70,12 @@ export default function MyPage() {
     } catch (e) {
       console.error('[UNREAD] sync error', e);
     }
+  };
+
+  // ✅ Friends에서 쪽지 버튼 클릭 시: messages 탭 이동 + 받는 사람 전달
+  const openMessageCompose = (toNickName) => {
+    setComposeTo(toNickName);
+    setTab('messages');
   };
 
   // 내 정보 조회
@@ -96,7 +105,7 @@ export default function MyPage() {
         });
         const data = await res.json();
         if (data?.ok) setStatus(data);
-      } catch { }
+      } catch {}
     })();
   }, []);
 
@@ -155,7 +164,7 @@ export default function MyPage() {
             if (tabRef.current === 'messages') {
               console.log('[NOTIFY] in messages tab -> sync + refresh inbox');
               await syncUnread();
-              setMessageRefreshKey((k) => k + 1); // ✅ Message.jsx가 이 키를 deps로 inbox 재조회
+              setMessageRefreshKey((k) => k + 1);
               return;
             }
 
@@ -290,13 +299,22 @@ export default function MyPage() {
           )}
           {tab === 'games' && <MyGames />}
           {tab === 'records' && <Records />}
-          {tab === 'friends' && <Friends user={status} />}
 
-          {/* ✅ Message에 refreshKey + onReadDone 전달 */}
+          {/* ✅ Friends에 쪽지 오픈 콜백 전달 */}
+          {tab === 'friends' && (
+            <Friends
+              user={status}
+              onClickMessage={openMessageCompose}
+            />
+          )}
+
+          {/* ✅ Message에 refreshKey + onReadDone + composeTo 전달 */}
           {tab === 'messages' && (
             <Message
               refreshKey={messageRefreshKey}
               onReadDone={syncUnread}
+              composeTo={composeTo}
+              onConsumeComposeTo={() => setComposeTo(null)}
             />
           )}
 
