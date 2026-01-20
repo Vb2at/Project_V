@@ -10,55 +10,22 @@ import { playTapNormal, playTapAccent } from './SFXManager';
 import Visualizer from '../visualizer/Visualizer';
 import KeyEffectLayer from "./effects/KeyEffectLayer";
 
-export default function GameSession({ analyserRef, onState, paused, bgmVolume, sfxVolume, onReady, onFinish }) {
+export default function GameSession({
+  isPlaying = true,
+  mode = 'play', // 'play' | 'edit'
+  seekTime,
+  tool,
+  notes = null,
+  setNotes = null,
+  pushUndo,
+  songId: propSongId,
+  analyserRef, onState, paused, bgmVolume, sfxVolume, onReady, onFinish
+}) {
+  const isEditorTest =
+    new URLSearchParams(window.location.search).get('mode') === 'editorTest';
+
   const SAFE_SCORE = 300;
   const MISS_PENALTY = 100;
-  const [notes, setNotes] = useState([
-    // (fallback 더미) songId 로드되면 AI 노트로 덮어씀
-    { lane: 3, timing: 500, type: 'tap', hit: false },
-    { lane: 3, timing: 700, type: 'tap', hit: false },
-    { lane: 3, timing: 900, type: 'tap', hit: false },
-    { lane: 3, timing: 1100, type: 'tap', hit: false },
-    { lane: 3, timing: 1300, type: 'tap', hit: false },
-    { lane: 3, timing: 1500, type: 'tap', hit: false },
-    { lane: 3, timing: 1700, type: 'tap', hit: false },
-
-    // 2-4초: 롱노트 + 탭노트 혼합
-    { lane: 1, timing: 2000, endTime: 3000, type: 'long', hit: false, holding: false },
-    { lane: 5, timing: 2000, endTime: 3000, type: 'long', hit: false, holding: false },
-    { lane: 3, timing: 2500, type: 'tap', hit: false },
-    { lane: 0, timing: 3200, type: 'tap', hit: false },
-    { lane: 6, timing: 3400, type: 'tap', hit: false },
-
-    // 4-6초: 연속 탭노트
-    { lane: 0, timing: 4000, type: 'tap', hit: false },
-    { lane: 1, timing: 4200, type: 'tap', hit: false },
-    { lane: 2, timing: 4400, type: 'tap', hit: false },
-    { lane: 3, timing: 4600, type: 'tap', hit: false },
-    { lane: 4, timing: 4800, type: 'tap', hit: false },
-    { lane: 5, timing: 5000, type: 'tap', hit: false },
-    { lane: 6, timing: 5200, type: 'tap', hit: false },
-    { lane: 3, timing: 5400, type: 'tap', hit: false },
-    { lane: 1, timing: 5600, type: 'tap', hit: false },
-    { lane: 5, timing: 5800, type: 'tap', hit: false },
-
-    // 6-8초: 동시 롱노트
-    { lane: 0, timing: 6000, endTime: 7500, type: 'long', hit: false, holding: false },
-    { lane: 6, timing: 6000, endTime: 7500, type: 'long', hit: false, holding: false },
-    { lane: 3, timing: 6500, type: 'tap', hit: false },
-    { lane: 3, timing: 7000, type: 'tap', hit: false },
-
-    // 8-10초: 마무리 패턴
-    { lane: 2, timing: 8000, type: 'tap', hit: false },
-    { lane: 4, timing: 8200, type: 'tap', hit: false },
-    { lane: 1, timing: 8400, type: 'tap', hit: false },
-    { lane: 5, timing: 8600, type: 'tap', hit: false },
-    { lane: 3, timing: 8800, endTime: 9500, type: 'long', hit: false, holding: false },
-    { lane: 0, timing: 9600, type: 'tap', hit: false },
-    { lane: 6, timing: 9800, type: 'tap', hit: false },
-    { lane: 3, timing: 10000, type: 'tap', hit: false },
-  ]);
-
   const [currentTime, setCurrentTime] = useState(0);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
@@ -67,11 +34,18 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
   const [effects, setEffects] = useState([]);
   const passedSafeZoneRef = useRef(false);
   const readyCalledRef = useRef(false);
-  const notesRef = useRef(notes);
+  const notesRef = useRef(notes ?? []);
   const currentTimeRef = useRef(0);
   const maxComboRef = useRef(0);
   const onReadyRef = useRef(onReady);
   const onFinishRef = useRef(onFinish);
+  const [internalNotes, setInternalNotes] = useState([]);
+  const usedNotes = Array.isArray(notes) ? notes : internalNotes;
+  const usedSetNotes = setNotes ?? setInternalNotes;
+  const [isInLaneArea, setIsInLaneArea] = useState(false);
+
+  const getLaneCount = () =>
+    GAME_CONFIG.LANE?.COUNT ?? GAME_CONFIG.KEY?.COUNT ?? 7;
 
   const applyMissPenalty = () => {
     setScore((s) => {
@@ -86,6 +60,34 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     if (combo >= 20) return 2;
     return 1;
   };
+  useEffect(() => {
+    if (mode === 'edit') return;
+    if (seekTime == null) return;
+
+    setCurrentTime(seekTime);
+    currentTimeRef.current = seekTime;
+
+    if (audioRef.current) {
+      audioRef.current.currentTime = seekTime / 1000;
+    }
+
+    usedSetNotes((prev) =>
+      prev.map((n) => {
+        if (n.type === 'long') {
+          if (seekTime < n.timing) {
+            return { ...n, hit: false, holding: false, released: false };
+          }
+          if (seekTime >= n.endTime) {
+            return { ...n, hit: true, holding: false, released: true };
+          }
+          return { ...n, hit: true, holding: true };
+        }
+        return seekTime >= n.timing
+          ? { ...n, hit: true }
+          : { ...n, hit: false };
+      })
+    );
+  }, [seekTime, usedSetNotes, mode]);
 
   useEffect(() => {
     comboRef.current = combo;
@@ -100,21 +102,28 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
   }, [onReady]);
 
   useEffect(() => {
+    if (mode === 'edit') return;
     if (!audioRef.current) return;
+    if (!Number.isFinite(bgmVolume)) return;
+
     audioRef.current.volume = bgmVolume;
-  }, [bgmVolume]);
+  }, [bgmVolume, mode]);
 
   useEffect(() => {
-    notesRef.current = notes;
-  }, [notes]);
+    notesRef.current = usedNotes ?? [];
+  }, [notes, usedNotes]);
 
   useEffect(() => {
+    if (mode === 'edit') return;
+
     if (score >= SAFE_SCORE) {
       passedSafeZoneRef.current = true;
     }
-  }, [score]);
+  }, [score, mode]);
 
   useEffect(() => {
+    if (mode === 'edit') return;
+
     if (
       passedSafeZoneRef.current &&   // 세이프존 한번이라도 넘겼고
       score <= 0 &&                  // 점수가 0이 되었고
@@ -129,7 +138,7 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
         gameOver: true,
       });
     }
-  }, [score]);
+  }, [score, mode]);
 
   useEffect(() => {
     maxComboRef.current = Math.max(maxComboRef.current, combo);
@@ -151,28 +160,37 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     return params.get('diff') || 'unknown';
   };
 
-  const [songId, setSongId] = useState(getSongIdFromUrl());
+  const [songId, setSongId] = useState(propSongId || getSongIdFromUrl());
+
+  useEffect(() => {
+    if (propSongId) setSongId(propSongId);
+  }, [propSongId]);
+
   const [diff, setDiff] = useState(getDiffFromUrl());
   const speed =
-    GAME_CONFIG.DIFFICULTY[diff?.toUpperCase()]?.SPEED
-    ?? GAME_CONFIG.SPEED;
+    (GAME_CONFIG.DIFFICULTY?.[diff?.toUpperCase()]?.SPEED) ??
+    (GAME_CONFIG.SPEED) ??
+    2; // 최종 방어선: 모든 설정이 없으면 기본값 2
+
   useEffect(() => {
-    if (typeof onState === 'function') {
-      onState({
-        score,
-        combo,
-        diff,
-        currentTime: currentTimeRef.current,
-        duration: audioRef.current?.duration
-          ? audioRef.current.duration * 1000
-          : 0,
-        maxScore: maxScoreRef.current,
-      });
-    }
-  }, [score, combo, diff, onState]);
+    if (typeof onState !== 'function') return;
+
+    onState({
+      score,
+      combo,
+      diff,
+      currentTime: currentTimeRef.current,
+      duration: audioRef.current?.duration
+        ? audioRef.current.duration * 1000
+        : 0,
+      maxScore: maxScoreRef.current,
+    });
+  }, [score, combo, diff, onState, mode]);
 
   const [audioUrl, setAudioUrl] = useState('');
   const audioRef = useRef(null);
+  const viewRef = useRef(null);
+  const dragStartRef = useRef(null);
   const audioCtxRef = useRef(null);
   const dataArrayRef = useRef(null);
   const finishedRef = useRef(false);
@@ -199,8 +217,8 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
   }, []);
 
   useEffect(() => {
-    maxScoreRef.current = Math.max(1, calcMaxScore(notes));
-  }, [notes, calcMaxScore]);
+    maxScoreRef.current = Math.max(1, calcMaxScore(usedNotes));
+  }, [usedNotes, calcMaxScore]);
 
   useEffect(() => {
     scoreRef.current = score;
@@ -239,7 +257,9 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
       const ctx = new AudioContext();
       const source = ctx.createMediaElementSource(audio);
       const analyser = ctx.createAnalyser();
-      analyserRef.current = analyser;
+      if (analyserRef) {
+        analyserRef.current = analyser; // ✅ 있을 때만 연결
+      }
       analyser.fftSize = 256;
       source.connect(analyser);
       analyser.connect(ctx.destination);
@@ -248,29 +268,33 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
       const dataArray = new Uint8Array(bufferLength);
 
       audioCtxRef.current = ctx;
-      analyserRef.current = analyser;
+      if (analyserRef) {
+        analyserRef.current = analyser;
+      }
+
       dataArrayRef.current = dataArray;
     }
 
     audio.addEventListener('canplay', handleReady, { once: true });
     audio.addEventListener('ended', handleEnded);
 
-    const p = audio.play();
-    if (p && typeof p.catch === 'function') {
-      p.catch(() => { });
+    if (isPlaying && !paused) {
+      const p = audio.play();
+      if (p && typeof p.catch === 'function') p.catch(() => { });
     }
 
     return () => {
       audio.removeEventListener('canplay', handleReady);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [audioUrl, analyserRef]);
+  }, [audioUrl, analyserRef, isPlaying, mode, paused]);
 
   useEffect(() => {
+    if (mode === 'edit') return;
     if (!paused) {
       setPressedKeys(new Set());
     }
-  }, [paused]);
+  }, [paused, mode]);
 
   const normalizeNotesFromApi = (payload) => {
     const list = Array.isArray(payload) ? payload : (payload?.notes || payload?.data || []);
@@ -317,6 +341,17 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     const sid = String(sidRaw).trim();
     if (!sid) return false;
 
+    if (isEditorTest) {
+      const raw = sessionStorage.getItem('EDITOR_TEST_NOTES');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        resetGame();
+        usedSetNotes(parsed);
+        setAudioUrl(`${API_BASE}/api/songs/${sid}/audio`);
+        return true;
+      }
+    }
+
     // 오디오 URL 세팅
     setAudioUrl(`${API_BASE}/api/songs/${sid}/audio`);
 
@@ -329,7 +364,7 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     if (!mapped.length) return false;
 
     resetGame();
-    setNotes(mapped);
+    usedSetNotes(mapped);
     return true;
   };
 
@@ -353,13 +388,13 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
 
   useEffect(() => {
     const interval = setInterval(() => {
+      if (!isPlaying) return;
       if (paused || finishedRef.current) return;
 
       setCurrentTime((prev) => {
         const newTime = prev + 16;
         currentTimeRef.current = newTime;
-
-        setNotes((prevNotes) =>
+        usedSetNotes((prevNotes) =>
           prevNotes.map((note) => {
             if (note.type === 'long' && note.holding && newTime > note.endTime) {
               setEffects((prevEffects) =>
@@ -378,13 +413,14 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     }, 16);
 
     return () => clearInterval(interval);
-  }, [paused]);
+  }, [paused, isPlaying, mode, usedSetNotes]);
 
   useEffect(() => {
+    if (mode === 'edit') return;
     const interval = setInterval(() => {
       if (paused) return;
       const now = currentTimeRef.current;
-      setNotes((prev) => {
+      usedSetNotes((prev) => {
         let missOccurred = false;
 
         const newNotes = prev.map((note) => {
@@ -434,9 +470,10 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     }, 50);
 
     return () => clearInterval(interval);
-  }, [paused]);
+  }, [paused, mode, usedSetNotes]);
 
   useEffect(() => {
+    if (mode === 'edit' && !isPlaying) return;
     const interval = setInterval(() => {
       if (paused) return;
       const holdingNotes = notesRef.current.filter((n) => n.holding && !n.released);
@@ -456,9 +493,10 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     }, 100);
 
     return () => clearInterval(interval);
-  }, [paused]);
+  }, [paused, mode]);
 
   useEffect(() => {
+    if (mode === 'edit') return;
     const handleKeyPress = (laneIndex) => {
       if (paused) return;
 
@@ -496,7 +534,7 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
 
       // ★ 롱 시작: 딱 1회
       if (note.type === 'long' && !note.holding) {
-        setNotes((prev) => prev.map((n) => (n === note ? { ...n, hit: true, holding: true } : n)));
+        usedSetNotes((prev) => prev.map((n) => (n === note ? { ...n, hit: true, holding: true } : n)));
         setCombo((prev) => {
           const next = prev + 1;
 
@@ -522,7 +560,7 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
       }
 
       // ★ 탭
-      setNotes((prev) => prev.map((n) => (n === note ? { ...n, hit: true } : n)));
+      usedSetNotes((prev) => prev.map((n) => (n === note ? { ...n, hit: true } : n)));
       setCombo((prev) => {
         const next = prev + 1;
 
@@ -563,7 +601,7 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
         const note = result.note;
         const noteId = `${note.timing}-${note.lane}`;
 
-        setNotes((prev) =>
+        usedSetNotes((prev) =>
           prev.map((n) => (n === note ? { ...n, hit: true, holding: false, released: true } : n))
         );
         setEffects((prev) => prev.filter((e) => !(e.type === 'long' && e.noteId === noteId)));
@@ -572,7 +610,7 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
           return prev + GAME_CONFIG.SCORE[result.judgement] * mult;
         });
       } else {
-        setNotes((prev) =>
+        usedSetNotes((prev) =>
           prev.map((n) => {
             if (n.lane === laneIndex && n.holding) {
               setCombo(0);
@@ -589,9 +627,12 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
 
     const ih = new InputHandler(handleKeyPress, handleKeyRelease);
     return () => ih.destroy();
-  }, [pressedKeys, paused, sfxVolume]);
+  }, [pressedKeys, paused, sfxVolume, mode, usedSetNotes]);
 
   useEffect(() => {
+
+    if (mode === 'edit') return;
+
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -600,18 +641,202 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
     } else if (audio.paused) {
       audio.play().catch(() => { });
     }
-  }, [paused]);
-
+  }, [paused, mode]);
   const SCALE = 0.8;
 
+  // 1. 좌표 및 타이밍 계산 통합 함수
+  const getGameCoords = (clientX, clientY) => {
+    if (!viewRef.current) return { lane: -1, timing: 0 };
+    const rect = viewRef.current.getBoundingClientRect();
+
+    // 화면 좌표 → 월드 좌표(스케일 보정)
+    const sx = (clientX - rect.left) / SCALE;
+    const sy = (clientY - rect.top) / SCALE;
+
+    // ===== 원근 역보정 함수 (X만) =====
+    const unprojectX = (screenX, y) => {
+      const { WIDTH, HEIGHT } = GAME_CONFIG.CANVAS;
+      const centerX = WIDTH / 2;
+
+      const { SCALE_MIN, SCALE_MAX } = GAME_CONFIG.PERSPECTIVE;
+      const scale =
+        SCALE_MIN + (y / HEIGHT) * (SCALE_MAX - SCALE_MIN);
+
+      return centerX + (screenX - centerX) / scale;
+    };
+
+    // ===== 사다리꼴 영역(screen space) 경계 체크 =====
+    const { WIDTH, HEIGHT } = GAME_CONFIG.CANVAS;
+    const centerX = WIDTH / 2;
+
+    const { SCALE_MIN, SCALE_MAX } = GAME_CONFIG.PERSPECTIVE;
+
+    // sy는 이미 SCALE 보정된 월드 좌표 → 화면 기준으로 다시 보정
+    const screenY = sy;
+
+    const scale =
+      SCALE_MIN + (screenY / HEIGHT) * (SCALE_MAX - SCALE_MIN);
+
+    // 사다리꼴 좌/우 경계 (screen space)
+    const leftScreenX = centerX + (0 - centerX) * scale;
+    const rightScreenX = centerX + (WIDTH - centerX) * scale;
+
+    // 레인 영역 밖이면 무조건 차단
+    if (sx < leftScreenX || sx > rightScreenX) {
+      return { lane: -1, timing: 0 };
+    }
+    // =================================
+
+    const HIT_Y = GAME_CONFIG.CANVAS.HIT_LINE_Y;
+
+    // 화면 X → 월드 X (원근 역보정)
+    const wx = unprojectX(sx, sy);
+
+    // 레인 판정 (LANE_WIDTHS 기준)
+    const widths = GAME_CONFIG.LANE_WIDTHS;
+    let acc = 0;
+    let lane = -1;
+
+    for (let i = 0; i < widths.length; i++) {
+      acc += widths[i];
+      if (wx < acc) {
+        lane = i;
+        break;
+      }
+    }
+
+    // 타이밍 계산
+    const currentSpeed = Number(speed) > 0 ? Number(speed) : 2;
+    const timeOffset = (HIT_Y - sy) / currentSpeed;
+    const t = (currentTimeRef.current || 0) + timeOffset;
+
+    return { lane, timing: Math.round(t) };
+  };
+
+
+  // 2. 에디터 클릭 핸들러 (탭 생성 및 삭제)
+  const handleEditorClick = (e) => {
+    if (mode !== 'edit' || dragStartRef.current) {
+      console.log("중단: 에디터 모드가 아니거나 드래그 중입니다.");
+      return;
+    }
+
+    const { lane, timing } = getGameCoords(e.clientX, e.clientY);
+
+    if (lane < 0 || lane >= getLaneCount()) {
+      console.log("중단: 레인 범위를 벗어났습니다.");
+      return;
+    }
+
+    if (tool === 'delete') {
+      pushUndo(notesRef.current); // ✅ 먼저 undo 저장
+      usedSetNotes((prev) =>
+        prev.filter(n => !(n.lane === lane && Math.abs(n.timing - timing) < 60))
+      );
+    } else if (tool === 'tap') {
+
+      pushUndo(notesRef.current);
+
+      const HIT_Y = GAME_CONFIG.CANVAS.HIT_LINE_Y;
+
+      // 화면 맨 위에서부터 내려오기 시작하도록 보정
+      const spawnOffset = (HIT_Y - 0) / speed; // top 기준
+      const spawnTiming = timing - spawnOffset;
+
+      usedSetNotes((prev) => [
+        ...prev,
+        {
+          lane,
+          timing: Math.round(timing),
+          type: 'tap',
+          hit: false,
+        }
+      ]);
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (mode !== 'edit') return;
+    const { lane } = getGameCoords(e.clientX, e.clientY);
+    setIsInLaneArea(lane >= 0 && lane < getLaneCount());
+  };
+
+
+  // 3. 에디터 드래그 핸들러 (롱노트 생성)
+  const handleEditorMouseDown = (e) => {
+    if (mode !== 'edit' || tool !== 'long' || e.button !== 0) return;
+    const { lane, timing } = getGameCoords(e.clientX, e.clientY);
+    if (lane >= 0 && lane < getLaneCount()) {
+      dragStartRef.current = { lane, timing };
+    }
+  };
+
+  const handleEditorMouseUp = (e) => {
+    if (mode !== 'edit' || tool !== 'long' || !dragStartRef.current) return;
+
+    const { timing: tEndRaw } = getGameCoords(e.clientX, e.clientY);
+    const { lane, timing: tStartRaw } = dragStartRef.current;
+    dragStartRef.current = null;
+
+    const MIN_PREVIEW_MS = 400;
+
+    const now = currentTimeRef.current;
+
+    const tStart = Math.max(Math.min(tStartRaw, tEndRaw), now + MIN_PREVIEW_MS);
+    const tEnd = Math.max(Math.max(tStartRaw, tEndRaw), tStart + 150);
+
+    if (tEnd - tStart < 150) return;
+
+    pushUndo(notesRef.current);
+
+    const HIT_Y = GAME_CONFIG.CANVAS.HIT_LINE_Y;
+    const spawnOffset = (HIT_Y - 0) / speed;
+
+
+    const start = Math.min(tStart, tEnd);
+    const end = Math.max(tStart, tEnd);
+
+    usedSetNotes((prev) => [
+      ...prev,
+      {
+        lane,
+        timing: Math.round(start),
+        endTime: Math.round(end),
+        type: 'long',
+        hit: false,
+        holding: false,
+      }
+    ]);
+  };
+
+  // 4. 렌더링 (JSX)
   return (
     <div
+      ref={viewRef}
+      onClick={handleEditorClick}
+      onMouseDown={handleEditorMouseDown}
+      onMouseUp={handleEditorMouseUp}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => { dragStartRef.current = null; }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        if (mode !== 'edit') return;
+        const { lane, timing } = getGameCoords(e.clientX, e.clientY);
+        usedSetNotes((prev) => {
+          pushUndo(prev);
+          return prev.filter(n => !(n.lane === lane && Math.abs(n.timing - timing) < 150));
+        });
+      }}
       style={{
         width: `${GAME_CONFIG.CANVAS.WIDTH * SCALE}px`,
         height: `${GAME_CONFIG.CANVAS.HEIGHT * SCALE}px`,
         position: 'relative',
-        margin: '80px auto 0',   // ✅ 헤더 80px + 가운데 정렬
+        margin: '80px auto 0',
         overflow: 'hidden',
+        cursor:
+          mode === 'edit'
+            ? (isInLaneArea ? 'crosshair' : 'default')
+            : 'default',
       }}
     >
       <div
@@ -619,28 +844,31 @@ export default function GameSession({ analyserRef, onState, paused, bgmVolume, s
           width: `${GAME_CONFIG.CANVAS.WIDTH}px`,
           height: `${GAME_CONFIG.CANVAS.HEIGHT}px`,
           transform: `scale(${SCALE})`,
-          transformOrigin: 'top left', // ✅ wrapper가 이미 스케일 크기라 left 기준이 정답
+          transformOrigin: 'top left',
         }}
       >
         <GameCanvas
-          notes={notes.filter((n) => {
+          notes={(usedNotes ?? []).filter((n) => {
             if (n.type === 'long') {
-              const t = (GAME_CONFIG.CANVAS.HEIGHT + 100) / speed;
-              return currentTime < n.endTime + t;
+              return currentTime < (n.endTime || n.timing) + 2000;
             }
-            return !n.hit;
+            return !n.hit || currentTime < n.timing + 500;
           })}
           currentTime={currentTime}
           pressedKeys={pressedKeys}
         />
 
-        <PixiNotes notes={notes} currentTime={currentTime} speed={speed} />
-        <KeyEffectLayer pressedKeys={pressedKeys} />
-        <PixiEffects effects={effects} />
+        <PixiNotes notes={usedNotes ?? []} currentTime={currentTime} speed={speed} />
+        {mode === 'play' && (
+          <>
+            <KeyEffectLayer pressedKeys={pressedKeys} />
+            <PixiEffects effects={effects} />
+            <Visualizer active={!paused} size="game" analyserRef={analyserRef} />
+          </>
+        )}
+
         <audio ref={audioRef} />
-        <Visualizer active={!paused} size="game" analyserRef={analyserRef} />
       </div>
     </div>
   );
-
 }

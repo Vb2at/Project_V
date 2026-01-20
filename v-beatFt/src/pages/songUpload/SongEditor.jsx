@@ -7,8 +7,38 @@ import Background from '../../components/Common/Background';
 
 export default function SongEditor() {
     const { songId } = useParams();
-    console.log('songId:', songId);
     const navigate = useNavigate();
+    const VISIBILITY_LABEL = {
+        PRIVATE: '비공개',
+        UNLISTED: '링크 공개',
+        PENDING: '심사중',
+        PUBLIC: '전체 공개',
+        BLOCKED: '차단됨',
+    };
+
+    const VISIBILITY_COLOR = {
+        PRIVATE: '#aaa',
+        UNLISTED: '#5aeaff',
+        PENDING: '#ffd166',
+        PUBLIC: '#06d6a0',
+        BLOCKED: '#ff5c5c',
+    };
+    const editorBtn = {
+        padding: '10px 14px',
+        borderRadius: 10,
+        background: 'linear-gradient(180deg, #0f1b26 0%, #0a121a 100%)',
+        border: '1px solid rgba(90,234,255,0.45)',
+        color: '#e6f7ff',
+        cursor: 'pointer',
+    };
+
+    const dangerBtn = {
+        ...editorBtn,
+        border: '1px solid rgba(255,92,92,0.7)',
+        color: '#ffb3b3',
+    };
+
+    const audioRef = useRef(null);
 
     const neonInput = {
         width: '100%',
@@ -28,6 +58,7 @@ export default function SongEditor() {
     const [coverFile, setCoverFile] = useState(null);
     const [coverPreview, setCoverPreview] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
 
     /* ===== 초기 정보 로드 ===== */
     useEffect(() => {
@@ -36,7 +67,8 @@ export default function SongEditor() {
                 const s = res.data;
                 setTitle(s.title || '');
                 setArtist(s.artist || '');
-                setVisibility(s.visibility || 'PRIVATE'); if (s.coverPath) {
+                setVisibility(s.visibility || 'PRIVATE');
+                if (s.coverPath) {
                     setCoverPreview(`/api/songs/${songId}/cover`);
                 }
             })
@@ -44,26 +76,20 @@ export default function SongEditor() {
                 alert('곡 정보를 불러오지 못했습니다.');
                 navigate('/');
             });
-    }, [songId]);
-
-    useEffect(() => {
-        axios.get(`/api/songs/${songId}`)
-            .then(res => console.log(res.data))
-            .catch(err => console.error(err));
-    }, [songId]);
+    }, [songId, navigate]);
 
     /* ===== 저장 ===== */
     const handleSave = async () => {
         if (loading) return;
 
-        const form = new FormData();
-        form.append('title', title);
-        form.append('artist', artist);
-        form.append('visibility', visibility);
-        if (coverFile) form.append('cover', coverFile);
-
         try {
             setLoading(true);
+
+            const form = new FormData();
+            form.append('title', title);
+            form.append('artist', artist);
+            form.append('visibility', visibility);
+            if (coverFile) form.append('cover', coverFile);
 
             await axios.post(
                 `/api/songs/${songId}/update`,
@@ -72,7 +98,7 @@ export default function SongEditor() {
             );
 
             alert('저장 완료!');
-            navigate('/');
+            navigate(-1);
 
         } catch (e) {
             console.error(e);
@@ -82,6 +108,31 @@ export default function SongEditor() {
         }
     };
 
+    /* ===== 미리듣기 ===== */
+    const togglePreview = () => {
+        if (!audioRef.current) return;
+
+        if (isPlaying) {
+            audioRef.current.pause();
+        } else {
+            audioRef.current.play();
+        }
+        setIsPlaying(!isPlaying);
+    };
+
+    /* ===== 삭제 ===== */
+    const handleDelete = async () => {
+        if (!window.confirm('정말 이 곡을 삭제하시겠습니까?')) return;
+
+        try {
+            await axios.delete(`/api/songs/${songId}`, { withCredentials: true });
+            alert('삭제 완료');
+            navigate('/mypage/mygames');
+        } catch (e) {
+            console.error(e);
+            alert('삭제 실패');
+        }
+    };
     return (
         <div style={{ position: 'absolute', inset: 0 }}>
             <Background style={{ position: 'fixed', inset: 0, zIndex: -1 }} />
@@ -103,8 +154,8 @@ export default function SongEditor() {
 
                     {/* ===== 커버 ===== */}
                     <div
-                        onClick={() => document.getElementById('cover-input').click()}
                         style={{
+                            position: 'relative',
                             width: 420,
                             height: 420,
                             borderRadius: 18,
@@ -115,7 +166,31 @@ export default function SongEditor() {
                             boxShadow: '0 0 20px rgba(90,234,255,0.45)',
                             cursor: 'pointer',
                         }}
-                    />
+                        onClick={() => document.getElementById('cover-input').click()}
+                    >
+                        {/* ▶ 미리듣기 */}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                togglePreview();
+                            }}
+                            style={{
+                                position: 'absolute',
+                                bottom: 12,
+                                right: 12,
+                                width: 48,
+                                height: 48,
+                                borderRadius: '50%',
+                                border: 'none',
+                                background: 'rgba(0,0,0,0.6)',
+                                color: '#5aeaff',
+                                fontSize: 20,
+                                cursor: 'pointer',
+                            }}
+                        >
+                            {isPlaying ? '❚❚' : '▶'}
+                        </button>
+                    </div>
 
                     {/* ===== 정보 ===== */}
                     <div
@@ -131,7 +206,18 @@ export default function SongEditor() {
                             gap: 14,
                         }}
                     >
-                        <h3 style={{ color: '#5aeaff', textAlign: 'center' }}>최종 정보 확인</h3>
+                        <h3 style={{ color: '#5aeaff', textAlign: 'center' }}>곡 정보 수정</h3>
+
+                        {/* 공개 상태 표시 */}
+                        <div
+                            style={{
+                                fontSize: 13,
+                                textAlign: 'center',
+                                color: VISIBILITY_COLOR[visibility] || '#aaa',
+                            }}
+                        >
+                            현재 상태: {VISIBILITY_LABEL[visibility] || visibility}
+                        </div>
 
                         <input
                             style={neonInput}
@@ -160,52 +246,56 @@ export default function SongEditor() {
                             }}
                         />
 
-                        {/* ===== 공개 설정 ===== */}
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            {[
-                                ['PRIVATE', '비공개'],
-                                ['UNLISTED', '링크 공유'],
-                                ['PUBLIC', '전체 공개'],
-                            ].map(([value, label]) => {
-                                const active = visibility === value;
+                        {/* ===== 버튼 영역 ===== */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
 
-                                return (
-                                    <div
-                                        key={value}
-                                        onClick={() => setVisibility(value)}
-                                        style={{
-                                            flex: 1,
-                                            padding: '10px 0',
-                                            textAlign: 'center',
-                                            borderRadius: 10,
-                                            cursor: 'pointer',
-                                            fontSize: 13,
-                                            color: active ? '#0ff' : '#cfd8e3',
-                                            background: active
-                                                ? 'linear-gradient(180deg, rgba(90,234,255,0.25), rgba(10,20,30,0.9))'
-                                                : 'linear-gradient(180deg, #0e141b, #0a0f15)',
-                                            border: active
-                                                ? '1px solid rgba(90,234,255,0.9)'
-                                                : '1px solid rgba(90,234,255,0.3)',
-                                        }}
-                                    >
-                                        {label}
-                                    </div>
-                                );
-                            })}
+                            {/* === 메인 액션 === */}
+                            <button
+                                className="neon-btn"
+                                style={editorBtn}
+                                disabled={loading}
+                                onClick={handleSave}
+                            >
+                                {loading ? '저장 중...' : '저장'}
+                            </button>
+
+                            <button
+                                className="neon-btn"
+                                style={editorBtn}
+                                onClick={() => navigate(`/song/${songId}/note/edit`)}
+                            >
+                                노트 편집
+                            </button>
+
+                            <div
+                                style={{
+                                    height: 1,
+                                    background: 'rgba(90,234,255,0.25)',
+                                    margin: '12px 0 8px',
+                                }}
+                            />
+
+                            {visibility !== 'PUBLIC' && (
+                                <button
+                                    className="neon-btn"
+                                    style={dangerBtn}
+                                    onClick={handleDelete}
+                                >
+                                    곡 삭제
+                                </button>
+                            )}
+
                         </div>
 
-                        {visibility === 'PUBLIC' && (
-                            <div style={{ fontSize: 12, color: '#ff9aa2' }}>
-                                ※ 전체 공개는 관리자 심사 후 노출됩니다.
-                            </div>
-                        )}
-
-                        <button className="neon-btn" disabled={loading} onClick={handleSave}>
-                            {loading ? '저장 중...' : '최종 업로드'}
-                        </button>
                     </div>
                 </div>
+
+                {/* audio */}
+                <audio
+                    ref={audioRef}
+                    src={`/api/songs/${songId}/audio`}
+                    onEnded={() => setIsPlaying(false)}
+                />
             </main>
         </div>
     );

@@ -3,13 +3,10 @@ import { useEffect, useState } from 'react';
 export default function LeftSidebar({ songId, diff }) {
   const HEADER_HEIGHT = 64;
 
-  console.log('LeftSidebar RENDERED', { songId, diff });
-
   const [song, setSong] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    console.log('[LeftSidebar effect] songId =', songId);
 
     if (!songId) {
       setSong(null);

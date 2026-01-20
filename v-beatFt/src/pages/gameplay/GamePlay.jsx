@@ -13,6 +13,7 @@ import { playMenuConfirm } from '../../components/engine/SFXManager';
 import Visualizer from '../../components/visualizer/Visualizer';
 import { LOADING_TIPS as TIPS } from '../../constants/LoadingTips';
 
+
 function GamePlay() {
   const getSongIdFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
@@ -41,7 +42,6 @@ function GamePlay() {
   const [sfxMuted, setSfxMuted] = useState(false);
   const analyserRef = useRef(null);
   const [sessionKey, setSessionKey] = useState(0);
-
   const effectiveBgmVolume = bgmMuted ? 0 : bgmVolume;
   const effectiveSfxVolume = sfxMuted ? 0 : sfxVolume;
   const MIN_LOADING_TIME = 2500;
@@ -424,7 +424,15 @@ function GamePlay() {
                 }}
                 onClick={() => {
                   playMenuConfirm();
-                  navigate('/main');
+
+                  const params = new URLSearchParams(window.location.search);
+                  const isEditorTest = params.get('mode') === 'editorTest';
+
+                  if (isEditorTest) {
+                    navigate(-1);   // 에디터로 복귀
+                  } else {
+                    navigate('/main');
+                  }
                 }}
               >
                 나가기
@@ -486,9 +494,19 @@ function GamePlay() {
             );
           }}
           onFinish={({ score, maxScore, maxCombo, diff: finishDiff }) => {
-            console.log("FINISH:", { finishDiff, diff, songId, url: window.location.search });
             if (finished) return;
             setFinished(true);
+
+            const params = new URLSearchParams(window.location.search);
+            const isEditorTest = params.get('mode') === 'editorTest';
+
+            if (isEditorTest) {
+              // ✅ 테스트 플레이면 Result 안 가고 에디터로 복귀
+              navigate(`/game/play?songId=${songId}&mode=editorTest`);
+              return;
+            }
+
+            // ✅ 일반 플레이만 Result 이동
             navigate('/game/result', {
               state: { score, maxScore, maxCombo, diff: finishDiff ?? diff ?? 'unknown', songId },
             });

@@ -109,6 +109,12 @@ function syncNotes(stage, textures, notes, currentTime, speed) {
     const visibleIds = new Set();
 
     notes.forEach(note => {
+
+        if (note.spawnTime != null && currentTime < note.spawnTime) {
+            return;
+        }
+        const renderTime =
+            note.spawnTime != null ? Math.max(currentTime, note.spawnTime) : currentTime;
         // ---------------- 1. LONG NOTE (판정선 통과 로직) ----------------
         if (note.type === 'long') {
             const start = note.timing;
@@ -147,8 +153,7 @@ function syncNotes(stage, textures, notes, currentTime, speed) {
             }
 
             while (t < end) {
-                const y = Math.round(HIT_LINE_Y - (t - currentTime) * SPEED);
-
+                const y = Math.round(HIT_LINE_Y - (t - renderTime) * SPEED);
                 let bottomY = y;
 
                 if (fadeStartTime != null) {
@@ -177,7 +182,7 @@ function syncNotes(stage, textures, notes, currentTime, speed) {
                 // 원근 보정용 스케일 (최소값 제한으로 에러 방지)
                 const nextT = Math.min(t + STEP_TIME, end);
                 const OVERLAP_PX = 1; // 충분한 오버랩
-                const rawNextY = HIT_LINE_Y - (nextT - currentTime) * SPEED + OVERLAP_PX;
+                const rawNextY = HIT_LINE_Y - (nextT - renderTime) * SPEED + OVERLAP_PX;
                 const nextY = Math.round(rawNextY); // 서브픽셀 경계 제거
 
                 if (bottomY <= nextY) {
@@ -291,8 +296,10 @@ function syncNotes(stage, textures, notes, currentTime, speed) {
         // ---------------- 2. TAP NOTE (기존 유지) ----------------
         if (note.hit) return;
 
-        const y = HIT_LINE_Y - (note.timing - currentTime) * SPEED;
-        if (y < -NOTE_HEIGHT || y > CANVAS_HEIGHT + 100) return;
+        const renderTiming = note.timing;
+
+        const y = HIT_LINE_Y - (renderTiming - currentTime) * SPEED;
+        if (y < -NOTE_HEIGHT * 2 || y > CANVAS_HEIGHT + 100) return
 
         const id = `${note.timing}-${note.lane}`;
         visibleIds.add(id);
