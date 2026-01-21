@@ -5,14 +5,11 @@ export default function SongReviewDetailModal({
     song,
     onClose,
     onApprove,
-    onReject,
-    onBlock,
 }) {
-    if (!open || !song) return null;
-
     const [mode, setMode] = useState(null); // 'REJECT' | 'BLOCK'
     const [reason, setReason] = useState('');
 
+    if (!open || !song) return null;
     return (
         <>
             <div style={overlay} onClick={onClose} />

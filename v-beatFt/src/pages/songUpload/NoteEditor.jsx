@@ -1,7 +1,6 @@
 // src/pages/editor/NoteEditor.jsx
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import GameSession from '../../components/engine/GameSession';
 import Header from '../../components/Common/Header';
 import LeftSidebar from '../gameplay/LeftSidebar';
@@ -20,16 +19,22 @@ const SIDE_W = 260;
 
 export default function NoteEditor() {
     const { songId } = useParams();
-
+    const location = useLocation();
+    const params = new URLSearchParams(location.search);
+    const isEditorReturn = params.get('mode') === 'editorTest';
     const [song, setSong] = useState(null);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [seekTime, setSeekTime] = useState(null);
     const [isPlaying, setIsPlaying] = useState(false);
+    // eslint-disable-next-line no-unused-vars
     const [undoStack, setUndoStack] = useState([]);
     const [notes, setNotes] = useState([]);
     const [tool, setTool] = useState('tap');
+    const [selectedNoteId, setSelectedNoteId] = useState(null);
     const navigate = useNavigate();
+    const timelineRef = useRef(null);
+    const [isScrubbing, setIsScrubbing] = useState(false);
 
     // ✅ 반드시 return 전에 있어야 함
     const visibility = VISIBILITY_TEXT[song?.visibility] || '알 수 없음';
@@ -39,10 +44,34 @@ export default function NoteEditor() {
     };
 
     const handleSeek = (e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const ratio = (e.clientX - rect.left) / rect.width;
-        const t = Math.max(0, Math.min(duration, ratio * duration));
+        const t = getTimeFromClientX(e.clientX);
         setSeekTime(t);
+    };
+
+    const handleTimelineMouseDown = (e) => {
+        const t = getTimeFromClientX(e.clientX);
+        setSeekTime(t);
+        setIsScrubbing(true);
+    };
+
+    const handleTimelineMouseMove = (e) => {
+        if (!isScrubbing) return;
+        const t = getTimeFromClientX(e.clientX);
+        setSeekTime(t);
+    };
+
+    const handleTimelineMouseUp = () => {
+        setIsScrubbing(false);
+    };
+
+
+    const getTimeFromClientX = (clientX) => {
+        if (!timelineRef.current || !duration) return currentTime;
+
+        const rect = timelineRef.current.getBoundingClientRect();
+        const ratio = (clientX - rect.left) / rect.width;
+
+        return Math.max(0, Math.min(duration, ratio * duration));
     };
 
     const formatTime = (ms = 0) => {
@@ -62,7 +91,7 @@ export default function NoteEditor() {
 
         try {
             const res = await fetch(`/api/songs/${songId}/notes`, {
-                method: 'POST',
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
@@ -70,13 +99,20 @@ export default function NoteEditor() {
             if (!res.ok) throw new Error('save failed');
 
             alert('저장 완료');
-        } catch (e) {
-            console.error(e);
+            navigate(`/song/editor/${songId}`, { replace: true });
+        } catch {
             alert('저장 실패');
         }
     };
+
+    useEffect(() => {
+        window.addEventListener('mouseup', handleTimelineMouseUp);
+        return () => window.removeEventListener('mouseup', handleTimelineMouseUp);
+    }, []);
+
     useEffect(() => {
         if (!songId) return;
+        if (isEditorReturn) return; // ✅ editorTest 복귀면 서버 로드 절대 금지
 
         (async () => {
             try {
@@ -94,43 +130,45 @@ export default function NoteEditor() {
                     ? rawNotes.map((n) => {
                         const lane = Number(n.lane ?? n.laneIndex ?? n.key ?? 0);
                         const type = (n.type ?? n.noteType ?? 'tap') === 'long' ? 'long' : 'tap';
-
-                        // 서버가 time(초)로 주는 케이스를 ms로 변환
                         const tSec = Number(n.time ?? n.noteTime ?? n.note_time ?? n.timing ?? 0);
                         const timing = Math.round(tSec * 1000);
-
                         const endSec = n.endTime ?? n.end_time ?? n.end ?? null;
                         const endTime = endSec != null ? Math.round(Number(endSec) * 1000) : undefined;
 
                         if (type === 'long') {
-                            return {
-                                lane,
-                                timing,
-                                endTime: endTime ?? (timing + 1000),
-                                type: 'long',
-                                hit: false,
-                                holding: false,
-                                released: false,
-                            };
+                            return { lane, timing, endTime: endTime ?? timing + 1000, type: 'long', hit: false, holding: false, released: false };
                         }
-
-                        return {
-                            lane,
-                            timing,
-                            type: 'tap',
-                            hit: false,
-                        };
+                        return { lane, timing, type: 'tap', hit: false };
                     })
                     : [];
 
                 setNotes(mappedNotes);
-
             } catch (e) {
                 console.error('editor load failed', e);
             }
         })();
-    }, [songId]);
+    }, [songId, isEditorReturn]);
 
+
+    // ===== editorTest 복귀 시 상태 복원 =====
+    useEffect(() => {
+        const raw = sessionStorage.getItem('EDITOR_STATE_SNAPSHOT');
+        if (!raw) return;
+
+        try {
+            const snap = JSON.parse(raw);
+
+            if (Array.isArray(snap.notes)) setNotes(snap.notes);
+            if (typeof snap.currentTime === 'number') setSeekTime(snap.currentTime);
+            if (snap.tool) setTool(snap.tool);
+
+        } catch (e) {
+            console.error('editor snapshot restore failed', e);
+        }
+
+        sessionStorage.removeItem('EDITOR_STATE_SNAPSHOT');
+        sessionStorage.removeItem('EDITOR_RETURNING');
+    }, []);
     return (
         <div style={page}>
             {/* ===== Background (최하단) ===== */}
@@ -178,13 +216,15 @@ export default function NoteEditor() {
                     />
 
                     <GameSession
-                        isPlaying={isPlaying}
                         mode="edit"
+                        isPlaying={isPlaying}
                         seekTime={seekTime}
                         tool={tool}
                         notes={notes}
                         setNotes={setNotes}
                         pushUndo={pushUndo}
+                        selectedNoteId={selectedNoteId}
+                        setSelectedNoteId={setSelectedNoteId}
                         songId={songId}
                         onState={({ currentTime, duration }) => {
                             setCurrentTime(currentTime);
@@ -201,13 +241,28 @@ export default function NoteEditor() {
                 <div style={panelSection}>
                     <div style={panelLabel}>Time</div>
                     <div style={panelValue}>
+
                         {formatTime(currentTime)} / {formatTime(duration)}
                     </div>
-                    <div style={barTrack} onClick={handleSeek}>
+                    <div
+                        ref={timelineRef}
+                        style={{ ...barTrack, position: 'relative', cursor: 'pointer' }}
+                        onMouseDown={handleTimelineMouseDown}
+                        onMouseMove={handleTimelineMouseMove}
+                        onClick={handleSeek}
+                    >
                         <div
                             style={{
                                 ...barFill,
                                 width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%',
+                            }}
+                        />
+
+                        {/* 현재 위치 핸들 */}
+                        <div
+                            style={{
+                                ...barHandle,
+                                left: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%',
                             }}
                         />
                     </div>
@@ -249,12 +304,22 @@ export default function NoteEditor() {
                     <button
                         style={secondaryBtn}
                         onClick={() => {
+                            // ▶ 복귀 플래그
+                            sessionStorage.setItem('EDITOR_RETURNING', '1');
+
+                            // ▶ 상태 스냅샷
+                            sessionStorage.setItem(
+                                'EDITOR_STATE_SNAPSHOT',
+                                JSON.stringify({ notes, currentTime, tool })
+                            );
+
+                            // ▶ 테스트 노트 전달
                             sessionStorage.setItem(
                                 'EDITOR_TEST_NOTES',
                                 JSON.stringify(notes)
                             );
 
-                            window.location.href = `/game/play?songId=${songId}&mode=editorTest`;
+                            navigate(`/game/play?songId=${songId}&mode=editorTest`);
                         }}
                     >
                         테스트 플레이
@@ -263,7 +328,7 @@ export default function NoteEditor() {
 
                 <div style={panelSection}>
                     <div style={panelLabel}>Tools</div>
-                    <div style={toolRow}>
+                    <div style={toolGrid}>
                         <button
                             style={{ ...toolBtn, ...(tool === 'tap' ? toolBtnActive : {}) }}
                             onClick={() => setTool('tap')}
@@ -277,17 +342,27 @@ export default function NoteEditor() {
                         >
                             LONG
                         </button>
-                    </div>
-                    <div style={{ height: 10 }} />
-                    <div style={toolRow}>
+
+                        <button
+                            style={{ ...toolBtn, ...(tool === 'select' ? toolBtnActive : {}) }}
+                            onClick={() => setTool('select')}
+                        >
+                            SELECT
+                        </button>
+
                         <button
                             style={{ ...toolBtn, ...(tool === 'delete' ? toolBtnActive : {}) }}
                             onClick={() => setTool('delete')}
                         >
-                            삭제
+                            DELETE
                         </button>
-                        <button style={toolBtn}>스냅</button>
                     </div>
+
+                    <div style={{ height: 10 }} />
+
+                    <button style={{ ...toolBtn, ...snapBtn }}>
+                        GRID
+                    </button>
                 </div>
             </div>
         </div>
@@ -378,7 +453,7 @@ const barTrack = {
     height: 6,
     borderRadius: 4,
     background: 'rgba(255,255,255,0.15)',
-    overflow: 'hidden',
+    overflow: 'visible',
 };
 
 const barFill = { height: '100%', background: 'linear-gradient(90deg,#00ffff,#00ff88)' };
@@ -405,8 +480,6 @@ const secondaryBtn = {
     cursor: 'pointer',
 };
 
-const toolRow = { display: 'flex', gap: 10 };
-
 const toolBtn = {
     flex: 1,
     padding: '10px 0',
@@ -421,4 +494,24 @@ const toolBtnActive = {
     border: '1px solid rgba(0,255,255,0.8)',
     background: 'rgba(0,255,255,0.18)',
     boxShadow: '0 0 10px rgba(0,255,255,0.35)',
+};
+const barHandle = {
+    position: 'absolute',
+    top: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: 10,
+    height: 10,
+    borderRadius: '50%',
+    background: '#00ffff',
+    boxShadow: '0 0 8px rgba(0,255,255,0.8)',
+    pointerEvents: 'none',
+};
+const toolGrid = {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 10,
+};
+const snapBtn = {
+    width: '100%',   // 가로 전체
+    padding: '12px 0', // 다른 버튼보다 약간 두껍게
 };

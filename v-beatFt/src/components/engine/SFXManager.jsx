@@ -61,7 +61,7 @@ function _connectMenuAudioGraph(audioElement) {
 
   // 기존 소스 노드 연결 해제
   if (sourceNode) {
-    try { sourceNode.disconnect(); } catch { }
+    try { sourceNode.disconnect(); } catch {/* ignore */ }
   }
 
   // 새로운 소스 생성 및 분석기 연결
@@ -152,7 +152,7 @@ export function stopMenuBgm() {
 
   // ✅ analyser 연결 정리
   if (sourceNode) {
-    try { sourceNode.disconnect(); } catch { }
+    try { sourceNode.disconnect(); } catch {/* ignore */ }
     sourceNode = null;
   }
 }

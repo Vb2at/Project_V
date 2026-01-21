@@ -88,7 +88,7 @@ export default function JoinForm() {
 
             // 발송 성공 시 포커스 이동
             codeRef.current?.focus();
-        } catch (e) {
+        } catch {
             return raiseError('서버 연결에 실패하였습니다.', emailRef);
         } finally {
             setSendingMail(false);
@@ -108,7 +108,7 @@ export default function JoinForm() {
             if (!data.ok) {
                 raiseError(data.message, passwordRef);
             }
-        } catch (e) {
+        } catch  {
             raiseError('서버 연결에 실패했습니다.', passwordRef);
         }
     };
@@ -141,7 +141,7 @@ export default function JoinForm() {
             setErrorMessage('인증이 완료되었습니다.');
 
             passwordRef.current?.focus();
-        } catch (e) {
+        } catch  {
             setVerified(false);
             return raiseError('서버 연결에 실패하였습니다.', codeRef);
         } finally {
@@ -165,7 +165,7 @@ export default function JoinForm() {
                 setIsSuccessMessage(true); // 성공 메시지는초록
                 setErrorMessage(data.message);
             }
-        } catch (e) {
+        } catch  {
             raiseError('서버 연결에 실패했습니다.', nicknameRef);
         }
     };
@@ -202,7 +202,7 @@ export default function JoinForm() {
             alert('회원가입이 완료되었습니다!');
             // 로그인 페이지 이동
             navigate('/login');
-        } catch (e) {
+        } catch  {
             return raiseError('서버 연결에 실패하였습니다.', nicknameRef);
         }
     };

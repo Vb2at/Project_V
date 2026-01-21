@@ -11,15 +11,17 @@ import Visualizer from '../visualizer/Visualizer';
 import KeyEffectLayer from "./effects/KeyEffectLayer";
 
 export default function GameSession({
-  isPlaying = true,
+  isPlaying = false,
   mode = 'play', // 'play' | 'edit'
   seekTime,
   tool,
   notes = null,
   setNotes = null,
   pushUndo,
+  setSelectedNoteId,
+  selectedNoteId,
   songId: propSongId,
-  analyserRef, onState, paused, bgmVolume, sfxVolume, onReady, onFinish
+  analyserRef, onState, paused = false, bgmVolume, sfxVolume, onReady, onFinish
 }) {
   const isEditorTest =
     new URLSearchParams(window.location.search).get('mode') === 'editorTest';
@@ -43,6 +45,8 @@ export default function GameSession({
   const usedNotes = Array.isArray(notes) ? notes : internalNotes;
   const usedSetNotes = setNotes ?? setInternalNotes;
   const [isInLaneArea, setIsInLaneArea] = useState(false);
+  const draggingNoteRef = useRef(null);
+  const effectivePaused = mode === 'edit' ? !isPlaying : paused;
 
   const getLaneCount = () =>
     GAME_CONFIG.LANE?.COUNT ?? GAME_CONFIG.KEY?.COUNT ?? 7;
@@ -60,8 +64,8 @@ export default function GameSession({
     if (combo >= 20) return 2;
     return 1;
   };
+
   useEffect(() => {
-    if (mode === 'edit') return;
     if (seekTime == null) return;
 
     setCurrentTime(seekTime);
@@ -87,7 +91,7 @@ export default function GameSession({
           : { ...n, hit: false };
       })
     );
-  }, [seekTime, usedSetNotes, mode]);
+  }, [seekTime, paused, usedSetNotes]);
 
   useEffect(() => {
     comboRef.current = combo;
@@ -106,6 +110,7 @@ export default function GameSession({
     if (!audioRef.current) return;
     if (!Number.isFinite(bgmVolume)) return;
 
+    // eslint-disable-next-line react-hooks/immutability
     audioRef.current.volume = bgmVolume;
   }, [bgmVolume, mode]);
 
@@ -217,6 +222,7 @@ export default function GameSession({
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability
     maxScoreRef.current = Math.max(1, calcMaxScore(usedNotes));
   }, [usedNotes, calcMaxScore]);
 
@@ -229,6 +235,7 @@ export default function GameSession({
     if (!audio || !audioUrl) return;
 
     readyCalledRef.current = false;
+     // eslint-disable-next-line react-hooks/immutability
     finishedRef.current = false;
 
     const handleReady = () => {
@@ -248,46 +255,53 @@ export default function GameSession({
         gameOver: false,
       });
     };
-
+     // eslint-disable-next-line react-hooks/immutability
     audio.src = audioUrl;
     audio.currentTime = 0;
 
-    // WebAudio Analyser 연결 (1회)
     if (!audioCtxRef.current) {
-      const ctx = new AudioContext();
-      const source = ctx.createMediaElementSource(audio);
-      const analyser = ctx.createAnalyser();
-      if (analyserRef) {
-        analyserRef.current = analyser; // ✅ 있을 때만 연결
-      }
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      analyser.connect(ctx.destination);
+      try {
+        const ctx = new AudioContext();
+        const source = ctx.createMediaElementSource(audio);
+        const analyser = ctx.createAnalyser();
 
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        analyser.connect(ctx.destination);
 
-      audioCtxRef.current = ctx;
-      if (analyserRef) {
-        analyserRef.current = analyser;
-      }
-
-      dataArrayRef.current = dataArray;
+        audioCtxRef.current = ctx;
+        if (analyserRef) analyserRef.current = analyser;
+        dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+      } catch { /* ignore */}
     }
 
     audio.addEventListener('canplay', handleReady, { once: true });
     audio.addEventListener('ended', handleEnded);
 
-    if (isPlaying && !paused) {
-      const p = audio.play();
-      if (p && typeof p.catch === 'function') p.catch(() => { });
-    }
-
     return () => {
       audio.removeEventListener('canplay', handleReady);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [audioUrl, analyserRef, isPlaying, mode, paused]);
+  }, [audioUrl, analyserRef]); // ✅ paused/mode 제거
+
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (effectivePaused) {
+      audio.pause();
+      return;
+    }
+
+    if (audioCtxRef.current?.state === 'suspended') {
+      audioCtxRef.current.resume().catch(() => { });
+    }
+
+    if (audio.paused) {
+      audio.play().catch(() => { });
+    }
+  }, [effectivePaused, audioUrl]);
 
   useEffect(() => {
     if (mode === 'edit') return;
@@ -301,13 +315,17 @@ export default function GameSession({
     if (!Array.isArray(list)) return [];
 
     return list.map((n) => {
-      const tSec = Number(n.time ?? n.noteTime ?? n.note_time ?? n.timing ?? 0);
+      // ✅ time/noteTime/note_time 이 있으면 "초", 없으면 timing은 "ms"로 간주
+      const hasSecTime = n.time != null || n.noteTime != null || n.note_time != null;
+
+      const tRaw = Number(hasSecTime ? (n.time ?? n.noteTime ?? n.note_time ?? 0) : (n.timing ?? 0));
       const lane = Number(n.lane ?? n.laneIndex ?? n.key ?? 0);
       const type = (n.type ?? n.noteType ?? 'tap') === 'long' ? 'long' : 'tap';
 
-      const startMs = Math.round(tSec * 1000);
-      const endSec = n.endTime ?? n.end_time ?? n.end ?? null;
-      const endMs = endSec != null ? Math.round(Number(endSec) * 1000) : undefined;
+      const startMs = Math.round(hasSecTime ? (tRaw * 1000) : tRaw);
+
+      const endRaw = n.endTime ?? n.end_time ?? n.end ?? null;
+      const endMs = endRaw != null ? Math.round(Number(hasSecTime ? (Number(endRaw) * 1000) : Number(endRaw))) : undefined;
 
       if (type === 'long') {
         return {
@@ -323,6 +341,7 @@ export default function GameSession({
     });
   };
 
+
   const resetGame = () => {
     setScore(0);
     setCombo(0);
@@ -333,11 +352,12 @@ export default function GameSession({
 
     if (audioRef.current) {
       audioRef.current.pause();
+      // eslint-disable-next-line react-hooks/immutability
       audioRef.current.currentTime = 0;
     }
   };
 
-  const loadSongById = async (sidRaw) => {
+  const loadSongById = useCallback(async (sidRaw) => {
     const sid = String(sidRaw).trim();
     if (!sid) return false;
 
@@ -352,10 +372,8 @@ export default function GameSession({
       }
     }
 
-    // 오디오 URL 세팅
     setAudioUrl(`${API_BASE}/api/songs/${sid}/audio`);
 
-    // 노트 로드
     const notesRes = await fetch(`${API_BASE}/api/songs/${sid}/notes`);
     if (!notesRes.ok) return false;
 
@@ -366,7 +384,7 @@ export default function GameSession({
     resetGame();
     usedSetNotes(mapped);
     return true;
-  };
+  }, [API_BASE, isEditorTest, usedSetNotes]);
 
   // 주소창 songId/diff가 바뀌면 자동으로 로드되게(popstate 대응)
   useEffect(() => {
@@ -382,38 +400,40 @@ export default function GameSession({
 
   // songId가 바뀌면 노트/오디오 자동 로드
   useEffect(() => {
+    if (mode === 'edit') {
+      resetGame();
+      setAudioUrl(`${API_BASE}/api/songs/${songId}/audio`);
+      return;
+    }
     loadSongById(songId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songId]);
+  }, [API_BASE, songId, mode, loadSongById]);
 
   useEffect(() => {
+    if (effectivePaused || finishedRef.current) return;
+
     const interval = setInterval(() => {
-      if (!isPlaying) return;
-      if (paused || finishedRef.current) return;
+      if (effectivePaused) return;
 
-      setCurrentTime((prev) => {
-        const newTime = prev + 16;
-        currentTimeRef.current = newTime;
-        usedSetNotes((prevNotes) =>
-          prevNotes.map((note) => {
-            if (note.type === 'long' && note.holding && newTime > note.endTime) {
-              setEffects((prevEffects) =>
-                prevEffects.filter(
-                  (e) => !(e.type === 'long' && e.noteId === `${note.timing}-${note.lane}`)
-                )
-              );
-              return { ...note, holding: false, released: true };
-            }
-            return note;
-          })
-        );
+      const audio = audioRef.current;
+      if (!audio) return;
 
-        return newTime;
-      });
+      const newTime = audio.currentTime * 1000;
+      currentTimeRef.current = newTime;
+      setCurrentTime(newTime);
+
+      usedSetNotes((prevNotes) =>
+        prevNotes.map((note) => {
+          if (note.type === 'long' && note.holding && currentTimeRef.current > note.endTime) {
+            return { ...note, holding: false, released: true };
+          }
+          return note;
+        })
+      );
     }, 16);
 
     return () => clearInterval(interval);
-  }, [paused, isPlaying, mode, usedSetNotes]);
+  }, [effectivePaused, usedSetNotes]);
+
 
   useEffect(() => {
     if (mode === 'edit') return;
@@ -473,7 +493,7 @@ export default function GameSession({
   }, [paused, mode, usedSetNotes]);
 
   useEffect(() => {
-    if (mode === 'edit' && !isPlaying) return;
+    if (mode === 'edit') return;
     const interval = setInterval(() => {
       if (paused) return;
       const holdingNotes = notesRef.current.filter((n) => n.holding && !n.released);
@@ -493,7 +513,7 @@ export default function GameSession({
     }, 100);
 
     return () => clearInterval(interval);
-  }, [paused, mode]);
+  }, [paused, mode, isPlaying]);
 
   useEffect(() => {
     if (mode === 'edit') return;
@@ -501,7 +521,7 @@ export default function GameSession({
       if (paused) return;
 
       //첫 입력 때 오디오 재생 보장(자동재생 막힘 대응)
-      if (audioRef.current && audioRef.current.paused) {
+      if (!paused && audioRef.current && audioRef.current.paused) {
         audioRef.current.play().catch(() => { });
       }
 
@@ -629,19 +649,6 @@ export default function GameSession({
     return () => ih.destroy();
   }, [pressedKeys, paused, sfxVolume, mode, usedSetNotes]);
 
-  useEffect(() => {
-
-    if (mode === 'edit') return;
-
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (paused) {
-      audio.pause();
-    } else if (audio.paused) {
-      audio.play().catch(() => { });
-    }
-  }, [paused, mode]);
   const SCALE = 0.8;
 
   // 1. 좌표 및 타이밍 계산 통합 함수
@@ -723,10 +730,37 @@ export default function GameSession({
 
     const { lane, timing } = getGameCoords(e.clientX, e.clientY);
 
+    // ===== 1) 노트 선택 우선 처리 =====
+    // 레인 밖 클릭이면 선택 해제만 하고 종료
     if (lane < 0 || lane >= getLaneCount()) {
+      setSelectedNoteId?.(null);
       console.log("중단: 레인 범위를 벗어났습니다.");
       return;
     }
+
+    const HIT_RANGE = 80; // 선택 판정 범위(ms)
+
+    // lane 동일 + timing 근접 노트 탐색 (tap/long 모두 timing 기준)
+    let picked = null;
+    let best = HIT_RANGE + 1;
+    for (const n of (notesRef.current ?? [])) {
+      if (n.lane !== lane) continue;
+      const d = Math.abs((n.timing ?? 0) - timing);
+      if (d <= HIT_RANGE && d < best) {
+        best = d;
+        picked = n;
+      }
+    }
+
+    if (picked) {
+      setSelectedNoteId?.(`${picked.timing}-${picked.lane}`);
+      draggingNoteRef.current = picked;   // ✅ 드래그 대상 설정
+      return;
+    } else {
+      setSelectedNoteId?.(null);
+      draggingNoteRef.current = null;
+    }
+    // ===============================
 
     if (tool === 'delete') {
       pushUndo(notesRef.current); // ✅ 먼저 undo 저장
@@ -738,10 +772,6 @@ export default function GameSession({
       pushUndo(notesRef.current);
 
       const HIT_Y = GAME_CONFIG.CANVAS.HIT_LINE_Y;
-
-      // 화면 맨 위에서부터 내려오기 시작하도록 보정
-      const spawnOffset = (HIT_Y - 0) / speed; // top 기준
-      const spawnTiming = timing - spawnOffset;
 
       usedSetNotes((prev) => [
         ...prev,
@@ -757,11 +787,24 @@ export default function GameSession({
 
   const handleMouseMove = (e) => {
     if (mode !== 'edit') return;
+
+    // ===== SELECT DRAG MOVE =====
+    if (tool === 'select' && draggingNoteRef.current) {
+      const { timing } = getGameCoords(e.clientX, e.clientY);
+      const target = draggingNoteRef.current;
+
+      usedSetNotes(prev =>
+        prev.map(n =>
+          n === target ? { ...n, timing } : n
+        )
+      );
+      return;
+    }
+
+    // ===== 커서 영역 판정 =====
     const { lane } = getGameCoords(e.clientX, e.clientY);
     setIsInLaneArea(lane >= 0 && lane < getLaneCount());
   };
-
-
   // 3. 에디터 드래그 핸들러 (롱노트 생성)
   const handleEditorMouseDown = (e) => {
     if (mode !== 'edit' || tool !== 'long' || e.button !== 0) return;
@@ -777,6 +820,7 @@ export default function GameSession({
     const { timing: tEndRaw } = getGameCoords(e.clientX, e.clientY);
     const { lane, timing: tStartRaw } = dragStartRef.current;
     dragStartRef.current = null;
+    draggingNoteRef.current = null;
 
     const MIN_PREVIEW_MS = 400;
 
@@ -790,8 +834,6 @@ export default function GameSession({
     pushUndo(notesRef.current);
 
     const HIT_Y = GAME_CONFIG.CANVAS.HIT_LINE_Y;
-    const spawnOffset = (HIT_Y - 0) / speed;
-
 
     const start = Math.min(tStart, tEnd);
     const end = Math.max(tStart, tEnd);
@@ -848,18 +890,26 @@ export default function GameSession({
         }}
       >
         <GameCanvas
-          notes={(usedNotes ?? []).filter((n) => {
-            if (n.type === 'long') {
-              return currentTime < (n.endTime || n.timing) + 2000;
-            }
-            return !n.hit || currentTime < n.timing + 500;
-          })}
+          notes={
+            mode === 'edit'
+              ? (usedNotes ?? [])
+              : (usedNotes ?? []).filter((n) => {
+                if (n.type === 'long') {
+                  return currentTime < (n.endTime || n.timing) + 2000;
+                }
+                return !n.hit || currentTime < n.timing + 500;
+              })
+          }
           currentTime={currentTime}
           pressedKeys={pressedKeys}
         />
 
-        <PixiNotes notes={usedNotes ?? []} currentTime={currentTime} speed={speed} />
-        {mode === 'play' && (
+        <PixiNotes
+          notes={usedNotes ?? []}
+          currentTime={currentTime}
+          speed={speed}
+          selectedNoteId={selectedNoteId}
+        />        {mode === 'play' && (
           <>
             <KeyEffectLayer pressedKeys={pressedKeys} />
             <PixiEffects effects={effects} />

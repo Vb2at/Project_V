@@ -62,7 +62,6 @@ export default function UserReportModal({
     const [desc, setDesc] = useState('');
     console.log('targetProfileImg:', targetProfileImg);
 
-
     if (!open) return null;
 
     function handleSubmit() {
@@ -79,13 +78,13 @@ export default function UserReportModal({
         const sub = reason || mainReason;
 
         // reasonCode 생성 (공백/슬래시 같은거 안전하게)
-        const norm = (s) => String(s).trim().replace(/\s+/g, '_').replace(/[\/]/g, '_');
+        const norm = (s) => String(s).trim().replace(/\s+/g, '_').replace(/[/]/g, '_');
         const reasonCode = `${norm(mainReason)}_${norm(sub)}`;
 
         onSubmit?.({
             targetType,
             targetId,
-            reasonCode,                
+            reasonCode,
             description: desc,
         });
 

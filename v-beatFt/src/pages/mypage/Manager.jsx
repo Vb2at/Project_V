@@ -36,11 +36,10 @@ export default function Manager() {
         { id: 1, title: 'Neon Rush', uploader: 'user123', status: 'PENDING' },
         { id: 2, title: 'Night Drive', uploader: 'toxicGuy', status: 'PENDING' },
     ]);
+    // eslint-disable-next-line no-unused-vars
     const [report, setReport] = useState([]);
-    const [active, setActive] = useState('PENDING');
 
     async function handleAction(reportId, actionType, actionReason) {
-        await adminActionApi(reportId, { actionType, actionReason});
         const nextStatus = actionType === 'IGNORE' ? 'REJECTED' : 'RESOLVED';
 
         setReport(prev =>

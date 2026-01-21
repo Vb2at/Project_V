@@ -10,17 +10,19 @@ const longPool = [];
 const longOutlinePool = [];
 const longFadeStartMap = new Map(); // noteId → fade 시작 시점
 
-export default function PixiNotes({ notes, currentTime, speed, onReady }) {
-    const containerRef = useRef(null);
+export default function PixiNotes({ notes, currentTime, speed, selectedNoteId, onReady }) {
     const appRef = useRef(null);
     const readyRef = useRef(false);
     const speedRef = useRef(speed);
     const onReadyRef = useRef(onReady);
-
+    const containerRef = useRef(null);
     const notesRef = useRef(notes);
     const timeRef = useRef(currentTime);
+    const selectedRef = useRef(selectedNoteId);
+
     useEffect(() => { notesRef.current = notes; }, [notes]);
     useEffect(() => { timeRef.current = currentTime; }, [currentTime]);
+    useEffect(() => { selectedRef.current = selectedNoteId; }, [selectedNoteId]);
     useEffect(() => {
         speedRef.current = speed;
     }, [speed]);
@@ -61,7 +63,7 @@ export default function PixiNotes({ notes, currentTime, speed, onReady }) {
             tickerFn = () => {
                 const nowNotes = notesRef.current || [];
                 const nowTime = timeRef.current;
-                syncNotes(app.stage, textures, nowNotes, nowTime, speedRef.current);
+                syncNotes(app.stage, textures, nowNotes, nowTime, speedRef.current, selectedRef.current);
             };
 
             app.ticker.add(tickerFn);
@@ -102,7 +104,7 @@ export default function PixiNotes({ notes, currentTime, speed, onReady }) {
     );
 }
 
-function syncNotes(stage, textures, notes, currentTime, speed) {
+function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
     const sprites = spritesRefSingleton;
     const { NOTE_HEIGHT, HIT_LINE_Y, HEIGHT: CANVAS_HEIGHT } = GAME_CONFIG.CANVAS;
     const SPEED = speed;
@@ -136,6 +138,7 @@ function syncNotes(stage, textures, notes, currentTime, speed) {
             let index = 0;
 
             const noteId = `${note.timing}-${note.lane}`;
+            const isSelected = selectedNoteId === noteId;
 
             // holding 시작 시점 기록
             if (note.holding && !longFadeStartMap.has(noteId)) {
@@ -228,11 +231,12 @@ function syncNotes(stage, textures, notes, currentTime, speed) {
                 buffer.update();
 
                 if (!sprite.__tinted) {
-                    sprite.tint = 0xff0059;
+                    sprite.tint = isSelected ? 0x00ffff : 0xff0059;
                     sprite.__tinted = true;
-                }  // 
+                }
+                sprite.tint = isSelected ? 0x00ffff : 0xff0059;
                 const baseAlpha = note.holding ? 0.9 : 0.8;
-                sprite.alpha = baseAlpha * fadeAlpha;
+                sprite.alpha = (isSelected ? 1.0 : baseAlpha) * fadeAlpha;
                 //완전히 투명해진 세그먼트는 즉시 제거
                 if (fadeStartTime != null && fadeAlpha <= 0.02) {
                     releaseSprite(sprite);
@@ -303,6 +307,7 @@ function syncNotes(stage, textures, notes, currentTime, speed) {
 
         const id = `${note.timing}-${note.lane}`;
         visibleIds.add(id);
+        const isSelected = selectedNoteId === id;
 
         let sprite = sprites.get(id);
         if (!sprite) {
@@ -335,7 +340,10 @@ function syncNotes(stage, textures, notes, currentTime, speed) {
         verts[6] = brx; verts[7] = y + halfH;
         buffer.update();
 
-        sprite.alpha = 1.0;
+        sprite.tint = isSelected ? 0xffe600 : 0xffffff; // 노란 형광
+        sprite.alpha = isSelected ? 1.0 : 0.85;
+        const s = isSelected ? 1.18 : 1.0;
+        sprite.scale.set(s, s);
     });
 
     sprites.forEach((sprite, id) => {

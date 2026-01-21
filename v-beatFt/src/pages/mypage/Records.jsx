@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/client';
 
-export default function record() {
+export default function Record() {
   const [record, setRecord] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -11,7 +11,7 @@ export default function record() {
       try {
         const res = await api.get('/api/scores/record');
         setRecord(Array.isArray(res.data) ? res.data : []);
-      } catch(e) {
+      } catch {
         setRecord([]);
       } finally {
         setLoading(false);

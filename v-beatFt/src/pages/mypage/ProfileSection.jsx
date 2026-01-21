@@ -19,7 +19,7 @@ export default function ProfileSection({ myInfo, status }) {
   const joinAt = myInfo?.regDate
     ? new Date(myInfo.regDate).toLocaleDateString()
     : '-';
-  
+
   const providerMap = { 0: 'LOCAL', 1: 'KAKAO', 2: 'GOOGLE' };
   const provider = providerMap[myInfo?.loginType] ?? 'LOCAL';
 
@@ -35,81 +35,80 @@ export default function ProfileSection({ myInfo, status }) {
   }, [originNick]);
 
   async function saveProfile() {
-  try {
-    const file = fileRef.current?.files?.[0];
-    const nickChanged = nickname !== originNick;
+    try {
+      const file = fileRef.current?.files?.[0];
+      const nickChanged = nickname !== originNick;
 
-    // 이미지 업로드
-    if (file) {
-      const form = new FormData();
-      form.append('profileImg', file);
+      // 이미지 업로드
+      if (file) {
+        const form = new FormData();
+        form.append('profileImg', file);
 
-      const imgRes = await fetch('/api/user/uploadProfile', {
-        method: 'POST',
-        body: form,
-        credentials: 'include',
-      });
+        const imgRes = await fetch('/api/user/uploadProfile', {
+          method: 'POST',
+          body: form,
+          credentials: 'include',
+        });
 
-      const imgData = await imgRes.json();
-      console.log('uploadProfile response:', imgData); // ✅ 이거 찍어
+        const imgData = await imgRes.json();
+        console.log('uploadProfile response:', imgData); // ✅ 이거 찍어
 
-      if (!imgData.ok) {
-        alert(imgData.message || '프로필 이미지 업로드 실패');
-        return;
+        if (!imgData.ok) {
+          alert(imgData.message || '프로필 이미지 업로드 실패');
+          return;
+        }
+
+        const path =
+          imgData.profileImg || imgData.fileName || imgData.result || imgData.path;
+
+        if (!path) {
+          alert('서버가 이미지 경로를 안 내려줌 (응답 확인 필요)');
+          return;
+        }
+
+        // ✅ 캐시 무시
+        setPreview(`http://localhost:8080/upload/${path}?t=${Date.now()}`);
       }
 
-      const path =
-        imgData.profileImg || imgData.fileName || imgData.result || imgData.path;
+      // 닉네임 변경
+      if (nickChanged) {
+        const res = await fetch('/api/user/change-nickname', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ nickName: nickname.trim() }),
+        });
 
-      if (!path) {
-        alert('서버가 이미지 경로를 안 내려줌 (응답 확인 필요)');
-        return;
+        const data = await res.json();
+
+        if (!data.ok) {
+          alert(data.message || '닉네임 변경 실패');
+          return;
+        }
       }
 
-      // ✅ 캐시 무시
-      setPreview(`http://localhost:8080/upload/${path}?t=${Date.now()}`);
-    }
-
-    // 닉네임 변경
-    if (nickChanged) {
-      const res = await fetch('/api/user/change-nickname', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ nickName: nickname.trim() }),
-      });
-
-      const data = await res.json();
-
-      if (!data.ok) {
-        alert(data.message || '닉네임 변경 실패');
-        return;
+      if (file || nickChanged) {
+        window.dispatchEvent(new Event('profile-updated'));
+        alert('프로필 저장 완료');
+      } else {
+        alert('변경된 내용이 없습니다.');
       }
+    } catch {
+      alert('프로필 저장 실패');
     }
-
-    if (file || nickChanged) {
-      window.dispatchEvent(new Event('profile-updated'));
-      alert('프로필 저장 완료');
-    } else {
-      alert('변경된 내용이 없습니다.');
-    }
-  } catch (e) {
-    console.error(e);
-    alert('프로필 저장 실패');
   }
-}
 
 
   async function changePassword() {
-    if(!currentPw) {
+    if (!currentPw) {
       setMessage('현재 비밀번호를 입력해주세요.');
       return;
     }
-    if(!newPw) {
+    if (!newPw) {
       setMessage('새 비밀번호를 입력해주세요.');
       return;
     }
-    if(!newPw2) {
+    if (!newPw2) {
       setMessage('새 비밀번호 확인을 입력해주세요.');
       return;
     }
@@ -136,7 +135,7 @@ export default function ProfileSection({ myInfo, status }) {
       setCurrentPw('');
       setNewPw('');
       setNewPw2('');
-    } catch (e) {
+    } catch {
       setMessage('비밀번호 변경에 실패했습니다');
     }
   }
@@ -170,7 +169,7 @@ export default function ProfileSection({ myInfo, status }) {
           </div>
 
           {/* nickname */}
-          <div style={{ width: 380}}>
+          <div style={{ width: 380 }}>
             <div style={title}>닉네임</div>
             <input
               value={nickname}
@@ -276,7 +275,7 @@ const profileRow = {
   display: 'flex',
   gap: 28,
   alignItems: 'flex-start',
-  justifyContent: 'center', 
+  justifyContent: 'center',
 };
 
 const cardFooterCenter = {

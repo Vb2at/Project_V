@@ -429,7 +429,7 @@ function GamePlay() {
                   const isEditorTest = params.get('mode') === 'editorTest';
 
                   if (isEditorTest) {
-                    navigate(-1);   // 에디터로 복귀
+                    navigate(`/song/${songId}/note/edit?mode=editorTest`, { replace: true });
                   } else {
                     navigate('/main');
                   }
@@ -501,8 +501,7 @@ function GamePlay() {
             const isEditorTest = params.get('mode') === 'editorTest';
 
             if (isEditorTest) {
-              // ✅ 테스트 플레이면 Result 안 가고 에디터로 복귀
-              navigate(`/game/play?songId=${songId}&mode=editorTest`);
+              navigate(`/song/${songId}/note/edit?mode=editorTest`, { replace: true });
               return;
             }
 

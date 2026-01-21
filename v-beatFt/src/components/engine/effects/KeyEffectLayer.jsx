@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { Application, Mesh, Geometry, Texture } from 'pixi.js';
 import { GAME_CONFIG } from '../../../constants/GameConfig';
 import { applyPerspectiveX } from "../notes/perspective";
@@ -39,7 +39,45 @@ export default function KeyEffectLayer({ pressedKeys, onReady }) {
     const lastKeysRef = useRef(new Set());
     const pressedKeysRef = useRef(new Set());
     const effectsRef = useRef([]); // { mesh, bornAt, baseX, laneWidth }
+    const spawnKeyBeam = useCallback((app, lane, now) => {
+        const baseX = getLaneCenterX(lane);
+        const y = GAME_CONFIG.CANVAS.HIT_LINE_Y + (HIT_Y_OFFSET ?? 0);
+        const laneWidth = GAME_CONFIG.LANE_WIDTHS[lane];
 
+        const left = baseX - laneWidth / 2;
+        const right = baseX + laneWidth / 2;
+
+        // 초기 높이 (짧게)
+        const topY = y - BEAM_HEIGHT * START_SCALE_Y;
+
+        // 사다리꼴 4점에 원근 적용
+        const xLT = applyPerspectiveX(left, topY);
+        const xRT = applyPerspectiveX(right, topY);
+        const xRB = applyPerspectiveX(right, y);
+        const xLB = applyPerspectiveX(left, y);
+
+        // Mesh Geometry 생성
+        const geometry = new Geometry({
+            attributes: {
+                aPosition: [xLT, topY, xRT, topY, xRB, y, xLB, y],
+                aUV: [0, 0, 1, 0, 1, 1, 0, 1],
+            },
+            indexBuffer: [0, 1, 2, 0, 2, 3],
+        });
+
+        const mesh = new Mesh({ geometry, texture: beamTexture });
+        mesh.blendMode = 'add';
+        mesh.alpha = MAX_ALPHA;
+
+        app.stage.addChild(mesh);
+
+        effectsRef.current.push({
+            mesh,
+            bornAt: now,
+            baseX,
+            laneWidth,
+        });
+    }, []);
     useEffect(() => {
         pressedKeysRef.current = pressedKeys ?? new Set();
     }, [pressedKeys]);
@@ -58,7 +96,7 @@ export default function KeyEffectLayer({ pressedKeys, onReady }) {
             });
 
             if (!mounted) {
-                try { app.destroy(true); } catch { }
+                try { app.destroy(true); } catch {/* ignore */ }
                 return;
             }
 
@@ -140,11 +178,11 @@ export default function KeyEffectLayer({ pressedKeys, onReady }) {
             const app = appRef.current;
 
             if (app && tickerFn) {
-                try { app.ticker.remove(tickerFn); } catch { }
+                try { app.ticker.remove(tickerFn); } catch {/* ignore */ }
             }
 
             effectsRef.current.forEach(e => {
-                try { e.mesh.destroy(); } catch { }
+                try { e.mesh.destroy(); } catch {/* ignore */ }
             });
             effectsRef.current = [];
 
@@ -152,13 +190,12 @@ export default function KeyEffectLayer({ pressedKeys, onReady }) {
                 try {
                     app.stage.removeChildren();
                     app.destroy(true);
-                } catch { }
+                } catch {/* ignore */ }
             }
 
             appRef.current = null;
-            if (containerRef.current) containerRef.current.innerHTML = '';
         };
-    }, []);
+    }, [onReady, spawnKeyBeam]);
 
     return (
         <div
@@ -178,46 +215,6 @@ export default function KeyEffectLayer({ pressedKeys, onReady }) {
     /* =========================
        빔 생성
        ========================= */
-
-    function spawnKeyBeam(app, lane, now) {
-        const baseX = getLaneCenterX(lane);
-        const y = GAME_CONFIG.CANVAS.HIT_LINE_Y + (HIT_Y_OFFSET ?? 0);
-        const laneWidth = GAME_CONFIG.LANE_WIDTHS[lane];
-
-        const left = baseX - laneWidth / 2;
-        const right = baseX + laneWidth / 2;
-
-        // 초기 높이 (짧게)
-        const topY = y - BEAM_HEIGHT * START_SCALE_Y;
-
-        // 사다리꼴 4점에 원근 적용
-        const xLT = applyPerspectiveX(left, topY);
-        const xRT = applyPerspectiveX(right, topY);
-        const xRB = applyPerspectiveX(right, y);
-        const xLB = applyPerspectiveX(left, y);
-
-        // Mesh Geometry 생성
-        const geometry = new Geometry({
-            attributes: {
-                aPosition: [xLT, topY, xRT, topY, xRB, y, xLB, y],
-                aUV: [0, 0, 1, 0, 1, 1, 0, 1],
-            },
-            indexBuffer: [0, 1, 2, 0, 2, 3],
-        });
-
-        const mesh = new Mesh({ geometry, texture: beamTexture });
-        mesh.blendMode = 'add';
-        mesh.alpha = MAX_ALPHA;
-
-        app.stage.addChild(mesh);
-
-        effectsRef.current.push({
-            mesh,
-            bornAt: now,
-            baseX,
-            laneWidth,
-        });
-    }
 
     function getLaneCenterX(lane) {
         const widths = GAME_CONFIG.LANE_WIDTHS;

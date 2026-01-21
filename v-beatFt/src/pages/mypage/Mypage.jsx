@@ -105,7 +105,9 @@ export default function MyPage() {
         });
         const data = await res.json();
         if (data?.ok) setStatus(data);
-      } catch {}
+      } catch (e) {
+        console.error('[LOGIN STATUS] fetch failed', e);
+      }
     })();
   }, []);
 
@@ -132,7 +134,6 @@ export default function MyPage() {
   // ✅ 첫 진입 시 unread-count 한번 동기화
   useEffect(() => {
     syncUnread();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ✅ STOMP 알림 구독: /user/queue/notify
@@ -143,7 +144,7 @@ export default function MyPage() {
     const client = new Client({
       webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
       reconnectDelay: 3000,
-      debug: () => {},
+      debug: () => { },
 
       onConnect: () => {
         console.log('[NOTIFY] STOMP connected');
@@ -199,14 +200,12 @@ export default function MyPage() {
         notifyClientRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myInfo]);
 
   // ✅ messages 탭 들어갈 때도 한번 DB 기준 동기화(추천)
   useEffect(() => {
     if (tab !== 'messages') return;
     syncUnread();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
   if (!myInfo) return null;

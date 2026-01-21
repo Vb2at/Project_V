@@ -98,7 +98,7 @@ export default function SongEditor() {
             );
 
             alert('저장 완료!');
-            navigate(-1);
+            navigate('/main', { replace: true });
 
         } catch (e) {
             console.error(e);

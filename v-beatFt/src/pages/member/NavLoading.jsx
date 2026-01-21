@@ -28,7 +28,7 @@ export default function NavLoading() {
         }
 
         navigate(target, { replace: true });
-      } catch (e) {
+      } catch {
         navigate('/login', { replace: true });
       }
     };

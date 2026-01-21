@@ -1,6 +1,6 @@
 // pages/mypage/Policy.jsx
 import { useState } from 'react';
-import { TERMS } from '../../pages/auth/TermsText'; 
+import { TERMS } from '../../pages/auth/TermsText';
 import { deleteAccountApi } from '../../api/auth';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,16 +9,16 @@ export default function Policy() {
   const navigate = useNavigate();
 
   const handleDelete = async () => {
-    if(!agree) return;
+    if (!agree) return;
 
     const ok = window.confirm('정말 회원 탈퇴하시겠습니까?\n탈퇴 후 복구할 수 없습니다.');
-    if(!ok) return;
+    if (!ok) return;
 
     try {
       const res = await deleteAccountApi();
       const data = res.data;
 
-      if(!data?.ok) {
+      if (!data?.ok) {
         alert(data?.message ?? '회원탈퇴에 실패했습니다.');
         return;
       }
@@ -27,7 +27,8 @@ export default function Policy() {
       //서버에서 session.invalidate() -> 프론트도 초기화
       navigate('/login', { replace: true });
       window.location.reload();
-    } catch(e) {
+    } catch (e) {
+      console.error('[DELETE ACCOUNT] failed', e);
       alert('오류가 발생했습니다.');
     }
   }
@@ -65,7 +66,7 @@ export default function Policy() {
               opacity: agree ? 1 : 0.4,
               cursor: agree ? 'pointer' : 'not-allowed',
             }}
-            onClick= {handleDelete}
+            onClick={handleDelete}
           >
             회원 탈퇴
           </button>

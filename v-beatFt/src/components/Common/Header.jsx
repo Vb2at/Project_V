@@ -53,11 +53,6 @@ export default function Header() {
     messages: false, // ✅ 테스트용 true 제거
   });
 
-  const profilePath = status?.loginUser?.profileImg;
-  const profileUrl = profilePath
-    ? `http://localhost:8080/upload/${profilePath}?t=${Date.now()}`
-    : null;
-
   // ✅ 로그인 상태 확인 (처음 1회)
   useEffect(() => {
     let alive = true;
@@ -78,7 +73,7 @@ export default function Header() {
             loginUserNickName: res.data.loginUserNickName,
           });
         }
-      } catch (e) {
+      } catch  {
         if (alive) setStatus(null);
       } finally {
         if (alive) setStatusLoading(false);

@@ -29,7 +29,6 @@ export default function SongUpload() {
 
     /* ===== form state ===== */
     const [title, setTitle] = useState('');
-    const [artist, setArtist] = useState('');
     const [visibility, setVisibility] = useState('PRIVATE');
     const [coverFile, setCoverFile] = useState(null);
     const [audioFile, setAudioFile] = useState(null);
@@ -208,6 +207,7 @@ export default function SongUpload() {
                             <input
                                 type="file"
                                 accept="audio/*"
+                                style={{ color: 'transparent' }}
                                 onChange={(e) => {
                                     const file = e.target.files[0];
                                     setAudioFile(file);
@@ -215,7 +215,6 @@ export default function SongUpload() {
                                     if (file) {
                                         const name = file.name.replace(/\.[^/.]+$/, '');
                                         setTitle(name);
-                                        setArtist('Unknown');
                                     }
                                 }} />
                         </label>

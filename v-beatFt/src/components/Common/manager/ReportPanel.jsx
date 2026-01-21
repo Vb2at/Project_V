@@ -15,7 +15,7 @@ export default function ReportPanel({ onAction }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
-  const applyLocalMove = (reportId, actionType) => {
+  const applyLocalMove = (reportId) => {
     setReports(prev => prev.filter(r => r.id !== reportId));
   };
 
@@ -49,7 +49,8 @@ export default function ReportPanel({ onAction }) {
 
   useEffect(() => {
     loadReports();
-  }, [status]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status,]);
 
   useEffect(() => {
     setSelected(null);
@@ -113,7 +114,7 @@ export default function ReportPanel({ onAction }) {
             </div>
 
             <div style={{ fontSize: 12, opacity: 0.5 }}>
-              {r.regDate ?.replace('T', ' ') }
+              {r.regDate?.replace('T', ' ')}
             </div>
           </div>
         ))}

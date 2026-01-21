@@ -4,18 +4,12 @@ export default function LeftSidebar({ songId, diff }) {
   const HEADER_HEIGHT = 64;
 
   const [song, setSong] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!!songId);
 
   useEffect(() => {
-
-    if (!songId) {
-      setSong(null);
-      setLoading(false);
-      return;
-    }
+    if (!songId) return;
 
     let alive = true;
-    setLoading(true);
 
     fetch(`/api/songs/${songId}`)
       .then((res) => {
@@ -40,6 +34,7 @@ export default function LeftSidebar({ songId, diff }) {
       alive = false;
     };
   }, [songId]);
+
 
   //.mp3 제거
   const stripMP3 = (name) => (name ? name.replace(/\.mp3$/i, '') : '');
@@ -86,8 +81,8 @@ export default function LeftSidebar({ songId, diff }) {
         )}
       </div>
 
-      <div style={{ fontSize: '14px', fontWeight: 400, marginTop: '5px'}}>
-        {song?.artist || "UNKNOWN ARTIST"} 
+      <div style={{ fontSize: '14px', fontWeight: 400, marginTop: '5px' }}>
+        {song?.artist || "UNKNOWN ARTIST"}
       </div>
 
       <div style={{ marginTop: '12px' }}>
