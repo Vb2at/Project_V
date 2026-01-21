@@ -303,7 +303,7 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
         const renderTiming = note.timing;
 
         const y = HIT_LINE_Y - (renderTiming - currentTime) * SPEED;
-        if (y < -NOTE_HEIGHT * 2 || y > CANVAS_HEIGHT + 100) return
+        if (y < -NOTE_HEIGHT * 2 || y > CANVAS_HEIGHT + 100) return;
 
         const id = `${note.timing}-${note.lane}`;
         visibleIds.add(id);
@@ -320,11 +320,16 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
         const left = getLaneLeftX(note.lane);
         const right = getLaneRightX(note.lane);
         const centerX = (left + right) / 2;
-        const adjLeft = centerX + (left - centerX) * 1.2;
-        const adjRight = centerX + (right - centerX) * 1.2;
+
+        // ✅ 선택 시 폭 확대 (transform 사용 안 함)
+        const sel = isSelected ? 1.18 : 1.0;
+        const adjLeft = centerX + (left - centerX) * (1.2 * sel);
+        const adjRight = centerX + (right - centerX) * (1.2 * sel);
 
         const scale = getPerspectiveScale(y);
-        const h = NOTE_HEIGHT * scale;
+
+        // ✅ 선택 시 높이도 함께 확대
+        const h = NOTE_HEIGHT * scale * sel;
         const halfH = h / 2;
 
         const tlx = applyPerspectiveX(adjLeft, y - halfH);
@@ -340,10 +345,9 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
         verts[6] = brx; verts[7] = y + halfH;
         buffer.update();
 
-        sprite.tint = isSelected ? 0xffe600 : 0xffffff; // 노란 형광
+        sprite.tint = isSelected ? 0xffe600 : 0xffffff;
         sprite.alpha = isSelected ? 1.0 : 0.85;
-        const s = isSelected ? 1.18 : 1.0;
-        sprite.scale.set(s, s);
+
     });
 
     sprites.forEach((sprite, id) => {
