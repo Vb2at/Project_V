@@ -1,3 +1,4 @@
+// components/Common/Header.jsx (햄버거 점: 쪽지 OR 관리자 OR 친구)
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ProfileAvatar from '../Member/ProfileAvatar';
@@ -8,7 +9,7 @@ import {
   isMenuBgmPlaying,
 } from '../../components/engine/SFXManager';
 
-import { logoutApi, statusApi } from '../../api/auth'; // 로그아웃/상태조회 api
+import { logoutApi, statusApi } from '../../api/auth';
 import Visualizer from '../visualizer/Visualizer';
 
 import './Header.css';
@@ -24,7 +25,7 @@ export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // ✅ 로그인 상태
-  const [status, setStatus] = useState(null); // { loginUserId, loginUser, loginUserNickName }
+  const [status, setStatus] = useState(null);
   const [statusLoading, setStatusLoading] = useState(true);
 
   const handleToggle = () => {
@@ -32,14 +33,21 @@ export default function Header() {
     setIsPlaying(isMenuBgmPlaying());
   };
 
+  // ✅ 알림 상태 (쪽지/관리자/친구)
+  const [notify, setNotify] = useState({
+    messages: false,
+    admin: false,
+    friend: false, // ✅ 추가
+  });
+
   const handleLogout = async () => {
     try {
       await logoutApi();
-      setStatus(null);            // ✅ 로그아웃 즉시 UI 반영
+      setStatus(null);
       setMobileOpen(false);
 
-      // ✅ 로그아웃하면 알림 뱃지도 끄기
-      setNotify({ messages: false });
+      // ✅ 로그아웃하면 알림 점 끄기
+      setNotify({ messages: false, admin: false, friend: false }); // ✅ 수정
 
       navigate('/login');
     } catch (e) {
@@ -47,11 +55,6 @@ export default function Header() {
       alert('로그아웃 실패');
     }
   };
-
-  // ✅ 알림 상태 (message unread 기반)
-  const [notify, setNotify] = useState({
-    messages: false, // ✅ 테스트용 true 제거
-  });
 
   // ✅ 로그인 상태 확인 (처음 1회)
   useEffect(() => {
@@ -73,7 +76,7 @@ export default function Header() {
             loginUserNickName: res.data.loginUserNickName,
           });
         }
-      } catch  {
+      } catch {
         if (alive) setStatus(null);
       } finally {
         if (alive) setStatusLoading(false);
@@ -85,23 +88,47 @@ export default function Header() {
     };
   }, []);
 
-  // ✅ Message.jsx가 쏘는 pm:unread 이벤트를 받아서 빨간점 on/off
+  // ✅ MyPage가 쏘는 이벤트를 받아서 빨간점 on/off
   useEffect(() => {
-    const onUnread = (e) => {
+    const onPmUnread = (e) => {
       const count = Number(e?.detail?.count ?? 0);
       const hasUnread = Number.isFinite(count) && count > 0;
 
       setNotify((prev) => {
-        // 불필요 렌더 방지
         if (prev.messages === hasUnread) return prev;
         return { ...prev, messages: hasUnread };
       });
     };
 
-    window.addEventListener('pm:unread', onUnread);
+    const onAdminAlert = (e) => {
+      const count = Number(e?.detail?.count ?? 0);
+      const hasAlert = Number.isFinite(count) && count > 0;
+
+      setNotify((prev) => {
+        if (prev.admin === hasAlert) return prev;
+        return { ...prev, admin: hasAlert };
+      });
+    };
+
+    // ✅ 추가: 친구 요청 알림
+    const onFriendAlert = (e) => {
+      const count = Number(e?.detail?.count ?? 0);
+      const hasFriend = Number.isFinite(count) && count > 0;
+
+      setNotify((prev) => {
+        if (prev.friend === hasFriend) return prev;
+        return { ...prev, friend: hasFriend };
+      });
+    };
+
+    window.addEventListener('pm:unread', onPmUnread);
+    window.addEventListener('admin:alert', onAdminAlert);
+    window.addEventListener('friend:alert', onFriendAlert); // ✅ 추가
 
     return () => {
-      window.removeEventListener('pm:unread', onUnread);
+      window.removeEventListener('pm:unread', onPmUnread);
+      window.removeEventListener('admin:alert', onAdminAlert);
+      window.removeEventListener('friend:alert', onFriendAlert); // ✅ 추가
     };
   }, []);
 
@@ -124,6 +151,10 @@ export default function Header() {
 
     return () => clearInterval(sync);
   }, [isGamePage]);
+
+  // ✅ 햄버거: 쪽지 OR 관리자 OR 친구 / 메시지 메뉴: 쪽지만
+  const hasDot = notify.messages || notify.admin || notify.friend; // ✅ 수정
+  const hasMessageDot = notify.messages;
 
   return (
     <header
@@ -173,13 +204,10 @@ export default function Header() {
             gap: '12px',
           }}
         >
-          {/* Visualizer */}
           <Visualizer active={isPlaying} size="small" />
 
-          {/* 재생 / 일시정지 */}
           <button className="neon-btn" onClick={handleToggle} aria-label="toggle bgm">
             {isPlaying ? (
-              // ⏸ Pause
               <svg viewBox="0 0 24 24" width="22" height="22">
                 <path
                   d="M8 5v14M16 5v14"
@@ -196,7 +224,6 @@ export default function Header() {
                 </defs>
               </svg>
             ) : (
-              // ▶ Play
               <svg viewBox="0 0 24 24" width="22" height="22">
                 <path
                   d="M7 4l12 8-12 8V4z"
@@ -215,7 +242,6 @@ export default function Header() {
             )}
           </button>
 
-          {/* 랜덤 재생 */}
           <button
             className="neon-btn"
             onClick={() => {
@@ -316,8 +342,8 @@ export default function Header() {
               </svg>
             </button>
 
-            {/* ✅ 안읽은 쪽지 있을 때만 점 */}
-            {notify.messages && (
+            {/* ✅ 쪽지 or 관리자 or 친구 알림 있으면 점 (햄버거) */}
+            {hasDot && (
               <span
                 style={{
                   position: 'absolute',
@@ -370,10 +396,11 @@ export default function Header() {
 
           {statusLoading ? null : (
             <>
-              {/* 로그인 상태에서만 노출 */}
               {status && (
                 <>
-                  <button className="neon-btn" onClick={() => navigate('/mypage')}>마이페이지</button>
+                  <button className="neon-btn" onClick={() => navigate('/mypage')}>
+                    마이페이지
+                  </button>
 
                   <button
                     className="neon-btn"
@@ -385,8 +412,8 @@ export default function Header() {
                   >
                     메세지
 
-                    {/* ✅ 안읽은 쪽지 있을 때만 점 */}
-                    {notify.messages && (
+                    {/* ✅ 쪽지(미확인) 있으면 점 (메세지 메뉴) */}
+                    {hasMessageDot && (
                       <span
                         style={{
                           position: 'absolute',
@@ -407,7 +434,6 @@ export default function Header() {
                 </>
               )}
 
-              {/* 로그아웃 상태에서만 노출 */}
               {!status && (
                 <button className="neon-btn" onClick={() => navigate('/login')}>
                   로그인

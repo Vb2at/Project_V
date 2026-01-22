@@ -34,3 +34,7 @@ v-beatFt/.vite/
 
 # ide / misc
 **/src/main/java/snippet/
+
+# ignore uploads anywhere
+**/upload/
+**/upload/**

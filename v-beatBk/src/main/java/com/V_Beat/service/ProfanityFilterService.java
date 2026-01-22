@@ -7,6 +7,8 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import jakarta.annotation.PostConstruct;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
@@ -23,6 +25,12 @@ import com.V_Beat.dto.FilterResult;
  * 특징:
  * - 대소문자 무시(영문)
  * - 문자 사이에 공백/특수문자 끼워넣는 변형 일부 대응 (ex: ㅆ_ㅂ, f*u*c*k)
+ *
+ * ✅ 2026-01-xx 확장:
+ * - 회원가입/닉네임 변경: 마스킹이 아니라 "차단" 검증 메서드 제공
+ *   - validateNicknameOrThrow()
+ *   - validateProfileOrThrow()
+ *   - containsProfanity()
  */
 @Service
 public class ProfanityFilterService {
@@ -40,13 +48,16 @@ public class ProfanityFilterService {
     private volatile List<Pattern> patterns = List.of();
 
     // ✅ 간단 캐시: 같은 메시지 반복 필터링 비용 절감 (LRU)
-    // - 익명 클래스(Serializable 경고) 없애고, 메서드로 size 제한
     private final Map<String, FilterResult> lruCache =
             Collections.synchronizedMap(new LinkedHashMap<>(256, 0.75f, true));
 
     private static final int CACHE_MAX = 500;
 
-    public ProfanityFilterService() {
+    // ✅ 생성자에서는 reload 하지 않고, 스프링 빈 초기화 이후 로드(더 안정적)
+    public ProfanityFilterService() {}
+
+    @PostConstruct
+    public void init() {
         reload();
     }
 
@@ -76,6 +87,9 @@ public class ProfanityFilterService {
         log.info("[PROFANITY] badwords loaded: {} (file={})", this.patterns.size(), WORDLIST);
     }
 
+    /**
+     * ✅ 메시지/쪽지/채팅: 마스킹 결과 반환
+     */
     public FilterResult mask(String original) {
         if (original == null || original.isBlank()) return FilterResult.pass(original);
 
@@ -98,6 +112,41 @@ public class ProfanityFilterService {
             trimCacheIfNeeded();
         }
         return fr;
+    }
+
+    // =========================
+    // ✅ NEW: 닉네임/프로필 검증(차단)
+    // =========================
+
+    /**
+     * ✅ 회원가입/닉네임 변경용: 욕설 포함 시 차단
+     * - 마스킹이 아닌 "불가" 처리
+     */
+    public void validateNicknameOrThrow(String nickname) {
+        if (nickname == null || nickname.isBlank()) return; // 빈값/길이 검증은 별도 정책으로 처리 가능
+        if (containsProfanity(nickname)) {
+            throw new IllegalArgumentException("적절하지 않은 닉네임입니다");
+        }
+    }
+
+    /**
+     * ✅ 프로필 소개글/자기소개 등: 욕설 포함 시 차단
+     */
+    public void validateProfileOrThrow(String profileText) {
+        if (profileText == null || profileText.isBlank()) return;
+        if (containsProfanity(profileText)) {
+            throw new IllegalArgumentException("적절하지 않은 내용이 포함되어 있습니다");
+        }
+    }
+
+    /**
+     * ✅ 공통: 욕설 포함 여부
+     * - 내부적으로 applyPatterns를 사용해 기존 '변형 대응' 로직 재사용
+     */
+    public boolean containsProfanity(String text) {
+        if (text == null || text.isBlank()) return false;
+        String masked = applyPatterns(text);
+        return !Objects.equals(masked, text);
     }
 
     // -------------------------

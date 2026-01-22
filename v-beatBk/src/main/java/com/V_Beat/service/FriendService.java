@@ -29,6 +29,7 @@ public class FriendService {
 
     // =========================
     // ✅ WS 개인 알림 전송 (/user/queue/friend)
+    // - Friends.jsx 같은 "친구 화면" 실시간 갱신용
     // =========================
     private void sendToUser(int toUserId, FriendEvent event) {
 
@@ -42,6 +43,32 @@ public class FriendService {
                 String.valueOf(toUserId),
                 "/queue/friend",
                 event
+        );
+    }
+
+    // =========================
+    // ✅ WS 통합 알림 전송 (/user/queue/notify)
+    // - MyPage.jsx가 구독중인 "통합 알림" 채널
+    // - 어제 방식 그대로: type/event/data 형태로 쏨
+    // =========================
+    private void sendNotify(int toUserId, String event, Map<String, Object> data) {
+
+        Map<String, Object> payload = Map.of(
+                "type", "FRIEND_NOTIFY",
+                "event", event,
+                "data", data
+        );
+
+        System.out.println("[WS NOTIFY SEND] to=" + toUserId
+                + " dest=/user/" + toUserId + "/queue/notify"
+                + " type=FRIEND_NOTIFY"
+                + " event=" + event
+                + " data=" + data);
+
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(toUserId),
+                "/queue/notify",
+                payload
         );
     }
 
@@ -65,16 +92,30 @@ public class FriendService {
 
         friendDao.insertFriendRequest(myId, target.getId());
 
-        // ✅ 상대에게 WS 알림: 요청 받음
         UserLiteDto me = friendDao.findUserLiteById(myId);
+        String fromNick = (me != null ? me.getNickName() : ("user#" + myId));
+
+        // ✅ 1) Friends 페이지 실시간 갱신용 (기존 유지)
         sendToUser(
                 target.getId(),
                 FriendEvent.of(
                         "FRIEND_REQUEST_RECEIVED",
                         Map.of(
                                 "fromUserId", myId,
-                                "fromNick", me != null ? me.getNickName() : ("user#" + myId)
+                                "fromNick", fromNick
                         )
+                )
+        );
+
+        // ✅ 2) MyPage 통합 알림용 (추가) -> 친구 메뉴 옆 "!" 뜨게 하는 핵심
+        // MyPage.jsx 분기:
+        // if (payload.type==='FRIEND_NOTIFY' && payload.event==='REQUEST_NEW') pendingFriends++
+        sendNotify(
+                target.getId(),
+                "REQUEST_NEW",
+                Map.of(
+                        "fromUserId", myId,
+                        "fromNick", fromNick
                 )
         );
 
@@ -115,16 +156,29 @@ public class FriendService {
         int ok = friendDao.acceptFriendRequest(myId, requestId);
         if (ok != 1) return "fail";
 
-        // ✅ 요청 보낸 사람에게 WS 알림: 수락됨
         UserLiteDto me = friendDao.findUserLiteById(myId);
+        String toNick = (me != null ? me.getNickName() : ("user#" + myId));
+
+        // ✅ 1) Friends 페이지 실시간 갱신용 (기존 유지)
         sendToUser(
                 requesterId,
                 FriendEvent.of(
                         "FRIEND_REQUEST_ACCEPTED",
                         Map.of(
                                 "toUserId", myId,
-                                "toNick", me != null ? me.getNickName() : ("user#" + myId)
+                                "toNick", toNick
                         )
+                )
+        );
+
+        // ✅ 2) (선택) MyPage 통합 알림용: "수락됨" 알림도 쓰고 싶으면 유지
+        // 필요 없으면 이 블록 삭제해도 됨.
+        sendNotify(
+                requesterId,
+                "REQUEST_ACCEPTED",
+                Map.of(
+                        "toUserId", myId,
+                        "toNick", toNick
                 )
         );
 
@@ -152,7 +206,7 @@ public class FriendService {
         int ok = friendDao.deleteFriend(myId, targetId);
         if (ok != 1) return "fail";
 
-        // ✅ 상대에게 WS 알림: 삭제됨
+        // ✅ 1) Friends 페이지 실시간 갱신용 (기존 유지)
         sendToUser(
                 targetId,
                 FriendEvent.of(
@@ -160,6 +214,16 @@ public class FriendService {
                         Map.of(
                                 "byUserId", myId
                         )
+                )
+        );
+
+        // ✅ 2) (선택) MyPage 통합 알림용: 삭제 알림도 쓰고 싶으면 유지
+        // 필요 없으면 이 블록 삭제해도 됨.
+        sendNotify(
+                targetId,
+                "FRIEND_DELETED",
+                Map.of(
+                        "byUserId", myId
                 )
         );
 

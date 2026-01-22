@@ -38,7 +38,8 @@ export default function MyPage() {
   // ✅ notify: count 기반
   const [notify, setNotify] = useState({
     unreadMessages: 0,
-    pendingFriends: 0,
+    pendingFriends: 0, // ✅ 친구요청 알림 뱃지 카운트
+    adminAlerts: 0, // ✅ 관리자 알림 뱃지 카운트
   });
 
   const [myInfo, setMyInfo] = useState(null);
@@ -57,18 +58,74 @@ export default function MyPage() {
     tabRef.current = tab;
   }, [tab]);
 
+  // ✅ Header(햄버거 점) 동기화 이벤트
+  const emitPmUnread = (count) => {
+    window.dispatchEvent(new CustomEvent('pm:unread', { detail: { count } }));
+  };
+  const emitAdminAlert = (count) => {
+    window.dispatchEvent(new CustomEvent('admin:alert', { detail: { count } }));
+  };
+  // ✅ 추가: 친구 알림(친구요청) 점 동기화 이벤트
+  const emitFriendAlert = (count) => {
+    window.dispatchEvent(
+      new CustomEvent('friend:alert', { detail: { count } })
+    );
+  };
+
   // ✅ unread-count 동기화 (DB 기준)
   const syncUnread = async () => {
     try {
       const { data } = await api.get('/api/messages/unread-count');
       if (data?.ok) {
+        const c = Number(data.count ?? 0);
         setNotify((prev) => ({
           ...prev,
-          unreadMessages: Number(data.count ?? 0),
+          unreadMessages: c,
         }));
+        // ✅ Header 점 갱신
+        emitPmUnread(c);
       }
     } catch (e) {
       console.error('[UNREAD] sync error', e);
+    }
+  };
+
+  // ✅ 새로고침 시에도 친구요청(!) 유지: DB(받은요청 목록) 기준 1회 동기화
+  // FriendController: GET /api/friend/requests -> List<FriendRequestDto> OR "needLogin"
+  const syncPendingFriends = async () => {
+    try {
+      const { data } = await api.get('/api/friend/requests');
+
+      // 로그인 안 됨: "needLogin"
+      if (typeof data === 'string') {
+        setNotify((prev) => ({ ...prev, pendingFriends: 0 }));
+        emitFriendAlert(0);
+        return;
+      }
+
+      const c = Array.isArray(data) ? data.length : 0;
+      setNotify((prev) => ({ ...prev, pendingFriends: c }));
+      emitFriendAlert(c);
+    } catch (e) {
+      // 실패해도 무시 (UX 깨짐 방지)
+    }
+  };
+
+  // ✅ (선택) 관리자 pending count 동기화 (백엔드에 API가 있으면 사용)
+  // - 너가 만들 예정이면 여기 살려두고,
+  // - 아직 없으면 아래 함수는 호출 안 하면 됨.
+  const syncAdminAlerts = async () => {
+    try {
+      // 예: GET /api/admin/report/pending-count  -> { ok:true, count: number }
+      const { data } = await api.get('/api/admin/report/pending-count');
+      if (data?.ok) {
+        const c = Number(data.count ?? 0);
+        setNotify((prev) => ({ ...prev, adminAlerts: c }));
+        emitAdminAlert(c);
+      }
+    } catch (e) {
+      // 관리자 전용이라 403/401 나도 무시 가능
+      // console.error('[ADMIN] sync error', e);
     }
   };
 
@@ -131,9 +188,13 @@ export default function MyPage() {
     return () => clearInterval(id);
   }, []);
 
-  // ✅ 첫 진입 시 unread-count 한번 동기화
+  // ✅ 첫 진입 시 unread-count 한번 동기화 (+ 친구요청도 DB기준 1회 동기화)
   useEffect(() => {
     syncUnread();
+    syncPendingFriends(); // ✅ 새로고침해도 친구 ! 유지
+    // 관리자도 “초기 동기화” 하고 싶으면 살려
+    // syncAdminAlerts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ✅ STOMP 알림 구독: /user/queue/notify
@@ -144,7 +205,7 @@ export default function MyPage() {
     const client = new Client({
       webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
       reconnectDelay: 3000,
-      debug: () => { },
+      debug: () => {},
 
       onConnect: () => {
         console.log('[NOTIFY] STOMP connected');
@@ -160,6 +221,49 @@ export default function MyPage() {
             return;
           }
 
+          // ✅ 관리자 알림(신고 접수 등)
+          // payload 예:
+          // { type:'ADMIN_NOTIFY', event:'REPORT_NEW', reportId:..., ... }
+          if (payload.type === 'ADMIN_NOTIFY' && payload.event === 'REPORT_NEW') {
+            // manager 탭이면 굳이 뱃지 올리지 않음(보고 있는 중)
+            if (tabRef.current === 'manager') {
+              console.log('[NOTIFY] in manager tab -> ignore badge increment');
+              return;
+            }
+
+            setNotify((prev) => {
+              const next = (prev.adminAlerts || 0) + 1;
+              // ✅ Header 점 갱신
+              emitAdminAlert(next);
+              return { ...prev, adminAlerts: next };
+            });
+
+            console.log('[NOTIFY] adminAlerts++');
+            return;
+          }
+
+          // ✅ 친구 요청 알림 (탭 아니면 +1, 탭이면 무시)
+          // payload 예:
+          // { type:'FRIEND_NOTIFY', event:'REQUEST_NEW', data:{...} }
+          if (
+            payload.type === 'FRIEND_NOTIFY' &&
+            payload.event === 'REQUEST_NEW'
+          ) {
+            if (tabRef.current === 'friends') {
+              console.log('[NOTIFY] in friends tab -> ignore badge increment');
+              return;
+            }
+
+            setNotify((prev) => {
+              const next = (prev.pendingFriends || 0) + 1;
+              emitFriendAlert(next);
+              return { ...prev, pendingFriends: next };
+            });
+
+            console.log('[NOTIFY] pendingFriends++');
+            return;
+          }
+
           if (payload.type === 'NEW_MESSAGE') {
             // ✅ messages 탭이면: 증가하지 말고 DB 기준 재동기화 + inbox 즉시 갱신
             if (tabRef.current === 'messages') {
@@ -170,10 +274,13 @@ export default function MyPage() {
             }
 
             // ✅ messages 탭이 아니면: 즉시 UX (카운트 +1)
-            setNotify((prev) => ({
-              ...prev,
-              unreadMessages: prev.unreadMessages + 1,
-            }));
+            setNotify((prev) => {
+              const next = (prev.unreadMessages || 0) + 1;
+              // ✅ Header 점 갱신
+              emitPmUnread(next);
+              return { ...prev, unreadMessages: next };
+            });
+
             console.log('[NOTIFY] unreadMessages++');
           }
         });
@@ -200,12 +307,36 @@ export default function MyPage() {
         notifyClientRef.current = null;
       }
     };
-  }, [myInfo]);
+  }, [myInfo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ✅ messages 탭 들어갈 때도 한번 DB 기준 동기화(추천)
   useEffect(() => {
     if (tab !== 'messages') return;
     syncUnread();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  // ✅ manager 탭 들어가면 관리자 알림 뱃지 초기화 + Header 점도 끄기
+  useEffect(() => {
+    if (tab !== 'manager') return;
+
+    setNotify((prev) => ({ ...prev, adminAlerts: 0 }));
+    emitAdminAlert(0);
+
+    // manager 화면 진입 시 “DB 기준으로 다시 맞추고 싶으면” 아래 살려
+    // syncAdminAlerts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  // ✅ friends 탭 들어가면 친구요청 알림 뱃지 "꺼지게" 처리 (UX)
+  // 단, 새로고침했을 때는 syncPendingFriends()가 다시 켜줌.
+  useEffect(() => {
+    if (tab !== 'friends') return;
+
+    setNotify((prev) => ({ ...prev, pendingFriends: 0 }));
+    emitFriendAlert(0);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
   if (!myInfo) return null;
@@ -272,8 +403,11 @@ export default function MyPage() {
               >
                 <span>{label}</span>
 
-                {/* ✅ 메시지 안읽음 있을 때만 느낌표 */}
-                {key === 'messages' && notify.unreadMessages > 0 && <AlertMark />}
+                {/* ✅ 관리자/친구/메시지 알림 있으면 느낌표 */}
+                {key === 'manager' && notify.adminAlerts > 0 && <AlertMark />}
+                {key === 'friends' && notify.pendingFriends > 0 && <AlertMark />}
+                {key === 'messages' &&
+                  notify.unreadMessages > 0 && <AlertMark />}
               </div>
             </div>
           ))}
@@ -301,10 +435,7 @@ export default function MyPage() {
 
           {/* ✅ Friends에 쪽지 오픈 콜백 전달 */}
           {tab === 'friends' && (
-            <Friends
-              user={status}
-              onClickMessage={openMessageCompose}
-            />
+            <Friends user={status} onClickMessage={openMessageCompose} />
           )}
 
           {/* ✅ Message에 refreshKey + onReadDone + composeTo 전달 */}

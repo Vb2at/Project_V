@@ -1,3 +1,5 @@
+// com.V_Beat.report.service.ReportService
+
 package com.V_Beat.report.service;
 
 import java.util.HashMap;
@@ -25,37 +27,46 @@ public class ReportService {
     private final ReportDao reportDao;
     private final ReportSnapshotDao reportSnapshotDao;
     private final ReportActionDao reportActionDao;
+
+    // ✅ 관리자 알림(WS)
+    private final AdminNotifyService adminNotifyService;
+
     private final ObjectMapper om = new ObjectMapper();
 
-    public ReportService(ReportDao reportDao, ReportSnapshotDao reportSnapshotDao, ReportActionDao reportActionDao) {
+    public ReportService(
+            ReportDao reportDao,
+            ReportSnapshotDao reportSnapshotDao,
+            ReportActionDao reportActionDao,
+            AdminNotifyService adminNotifyService
+    ) {
         this.reportDao = reportDao;
         this.reportSnapshotDao = reportSnapshotDao;
         this.reportActionDao = reportActionDao;
+        this.adminNotifyService = adminNotifyService;
     }
 
-    //신고 접수 (reports + snapshot 저장)
+    // 신고 접수 (report + snapshot 저장)
     @Transactional
     public Long createReport(long reporterUserId, CreateReportReq req) {
 
-        // 대상 존재 여부 검증
         boolean exists = false;
         String type = req.getTargetType();
         long targetId = req.getTargetId();
 
         if ("USER".equals(type)) {
             exists = this.reportDao.existsUser(targetId) > 0;
-            
-            //본인 신고 방지
-            if(targetId == reporterUserId) {
-            	throw new IllegalStateException("본인은 신고할 수 없습니다");
+
+            // 본인 신고 방지
+            if (targetId == reporterUserId) {
+                throw new IllegalStateException("본인은 신고할 수 없습니다");
             }
         } else if ("SONG".equals(type)) {
             exists = reportDao.existsSong(targetId) > 0;
-            
-            //본인이 업로드한 곡 신고 방지
+
+            // 본인이 업로드한 곡 신고 방지
             Integer ownerId = this.reportDao.findSongOwnerId(targetId);
-            if(ownerId != null && ownerId.longValue() == reporterUserId) {
-            	throw new IllegalStateException("본인이 업로드한 곡은 신고할 수 없습니다.");
+            if (ownerId != null && ownerId.longValue() == reporterUserId) {
+                throw new IllegalStateException("본인이 업로드한 곡은 신고할 수 없습니다.");
             }
         } else if ("COMMENT".equals(type)) {
             exists = reportDao.existsComment(targetId) > 0;
@@ -66,12 +77,17 @@ public class ReportService {
         }
 
         // 중복 신고 방지
-        int dup = reportDao.countPending(reporterUserId, req.getTargetType(), req.getTargetId(), req.getReasonCode());
+        int dup = reportDao.countPending(
+                reporterUserId,
+                req.getTargetType(),
+                req.getTargetId(),
+                req.getReasonCode()
+        );
         if (dup > 0) {
             throw new IllegalStateException("이미 접수된 신고입니다.");
         }
 
-        // reports insert
+        // report insert
         Report report = new Report();
         report.setReporterUserId(reporterUserId);
         report.setTargetType(req.getTargetType());
@@ -95,46 +111,58 @@ public class ReportService {
         try {
             snap.setTargetExtra(om.writeValueAsString(extra));
         } catch (JsonProcessingException e) {
-            // 여기서 500으로 죽지 말고 런타임으로 감싸서 "서버 오류" 처리되게
             throw new RuntimeException("신고 스냅샷 JSON 생성 실패", e);
         }
 
         reportSnapshotDao.insert(snap);
 
+        // ✅ 신고 저장 성공 후 관리자에게 WS 알림
+        // (AdminNotifyService 내부에서 관리자 목록 조회 후 /user/queue/notify 전송)
+        adminNotifyService.notifyNewReport(
+                report.getId(),                 // long
+                report.getTargetType(),         // String
+                report.getTargetId(),           // long
+                report.getReasonCode()          // String
+        );
+
         return report.getId();
     }
 
-    //관리자 신고목록 조회
-	public List<AdminReportList> getAdminReportList(String status) {
-		return this.reportDao.getAdminReportList(status);
-	}
+    // 관리자 신고목록 조회
+    public List<AdminReportList> getAdminReportList(String status) {
+        return this.reportDao.getAdminReportList(status);
+    }
 
-	//관리자 신고 처리
-	@Transactional
-	public void getAdminAction(long reportId, Integer loginUserId, AdminReportActionReq req) {
-		Report report = this.reportDao.findById(reportId);
-		if(report == null) {
-			throw new IllegalArgumentException("존재하지 않은 신고입니다.");
-		}
-		
-		if(!"PENDING".equals(report.getStatus())) {
-			throw new IllegalStateException("이미 처리된 신고입니다.");
-		}
-		
-		String actionType = req.getActionType().trim();
-		
-		//처리 기록 저장
-		ReportAction action = new ReportAction();
-		action.setReportId(reportId);
-		action.setAdminId(loginUserId);
-		action.setActionType(actionType);
-		action.setActionReason(req.getActionReason());
-		
-		this.reportActionDao.insert(action);
-		
-		//신고 상태 변경
-		String nextStatus = "IGNORE".equals(actionType) ? "REJECTED" : "RESOLVED";
-		
-		this.reportDao.updateStatus(reportId, nextStatus);
-	}
+    // ✅ 추가: 관리자 뱃지용 - 처리 대기(PENDING) 신고 개수
+    public int getPendingReportCount() {
+        return reportDao.countPendingAll();
+    }
+
+    // 관리자 신고 처리
+    @Transactional
+    public void getAdminAction(long reportId, Integer loginUserId, AdminReportActionReq req) {
+        Report report = this.reportDao.findById(reportId);
+        if (report == null) {
+            throw new IllegalArgumentException("존재하지 않은 신고입니다.");
+        }
+
+        if (!"PENDING".equals(report.getStatus())) {
+            throw new IllegalStateException("이미 처리된 신고입니다.");
+        }
+
+        String actionType = req.getActionType().trim();
+
+        // 처리 기록 저장
+        ReportAction action = new ReportAction();
+        action.setReportId(reportId);
+        action.setAdminId(loginUserId);
+        action.setActionType(actionType);
+        action.setActionReason(req.getActionReason());
+
+        this.reportActionDao.insert(action);
+
+        // 신고 상태 변경
+        String nextStatus = "IGNORE".equals(actionType) ? "REJECTED" : "RESOLVED";
+        this.reportDao.updateStatus(reportId, nextStatus);
+    }
 }
