@@ -11,11 +11,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.V_Beat.ai.dto.NoteResult;
 import com.V_Beat.ai.dto.SongNotesResult;
 import com.V_Beat.ai.service.SongService;
 import com.V_Beat.dto.Song;
@@ -106,6 +109,39 @@ public class SongController {
 
 		return ResponseEntity.ok(this.songService.getSongNotes(songId));
 	}
+	
+	// 노트 저장 API 
+	// 노트 저장 API (POST + PUT 둘 다 허용)
+	@RequestMapping(
+	    value = "/{songId}/notes",
+	    method = { RequestMethod.POST, RequestMethod.PUT }
+	)
+	public ResponseEntity<Void> saveNote(
+	    @PathVariable Long songId,
+	    @RequestBody List<NoteResult> notes,
+	    HttpSession session
+	) {
+	    Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+	    if (loginUserId == null) {
+	        return ResponseEntity.status(401).build();
+	    }
+
+	    Song song = songService.getSong(songId);
+	    if (song == null) {
+	        return ResponseEntity.notFound().build();
+	    }
+
+	    Boolean isAdmin = (Boolean) session.getAttribute("isAdmin");
+	    if (isAdmin == null) isAdmin = false;
+
+	    if (!songService.canAccess(song, loginUserId, isAdmin)) {
+	        return ResponseEntity.status(403).build();
+	    }
+
+	    songService.replaceSongNotes(songId, notes);
+	    return ResponseEntity.ok().build();
+	}
+
 
 	// songId 조회
 	@GetMapping("/{songId}")
@@ -234,8 +270,7 @@ public class SongController {
 		}
 	}
 	
-	//공개 요청 API
-//	@PostMapping("/{songId}/request-review")
+
 	
 
 }

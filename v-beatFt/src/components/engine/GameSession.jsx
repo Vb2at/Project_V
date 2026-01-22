@@ -447,8 +447,6 @@ export default function GameSession({
   }, [API_BASE, songId, mode, loadSongById]);
 
   useEffect(() => {
-    if (effectivePaused || finishedRef.current) return;
-
     const interval = setInterval(() => {
       if (effectivePaused) return;
 

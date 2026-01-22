@@ -148,4 +148,22 @@ public class SongService {
 	public List<Song> getMySongs(int userId) {
 		return songDao.getMySongs(userId);
 	}
+	
+	@Transactional
+	public void replaceSongNotes(Long songId, List<NoteResult> notes) {
+
+	    // 1. 기존 노트 전부 삭제
+	    songDao.deleteSongNotes(songId);
+
+	    // 2. 새 노트 전부 삽입
+	    for (NoteResult n : notes) {
+	        songDao.insertSongNote(
+	            songId,
+	            n.getLane(),
+	            n.getType(),
+	            n.getTime(),
+	            n.getEndTime()
+	        );
+	    }
+	}
 }

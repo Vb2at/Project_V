@@ -1,11 +1,14 @@
 package com.V_Beat.ai.dao;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
-
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Param;
 import com.V_Beat.ai.dto.NoteResult;
 import com.V_Beat.dto.Song;
 
@@ -128,4 +131,23 @@ public interface SongDao {
 			""")
 	List<Song> getMySongs(int userId);
 
+	@Delete("""
+		    DELETE FROM note
+		    WHERE song_id = #{songId}
+		""")
+		void deleteSongNotes(@Param("songId") Long songId);
+	
+	@Insert("""
+		    INSERT INTO note (song_id, lane, type, note_time, end_time)
+		    VALUES (#{songId}, #{lane}, #{type}, #{time}, #{endTime})
+		""")
+		void insertSongNote(
+		    @Param("songId") Long songId,
+		    @Param("lane") int lane,
+		    @Param("type") String type,
+		    @Param("time") BigDecimal time,
+		    @Param("endTime") BigDecimal endTime
+		);
+
 }
+
