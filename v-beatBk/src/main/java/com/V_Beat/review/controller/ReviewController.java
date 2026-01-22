@@ -3,11 +3,14 @@ package com.V_Beat.review.controller;
 import java.util.Map;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.V_Beat.review.dto.ReviewActionReq;
 import com.V_Beat.review.service.ReviewService;
 
 import jakarta.servlet.http.HttpSession;
@@ -31,9 +34,15 @@ public class ReviewController {
 	}
 
 	// 곡 상세 조회 API
-//	@GetMapping("/song/{songId}")
+	@GetMapping("/songs/{songId}")
+	public Map<String, Object> songDetail(@PathVariable long songId, HttpSession session) {
+		return this.reviewService.getSongDetail(songId, session);
+	}
 
 	// 심사 처리 API
-//	@PostMapping("/song/{songId}/review")
-
+	@PostMapping("/songs/{songId}/review")
+	public Map<String, Object> reviewSong(@PathVariable long songId, @RequestBody ReviewActionReq req,
+			HttpSession session) {
+		return this.reviewService.reviewSong(songId, req, session);
+	}
 }

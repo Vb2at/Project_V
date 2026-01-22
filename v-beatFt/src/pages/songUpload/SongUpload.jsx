@@ -83,8 +83,15 @@ export default function SongUpload() {
 
             const songId = res.data;
 
-            alert('분석 완료! 에디터로 이동합니다.');
+            //public 선택 시 
+            if(visibility === 'PENDING') {
+                alert('분석 완료! 심사 화면으로 이동합니다.')
+                navigate(`/song/edit/${songId}`, {state: { fromPublicUpload: true }});
+                return;
+            }
 
+            //그 외 선택시
+            alert('분석 완료! 에디터로 이동합니다.');
             navigate(`/song/editor/${songId}`);
 
         } catch (e) {

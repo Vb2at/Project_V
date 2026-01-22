@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { replace } from 'react-router-dom';
 
 export default function SongReviewDetailModal({
     open,
@@ -10,33 +11,37 @@ export default function SongReviewDetailModal({
     const [reason, setReason] = useState('');
 
     if (!open || !song) return null;
+
     return (
         <>
             <div style={overlay} onClick={onClose} />
 
             <div style={modal}>
-                <h3 style={{ marginBottom: 6 }}>곡 심사 상세</h3>
+                <h3 style={{ marginBottom: 6 }}>상세내용</h3>
 
                 {/* ===== 기본 정보 ===== */}
                 <section style={section}>
-                    <div style={title}>{song.title}</div>
-                    <div style={sub}>제작자: {song.artist}</div>
-                    <div style={sub}>업로드: {song.createdAt || '2026-01-16'}</div>
+                    <div style={title}>{song.title ? song.title.replace('.mp3', ' ') : ''}</div>
+                    <div style={sub}>업로드 유저: {song.uploadUserNickname}</div>
+                    <div style={sub}>업로드 날짜: {' '} {song.createDate ? song.createDate.replace('T', ' ') : '--'}</div>
                 </section>
 
                 {/* ===== 메타 ===== */}
                 <section style={sectionRow}>
-                    <Meta label="LENGTH" value={song.lengthSec ? `${song.lengthSec}s` : '--'} />
-                    <Meta label="DIFF" value={song.diff ?? 'NORMAL'} />
+                    <Meta label="곡 길이" value={song.duration ? `${song.duration}초` : '--'} />
+                    <Meta label="난이도" value={song.diff?.toUpperCase()} />
                 </section>
 
                 {/* ===== 커버 ===== */}
                 <section style={coverWrap}>
-                    {song.cover ? (
-                        <img src={song.cover} alt="" style={coverImg} />
-                    ) : (
-                        <div style={coverDummy}>NO COVER</div>
-                    )}
+                    <img
+                        src={`/api/songs/${song.id}/cover`}
+                        alt="cover"
+                        style={coverImg}
+                        onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                        }}
+                    />
                 </section>
                 {mode && (
                     <section style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -58,20 +63,43 @@ export default function SongReviewDetailModal({
                                 resize: 'none',
                             }}
                         />
+
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                                style={btnReject}
+                                onClick={() => { setMode(null); setReason(''); }}
+                            >
+                                취소
+                            </button>
+
+                            <button
+                                style={btnApprove}
+                                onClick={() => {
+                                    if (!reason.trim()) {
+                                        alert(mode === 'REJECT' ? '반려 사유를 입력하세요.' : '차단 사유 입력하세요.');
+                                        return;
+                                    }
+                                    if (mode === 'REJECT') onReject?.(song, reason.trim());
+                                    if (mode === 'BLOCK') onBlock?.(song, reason.trim());
+                                }}
+                            >
+                                {mode === 'REJECT' ? '확정' : '확정'}
+                            </button>
+                        </div>
                     </section>
                 )}
-                {/* ===== 조치 버튼 ===== */}
-                <section style={actionRow}>
-                    <button style={btnApprove} onClick={() => onApprove?.(song)}>
-                        승인
-                    </button>
-                    <button style={btnReject} onClick={() => setMode('REJECT')}>반려</button>
-                    <button style={btnBlock} onClick={() => setMode('BLOCK')}>차단</button>
-                </section>
-                <button style={closeBtn} onClick={onClose}>
-                    닫기
+            {/* ===== 조치 버튼 ===== */}
+            <section style={actionRow}>
+                <button style={btnApprove} onClick={() => onApprove?.(song)}>
+                    승인
                 </button>
-            </div>
+                <button style={btnReject} onClick={() => setMode('REJECT')}>반려</button>
+                <button style={btnBlock} onClick={() => setMode('BLOCK')}>차단</button>
+            </section>
+            <button style={closeBtn} onClick={onClose}>
+                닫기
+            </button>
+        </div >
         </>
     );
 }

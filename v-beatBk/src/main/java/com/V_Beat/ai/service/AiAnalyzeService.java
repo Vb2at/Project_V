@@ -97,14 +97,20 @@ public class AiAnalyzeService {
 		song.setFilePath(null);
 		song.setCoverPath(null);
 
-		String visibility = reqVisibility;
-		if ("PUBLIC".equals(reqVisibility)) {
-			visibility = "PENDING";
+		String v = (reqVisibility == null) ? "PRIVATE" : reqVisibility.trim().toUpperCase();
+		String saveVisibility;
+		
+		if("PRIVATE".equals(v)) {
+			saveVisibility = "PRIVATE";
+		} else if("PUBLIC".equals(v)) {
+			saveVisibility = "PENDING";
+		} else {
+			throw new IllegalArgumentException("visibility 값이 올바르지 않습니다.");
 		}
-
+		
 		song.setUserId(loginUserId);
-		song.setVisibility(visibility);
-
+		song.setVisibility(saveVisibility);
+		
 		this.aiAnalyzeDao.insertSong(song);
 		Long songId = song.getId();
 

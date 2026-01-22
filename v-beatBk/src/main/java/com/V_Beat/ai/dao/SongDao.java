@@ -127,6 +127,7 @@ public interface SongDao {
 			       visibility
 			FROM song
 			WHERE user_id = #{userId}
+			AND visibility != 'BLOCKED'
 			ORDER BY create_date DESC
 			""")
 	List<Song> getMySongs(int userId);
@@ -148,6 +149,5 @@ public interface SongDao {
 		    @Param("time") BigDecimal time,
 		    @Param("endTime") BigDecimal endTime
 		);
-
 }
 

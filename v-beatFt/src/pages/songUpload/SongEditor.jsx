@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
 
 import Header from '../../components/Common/Header';
@@ -8,6 +8,9 @@ import Background from '../../components/Common/Background';
 export default function SongEditor() {
     const { songId } = useParams();
     const navigate = useNavigate();
+    const { state } = useLocation();
+    const fromPublicUpload = state?.fromPublicUpload === true;
+
     const VISIBILITY_LABEL = {
         PRIVATE: '비공개',
         UNLISTED: '링크 공개',
@@ -59,6 +62,8 @@ export default function SongEditor() {
     const [coverPreview, setCoverPreview] = useState(null);
     const [loading, setLoading] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
+    //public선택 시 저장 버튼 숨김
+    const hideSave = fromPublicUpload || visibility === 'PENDING';
 
     /* ===== 초기 정보 로드 ===== */
     useEffect(() => {
@@ -250,22 +255,34 @@ export default function SongEditor() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
 
                             {/* === 메인 액션 === */}
-                            <button
-                                className="neon-btn"
-                                style={editorBtn}
-                                disabled={loading}
-                                onClick={handleSave}
-                            >
-                                {loading ? '저장 중...' : '저장'}
-                            </button>
+                            {!hideSave ? (
+                                <button
+                                    className="neon-btn"
+                                    style={editorBtn}
+                                    disabled={loading}
+                                    onClick={handleSave}
+                                >
+                                    {loading ? '저장 중...' : '저장'}
+                                </button>
+                            ) : (
+                                <button
+                                    className="neon-btn"
+                                    style={editorBtn}
+                                    onClick={() => navigate('/main')}
+                                >
+                                    홈으로
+                                </button>
+                            )}
 
-                            <button
-                                className="neon-btn"
-                                style={editorBtn}
-                                onClick={() => navigate(`/song/${songId}/note/edit`)}
-                            >
-                                노트 편집
-                            </button>
+                            {!hideSave && (
+                                <button
+                                    className="neon-btn"
+                                    style={editorBtn}
+                                    onClick={() => navigate(`/song/${songId}/note/edit`)}
+                                >
+                                    노트 편집
+                                </button>
+                            )}
 
                             <div
                                 style={{
@@ -275,7 +292,7 @@ export default function SongEditor() {
                                 }}
                             />
 
-                            {visibility !== 'PUBLIC' && (
+                            {!hideSave && visibility !== 'PENDING' && (
                                 <button
                                     className="neon-btn"
                                     style={dangerBtn}
