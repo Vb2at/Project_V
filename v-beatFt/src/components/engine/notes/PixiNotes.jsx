@@ -112,7 +112,7 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, 
 
     notes.forEach(note => {
 
-        const baseId = `${note.timing}-${note.lane}`;
+        const baseId = note.id;
         const preview = draggingPreviewRef?.current?.get(baseId);
         const renderNote = preview ? { ...note, ...preview } : note;
 
@@ -135,7 +135,7 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, 
 
             const left = getLaneLeftX(renderNote.lane);
             const right = getLaneRightX(renderNote.lane);
-            const noteId = `${renderNote.timing}-${renderNote.lane}`;
+            const noteId = renderNote.id;
             const isSelected = selectedNoteIds?.has(noteId);
 
             const centerX = (left + right) / 2;
@@ -204,7 +204,7 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, 
                 }
 
                 const segIndex = index;
-                const id = `long-${renderNote.timing}-${renderNote.lane}-${segIndex}`;
+                const id = `long-${renderNote.id}-${segIndex}`;
                 visibleIds.add(id);
                 index++;
 
@@ -294,9 +294,9 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, 
         const y = HIT_LINE_Y - (renderTiming - currentTime) * SPEED;
         if (y < -NOTE_HEIGHT * 2 || y > CANVAS_HEIGHT + 100) return;
 
-        const id = `${renderNote.timing}-${renderNote.lane}`;
+        const id = `tap-${renderNote.id}`;
         visibleIds.add(id);
-        const isSelected = selectedNoteIds?.has(id);
+        const isSelected = selectedNoteIds?.has(renderNote.id);
 
         let sprite = sprites.get(id);
         if (!sprite) {

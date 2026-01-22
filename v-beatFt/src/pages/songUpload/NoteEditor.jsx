@@ -30,6 +30,7 @@ export default function NoteEditor() {
     // eslint-disable-next-line no-unused-vars
     const [undoStack, setUndoStack] = useState([]);
     const [notes, setNotes] = useState([]);
+
     const [tool, setTool] = useState('tap');
     const [selectedNoteIds, setSelectedNoteIds] = useState(new Set());
     const navigate = useNavigate();
@@ -106,6 +107,13 @@ export default function NoteEditor() {
     };
 
     useEffect(() => {
+        console.log('[PARENT NOTES LENGTH]', notes.length);
+    }, [notes]);
+    useEffect(() => {
+        console.log('[PARENT NOTES]', notes);
+    }, [notes]);
+
+    useEffect(() => {
         window.addEventListener('mouseup', handleTimelineMouseUp);
         return () => window.removeEventListener('mouseup', handleTimelineMouseUp);
     }, []);
@@ -128,6 +136,7 @@ export default function NoteEditor() {
 
                 const mappedNotes = Array.isArray(rawNotes)
                     ? rawNotes.map((n) => {
+                        const id = crypto.randomUUID();
                         const lane = Number(n.lane ?? n.laneIndex ?? n.key ?? 0);
                         const type = (n.type ?? n.noteType ?? 'tap') === 'long' ? 'long' : 'tap';
                         const tSec = Number(n.time ?? n.noteTime ?? n.note_time ?? n.timing ?? 0);
@@ -136,10 +145,9 @@ export default function NoteEditor() {
                         const endTime = endSec != null ? Math.round(Number(endSec) * 1000) : undefined;
 
                         if (type === 'long') {
-                            return { uid: crypto.randomUUID(), lane, timing, endTime: endTime ?? timing + 1000, type: 'long', hit: false, holding: false, released: false };
+                            return { id, lane, timing, endTime: endTime ?? timing + 1000, type: 'long', hit: false, holding: false, released: false };
                         }
-                        return { uid: crypto.randomUUID(), lane, timing, type: 'tap', hit: false };
-
+                        return { id, lane, timing, type: 'tap', hit: false };
                     })
                     : [];
 
@@ -159,7 +167,9 @@ export default function NoteEditor() {
         try {
             const snap = JSON.parse(raw);
 
-            if (Array.isArray(snap.notes)) setNotes(snap.notes);
+            if (Array.isArray(snap.notes)) {
+                setNotes(snap.notes.map(n => ({ ...n, id: n.id ?? crypto.randomUUID() })));
+            }
             if (typeof snap.currentTime === 'number') setSeekTime(snap.currentTime);
             if (snap.tool) setTool(snap.tool);
 
