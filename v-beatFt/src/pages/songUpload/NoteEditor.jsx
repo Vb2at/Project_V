@@ -31,7 +31,7 @@ export default function NoteEditor() {
     const [undoStack, setUndoStack] = useState([]);
     const [notes, setNotes] = useState([]);
     const [tool, setTool] = useState('tap');
-    const [selectedNoteId, setSelectedNoteId] = useState(null);
+    const [selectedNoteIds, setSelectedNoteIds] = useState(new Set());
     const navigate = useNavigate();
     const timelineRef = useRef(null);
     const [isScrubbing, setIsScrubbing] = useState(false);
@@ -136,9 +136,10 @@ export default function NoteEditor() {
                         const endTime = endSec != null ? Math.round(Number(endSec) * 1000) : undefined;
 
                         if (type === 'long') {
-                            return { lane, timing, endTime: endTime ?? timing + 1000, type: 'long', hit: false, holding: false, released: false };
+                            return { uid: crypto.randomUUID(), lane, timing, endTime: endTime ?? timing + 1000, type: 'long', hit: false, holding: false, released: false };
                         }
-                        return { lane, timing, type: 'tap', hit: false };
+                        return { uid: crypto.randomUUID(), lane, timing, type: 'tap', hit: false };
+
                     })
                     : [];
 
@@ -223,8 +224,8 @@ export default function NoteEditor() {
                         notes={notes}
                         setNotes={setNotes}
                         pushUndo={pushUndo}
-                        selectedNoteId={selectedNoteId}
-                        setSelectedNoteId={setSelectedNoteId}
+                        selectedNoteIds={selectedNoteIds}
+                        setSelectedNoteIds={setSelectedNoteIds}
                         songId={songId}
                         onState={({ currentTime, duration }) => {
                             setCurrentTime(currentTime);
@@ -359,10 +360,6 @@ export default function NoteEditor() {
                     </div>
 
                     <div style={{ height: 10 }} />
-
-                    <button style={{ ...toolBtn, ...snapBtn }}>
-                        GRID
-                    </button>
                 </div>
             </div>
         </div>
@@ -480,6 +477,7 @@ const secondaryBtn = {
     cursor: 'pointer',
 };
 
+
 const toolBtn = {
     flex: 1,
     padding: '10px 0',
@@ -510,8 +508,4 @@ const toolGrid = {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
     gap: 10,
-};
-const snapBtn = {
-    width: '100%',   // 가로 전체
-    padding: '12px 0', // 다른 버튼보다 약간 두껍게
 };

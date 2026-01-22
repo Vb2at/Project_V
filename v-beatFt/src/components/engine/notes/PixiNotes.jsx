@@ -10,7 +10,7 @@ const longPool = [];
 const longOutlinePool = [];
 const longFadeStartMap = new Map(); // noteId → fade 시작 시점
 
-export default function PixiNotes({ notes, currentTime, speed, selectedNoteId, onReady }) {
+export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, draggingPreviewRef, onReady }) {
     const appRef = useRef(null);
     const readyRef = useRef(false);
     const speedRef = useRef(speed);
@@ -18,11 +18,11 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteId, o
     const containerRef = useRef(null);
     const notesRef = useRef(notes);
     const timeRef = useRef(currentTime);
-    const selectedRef = useRef(selectedNoteId);
+    const selectedRef = useRef(selectedNoteIds);
 
     useEffect(() => { notesRef.current = notes; }, [notes]);
     useEffect(() => { timeRef.current = currentTime; }, [currentTime]);
-    useEffect(() => { selectedRef.current = selectedNoteId; }, [selectedNoteId]);
+    useEffect(() => { selectedRef.current = selectedNoteIds; }, [selectedNoteIds]);
     useEffect(() => {
         speedRef.current = speed;
     }, [speed]);
@@ -63,7 +63,7 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteId, o
             tickerFn = () => {
                 const nowNotes = notesRef.current || [];
                 const nowTime = timeRef.current;
-                syncNotes(app.stage, textures, nowNotes, nowTime, speedRef.current, selectedRef.current);
+                syncNotes(app.stage, textures, nowNotes, nowTime, speedRef.current, selectedRef.current, draggingPreviewRef);
             };
 
             app.ticker.add(tickerFn);
@@ -104,7 +104,7 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteId, o
     );
 }
 
-function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
+function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, draggingPreviewRef) {
     const sprites = spritesRefSingleton;
     const { NOTE_HEIGHT, HIT_LINE_Y, HEIGHT: CANVAS_HEIGHT } = GAME_CONFIG.CANVAS;
     const SPEED = speed;
@@ -112,48 +112,53 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
 
     notes.forEach(note => {
 
-        if (note.spawnTime != null && currentTime < note.spawnTime) {
+        const baseId = `${note.timing}-${note.lane}`;
+        const preview = draggingPreviewRef?.current?.get(baseId);
+        const renderNote = preview ? { ...note, ...preview } : note;
+
+        if (renderNote.spawnTime != null && currentTime < renderNote.spawnTime) {
             return;
         }
+
         const renderTime =
-            note.spawnTime != null ? Math.max(currentTime, note.spawnTime) : currentTime;
-        // ---------------- 1. LONG NOTE (판정선 통과 로직) ----------------
-        if (note.type === 'long') {
-            const start = note.timing;
-            const end = note.endTime;
+            renderNote.spawnTime != null
+                ? Math.max(currentTime, renderNote.spawnTime)
+                : currentTime;
+
+        // ================= LONG NOTE =================
+        if (renderNote.type === 'long') {
+            const start = renderNote.timing;
+            const end = renderNote.endTime;
 
             const BASE_SEG_LEN = NOTE_HEIGHT * 0.6;
             const STEP_TIME = BASE_SEG_LEN / SPEED;
 
-            const left = getLaneLeftX(note.lane);
-            const right = getLaneRightX(note.lane);
+            const left = getLaneLeftX(renderNote.lane);
+            const right = getLaneRightX(renderNote.lane);
+            const noteId = `${renderNote.timing}-${renderNote.lane}`;
+            const isSelected = selectedNoteIds?.has(noteId);
+
             const centerX = (left + right) / 2;
-            const WIDTH_SCALE = 1.0; //v 폭
+            const WIDTH_SCALE = 1.0;
             const adjLeft = centerX + (left - centerX) * WIDTH_SCALE;
             const adjRight = centerX + (right - centerX) * WIDTH_SCALE;
 
-            // t의 시작점을currentTime으로 제한하지 않고 원본 start부터 계산하되,
-            // 화면 하단 밖(HIT_LINE_Y + 200)에 있는 마디는 스킵합니다.
-            let t = start;
-            let index = 0;
-
-            const noteId = `${note.timing}-${note.lane}`;
-            const isSelected = selectedNoteId === noteId;
-
-            // holding 시작 시점 기록
-            if (note.holding && !longFadeStartMap.has(noteId)) {
+            if (renderNote.holding && !longFadeStartMap.has(noteId)) {
                 longFadeStartMap.set(noteId, currentTime);
             }
 
             const fadeStartTime = longFadeStartMap.get(noteId);
-            const FADE_PX_PER_MS = SPEED * 0.02; // 페이드 속도 (튜닝 포인트)
+            const FADE_PX_PER_MS = SPEED * 0.02;
             const FADE_RANGE_PX = 90;
 
             if (fadeStartTime != null) {
                 const elapsed = currentTime - fadeStartTime;
                 const cutY = HIT_LINE_Y - elapsed * FADE_PX_PER_MS;
-                if (cutY < -50) return;   // 더 이상 렌더하지 않음
+                if (cutY < -50) return;
             }
+
+            let t = start;
+            let index = 0;
 
             while (t < end) {
                 const y = Math.round(HIT_LINE_Y - (t - renderTime) * SPEED);
@@ -170,23 +175,19 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
                 if (fadeStartTime != null) {
                     const elapsed = currentTime - fadeStartTime;
                     const cutY = HIT_LINE_Y - elapsed * FADE_PX_PER_MS;
-
-                    // 세그먼트가 페이드 영역에 들어오면 점점 투명
-                    const dist = cutY - bottomY; // 0 근처가 경계
+                    const dist = cutY - bottomY;
                     if (dist < FADE_RANGE_PX) {
-                        const t = Math.max(0, Math.min(1, dist / FADE_RANGE_PX));
-                        fadeAlpha = t; // 1 → 0 자연 감소
+                        const tt = Math.max(0, Math.min(1, dist / FADE_RANGE_PX));
+                        fadeAlpha = tt;
                     }
                 }
 
-                // 화면 상단 밖
                 if (y < -50) break;
 
-                // 원근 보정용 스케일 (최소값 제한으로 에러 방지)
                 const nextT = Math.min(t + STEP_TIME, end);
-                const OVERLAP_PX = 1; // 충분한 오버랩
+                const OVERLAP_PX = 1;
                 const rawNextY = HIT_LINE_Y - (nextT - renderTime) * SPEED + OVERLAP_PX;
-                const nextY = Math.round(rawNextY); // 서브픽셀 경계 제거
+                const nextY = Math.round(rawNextY);
 
                 if (bottomY <= nextY) {
                     t = nextT;
@@ -194,9 +195,8 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
                     continue;
                 }
 
-                const EDGE_HIDE_PX = 1; // 경계선 숨김용
+                const EDGE_HIDE_PX = 1;
 
-                // 화면 하단 밖 (이미 지나간 마디들 스킵)
                 if (y > CANVAS_HEIGHT + 100) {
                     t = nextT;
                     index++;
@@ -204,8 +204,7 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
                 }
 
                 const segIndex = index;
-
-                const id = `long-${note.timing}-${note.lane}-${segIndex}`;
+                const id = `long-${renderNote.timing}-${renderNote.lane}-${segIndex}`;
                 visibleIds.add(id);
                 index++;
 
@@ -230,14 +229,10 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
                 verts[6] = brx; verts[7] = bottomY;
                 buffer.update();
 
-                if (!sprite.__tinted) {
-                    sprite.tint = isSelected ? 0x00ffff : 0xff0059;
-                    sprite.__tinted = true;
-                }
                 sprite.tint = isSelected ? 0x00ffff : 0xff0059;
-                const baseAlpha = note.holding ? 0.9 : 0.8;
+                const baseAlpha = renderNote.holding ? 0.9 : 0.8;
                 sprite.alpha = (isSelected ? 1.0 : baseAlpha) * fadeAlpha;
-                //완전히 투명해진 세그먼트는 즉시 제거
+
                 if (fadeStartTime != null && fadeAlpha <= 0.02) {
                     releaseSprite(sprite);
                     sprites.delete(id);
@@ -246,30 +241,24 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
                     continue;
                 }
 
-                // ---------------- outline (holding 시만) ----------------
+                // outline
                 const outlineId = `${id}-outline`;
+                const OUTLINE_ACTIVE_RANGE = 240;
 
-                const OUTLINE_ACTIVE_RANGE = 240; // 판정선 기준 표시 범위(px)
-
-                if (
-                    note.holding &&
-                    bottomY > HIT_LINE_Y - OUTLINE_ACTIVE_RANGE
-                ) {
-
+                if (renderNote.holding && bottomY > HIT_LINE_Y - OUTLINE_ACTIVE_RANGE) {
                     visibleIds.add(outlineId);
 
                     let outline = sprites.get(outlineId);
                     if (!outline) {
                         outline = acquireLongOutlineSprite();
                         outline.visible = true;
-                        stage.addChildAt(outline, 0);    // 바디 뒤
+                        stage.addChildAt(outline, 0);
                         sprites.set(outlineId, outline);
                     }
 
-                    const OUTLINE_PX = 5; // 외곽선 두께 (튜닝 포인트)
-
-                    const OUTLINE_OVERLAP_PX = 3.0;   // 세그먼트 연결 겹침
-                    const CAP_PX = OUTLINE_PX + 0.1;                // 하단 캡 닫기
+                    const OUTLINE_PX = 5;
+                    const OUTLINE_OVERLAP_PX = 3.0;
+                    const CAP_PX = OUTLINE_PX + 0.1;
                     const bottomCapY = bottomY + CAP_PX;
 
                     const topY = nextY - OUTLINE_OVERLAP_PX - EDGE_HIDE_PX;
@@ -288,26 +277,26 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
                     overts[6] = obrx; overts[7] = botY;
                     obuf.update();
 
-                    outline.tint = 0x50ff00;  // 외곽선 색
-                    outline.alpha = note.holding ? 0.2 : fadeAlpha;
+                    outline.tint = 0x50ff00;
+                    outline.alpha = renderNote.holding ? 0.2 : fadeAlpha;
                 }
 
                 t = nextT;
             }
+
             return;
         }
 
-        // ---------------- 2. TAP NOTE (기존 유지) ----------------
-        if (note.hit) return;
+        // ================= TAP NOTE =================
+        if (renderNote.hit) return;
 
-        const renderTiming = note.timing;
-
+        const renderTiming = renderNote.timing;
         const y = HIT_LINE_Y - (renderTiming - currentTime) * SPEED;
         if (y < -NOTE_HEIGHT * 2 || y > CANVAS_HEIGHT + 100) return;
 
-        const id = `${note.timing}-${note.lane}`;
+        const id = `${renderNote.timing}-${renderNote.lane}`;
         visibleIds.add(id);
-        const isSelected = selectedNoteId === id;
+        const isSelected = selectedNoteIds?.has(id);
 
         let sprite = sprites.get(id);
         if (!sprite) {
@@ -317,18 +306,15 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
             sprites.set(id, sprite);
         }
 
-        const left = getLaneLeftX(note.lane);
-        const right = getLaneRightX(note.lane);
+        const left = getLaneLeftX(renderNote.lane);
+        const right = getLaneRightX(renderNote.lane);
         const centerX = (left + right) / 2;
 
-        // ✅ 선택 시 폭 확대 (transform 사용 안 함)
         const sel = isSelected ? 1.18 : 1.0;
         const adjLeft = centerX + (left - centerX) * (1.2 * sel);
         const adjRight = centerX + (right - centerX) * (1.2 * sel);
 
         const scale = getPerspectiveScale(y);
-
-        // ✅ 선택 시 높이도 함께 확대
         const h = NOTE_HEIGHT * scale * sel;
         const halfH = h / 2;
 
@@ -347,7 +333,6 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
 
         sprite.tint = isSelected ? 0xffe600 : 0xffffff;
         sprite.alpha = isSelected ? 1.0 : 0.85;
-
     });
 
     sprites.forEach((sprite, id) => {
@@ -357,6 +342,7 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteId) {
         }
     });
 }
+
 
 function getLaneLeftX(lane) {
     return GAME_CONFIG.LANE_WIDTHS.slice(0, lane).reduce((a, b) => a + b, 0);

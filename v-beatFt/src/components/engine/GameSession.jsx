@@ -18,8 +18,8 @@ export default function GameSession({
   notes = null,
   setNotes = null,
   pushUndo,
-  setSelectedNoteId,
-  selectedNoteId,
+  setSelectedNoteIds,
+  selectedNoteIds,
   songId: propSongId,
   analyserRef, onState, paused = false, bgmVolume, sfxVolume, onReady, onFinish
 }) {
@@ -52,6 +52,10 @@ export default function GameSession({
   const dragEndOffsetMsRef = useRef(0);  // resize용: note.endTime - mouseTiming
   const justDraggedRef = useRef(false);
   const dragStartPosRef = useRef(null);
+  const deleteDragRef = useRef(null); // { x1, y1, x2, y2 }
+  const [, forceRender] = useState(0); // 드래그 박스 렌더 트리거
+  const selectDragRef = useRef(null); // { x1, y1, x2, y2 }
+  const draggingPreviewRef = useRef(new Map()); // id -> { timing, lane, endTime }
 
   const getLaneCount = () =>
     GAME_CONFIG.LANE?.COUNT ?? GAME_CONFIG.KEY?.COUNT ?? 7;
@@ -71,6 +75,7 @@ export default function GameSession({
   };
 
   useEffect(() => {
+    if (mode === 'edit') return; 
     if (seekTime == null) return;
 
     setCurrentTime(seekTime);
@@ -326,6 +331,22 @@ export default function GameSession({
       setPressedKeys(new Set());
     }
   }, [paused, mode]);
+
+  useEffect(() => {
+    if (mode !== 'edit') return;
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        deleteDragRef.current = null;
+        selectDragRef.current = null;
+        forceRender(v => v + 1);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mode]);
+
 
   const normalizeNotesFromApi = (payload) => {
     const list = Array.isArray(payload) ? payload : (payload?.notes || payload?.data || []);
@@ -734,13 +755,23 @@ export default function GameSession({
     const timeOffset = (HIT_Y - sy) / currentSpeed;
     const t = (currentTimeRef.current || 0) + timeOffset;
 
-    return { lane, timing: Math.round(t) };
+    return { lane, timing: t };
+  };
+
+  const getLaneLeftX = (lane) => {
+    return (GAME_CONFIG.LANE_WIDTHS ?? [])
+      .slice(0, lane)
+      .reduce((a, b) => a + b, 0);
+  };
+
+  const getLaneRightX = (lane) => {
+    return getLaneLeftX(lane) + (GAME_CONFIG.LANE_WIDTHS?.[lane] ?? 0);
   };
 
   // 2. 에디터 클릭 핸들러 (탭 생성 및 삭제)
   const handleEditorClick = (e) => {
-    if (tool === 'select') return;
     if (justDraggedRef.current) return;
+    if (tool === 'delete' && deleteDragRef.current) return;
     if (mode !== 'edit' || dragStartRef.current || draggingNoteRef.current) {
       return;
     }
@@ -756,17 +787,34 @@ export default function GameSession({
 
       pushUndo(notesRef.current);
 
-      const HIT_Y = GAME_CONFIG.CANVAS.HIT_LINE_Y;
+      const newTiming = Math.round(timing);
 
-      usedSetNotes((prev) => [
-        ...prev,
-        {
-          lane,
-          timing: Math.round(timing),
-          type: 'tap',
-          hit: false,
-        }
-      ]);
+      usedSetNotes((prev) => {
+        const isDuplicateTap = prev.some(n =>
+          n.type === 'tap' &&
+          n.lane === lane &&
+          Math.abs(n.timing - newTiming) < 60
+        );
+
+        const isInsideLong = prev.some(n =>
+          n.type === 'long' &&
+          n.lane === lane &&
+          newTiming > n.timing &&
+          newTiming < (n.endTime ?? n.timing)
+        );
+
+        if (isDuplicateTap || isInsideLong) return prev;
+
+        return [
+          ...prev,
+          {
+            lane,
+            timing: newTiming,
+            type: 'tap',
+            hit: false,
+          }
+        ];
+      });
     }
   };
   const getLaneFromClient = (clientX, clientY) => {
@@ -803,88 +851,118 @@ export default function GameSession({
 
   const handleMouseMove = (e) => {
     if (mode !== 'edit') return;
-    // ===== SELECT DRAG MOVE =====
+
+    // ===== NOTE DRAG MOVE =====
     if (tool === 'select' && draggingNoteRef.current) {
       justDraggedRef.current = true;
 
-      // ✅ 클릭 vs 드래그 구분 (미세 이동 무시)
-      if (dragStartPosRef.current) {
-        const dx = Math.abs(e.clientX - dragStartPosRef.current.x);
-        const dy = Math.abs(e.clientY - dragStartPosRef.current.y);
-        if (dx < 4 && dy < 4) return; // 아직 클릭 단계
-      }
-
       const dragInfo = draggingNoteRef.current;
-      const { noteId, mode } = dragInfo;
+      const { mode: dragMode, baseTiming, baseLane, baseById } = dragInfo;
 
-      // ✅ lane은 기존 getGameCoords로만 가져오고(원근 X), timing은 Y역변환으로만 계산
-      const newLaneMaybe = getLaneFromClient(e.clientX, e.clientY);
-
+      // 현재 마우스 timing
       const rect = viewRef.current.getBoundingClientRect();
       const sy = (e.clientY - rect.top) / SCALE;
       const HIT_Y = GAME_CONFIG.CANVAS.HIT_LINE_Y;
+
       const mouseTimingNow =
-        Math.round(dragBaseTimeRef.current + (HIT_Y - sy) / speed);
+        dragBaseTimeRef.current + (HIT_Y - sy) / speed;
 
-      usedSetNotes(prev =>
-        prev.map(n => {
-          const id = `${n.timing}-${n.lane}`;
-          if (id !== noteId) return n;
+      const baseNewTiming =
+        Math.max(0, mouseTimingNow + dragOffsetMsRef.current);
 
-          // ✅ move 기준 timing (튐 없음)
-          const newTiming = Math.max(0, Math.round(mouseTimingNow + dragOffsetMsRef.current));
+      const delta = baseNewTiming - baseTiming;
 
-          // ✅ resize 기준 endTime (튐 없음)
-          if (mode === 'resize' && n.type === 'long') {
-            const minLen = 150;
-            const newEnd = Math.max(
-              Math.round(mouseTimingNow + dragEndOffsetMsRef.current),
-              (n.timing ?? 0) + minLen
-            );
+      const newLaneMaybe = getLaneFromClient(e.clientX, e.clientY);
+      const laneDelta = newLaneMaybe >= 0 ? (newLaneMaybe - baseLane) : 0;
 
-            const updated = {
-              ...n,
-              endTime: newEnd,
-              lane: newLaneMaybe >= 0 ? newLaneMaybe : n.lane,
-            };
+      draggingPreviewRef.current.clear();
 
-            if (draggingNoteRef.current) {
-              dragInfo.noteId = `${updated.timing}-${updated.lane}`;
-            }
+      for (const [id, base] of baseById.entries()) {
+        const targetLane = base.lane + laneDelta;
+        if (targetLane < 0 || targetLane >= getLaneCount()) continue;
 
-            return updated;
-          }
+        if (dragMode === 'move') {
+          const prev = draggingPreviewRef.current.get(id) || {};
+          draggingPreviewRef.current.set(id, {
+            ...prev,
+            timing: Math.max(0, base.timing + delta),
+            lane: targetLane,
+          });
+        }
 
-          const updated = {
-            ...n,
-            timing: newTiming,
-            lane: newLaneMaybe >= 0 ? newLaneMaybe : n.lane,
-          };
+        if (dragMode === 'resize' && base.type === 'long') {
+          const minLen = 150;
+          const newEnd = Math.max(
+            mouseTimingNow + dragEndOffsetMsRef.current,
+            base.timing + minLen
+          );
+          const prev = draggingPreviewRef.current.get(id) || {};
+          draggingPreviewRef.current.set(id, {
+            ...prev,
+            endTime: newEnd,
+          });
+        }
+      }
 
-          // ✅ 핵심(문제1 해결): 객체 참조 갱신
-          dragInfo.noteId = `${updated.timing}-${updated.lane}`; return updated;
-        })
-      );
 
       return;
     }
 
+    // ===== DELETE DRAG MOVE =====
+    if (tool === 'delete' && deleteDragRef.current) {
+      deleteDragRef.current.x2 = e.clientX;
+      deleteDragRef.current.y2 = e.clientY;
+      forceRender(v => v + 1);
+      return;
+    }
+
+    // ===== SELECT BOX DRAG MOVE =====
+    if (tool === 'select' && selectDragRef.current && !draggingNoteRef.current) {
+      selectDragRef.current.x2 = e.clientX;
+      selectDragRef.current.y2 = e.clientY;
+      forceRender(v => v + 1);
+      return;
+    }
+
     // ===== 커서 영역 판정 =====
-    const { lane } = getGameCoords(e.clientX, e.clientY);
-    setIsInLaneArea(lane >= 0 && lane < getLaneCount());
+    if (!draggingNoteRef.current && !selectDragRef.current && !deleteDragRef.current) {
+      const { lane } = getGameCoords(e.clientX, e.clientY);
+      setIsInLaneArea(lane >= 0 && lane < getLaneCount());
+    }
   };
 
   // 3. 에디터 드래그 핸들러 (롱노트 생성)
 
   const handleEditorMouseDown = (e) => {
     if (mode !== 'edit' || e.button !== 0) return;
+    if (tool === 'delete' && deleteDragRef.current) return;
+
+    if (tool === 'delete') {
+      deleteDragRef.current = {
+        x1: e.clientX,
+        y1: e.clientY,
+        x2: e.clientX,
+        y2: e.clientY,
+      };
+      return;
+    }
+
+    // ===== SELECT BOX DRAG START (빈 공간) =====
+    if (tool === 'select' && e.shiftKey) {
+      selectDragRef.current = {
+        x1: e.clientX,
+        y1: e.clientY,
+        x2: e.clientX,
+        y2: e.clientY,
+      };
+      forceRender(v => v + 1);
+      return;
+    }
 
     const { lane } = getGameCoords(e.clientX, e.clientY);
     const { timing: clickTiming } = getGameCoords(e.clientX, e.clientY);
 
-
-    // ===== 선택 (hold-select) =====
-    // ===== 선택 (hold-select) =====
+    // ===== 선택(노트 잡기) =====
     if (tool === 'select' && lane >= 0 && lane < getLaneCount()) {
       const HIT_RANGE = 80;
       let picked = null;
@@ -894,11 +972,8 @@ export default function GameSession({
         if (n.lane !== lane) continue;
 
         let d = Math.abs(n.timing - clickTiming);
-
         if (n.type === 'long' && n.endTime != null) {
-          if (clickTiming >= n.timing && clickTiming <= n.endTime) {
-            d = 0;
-          }
+          if (clickTiming >= n.timing && clickTiming <= n.endTime) d = 0;
         }
 
         if (d <= HIT_RANGE && d < best) {
@@ -908,16 +983,16 @@ export default function GameSession({
       }
 
       if (!picked) {
-        setSelectedNoteId?.(null);
+        setSelectedNoteIds?.(new Set());
         draggingNoteRef.current = null;
         return;
       }
 
       // resize 판정
-      let mode2 = 'move';
+      let dragMode = 'move';
       if (picked.type === 'long' && picked.endTime != null) {
-        const END_HIT_MS = 80; // 끝점 판정 허용 범위(ms)
-        if (Math.abs(picked.endTime - clickTiming) < END_HIT_MS) mode2 = 'resize';
+        const END_HIT_MS = 80;
+        if (Math.abs(picked.endTime - clickTiming) < END_HIT_MS) dragMode = 'resize';
       }
 
       // ✅ 드래그 기준 시간 고정
@@ -928,21 +1003,53 @@ export default function GameSession({
       const sy = (e.clientY - rect.top) / SCALE;
       const HIT_Y = GAME_CONFIG.CANVAS.HIT_LINE_Y;
       const mouseTimingDown =
-        Math.round(dragBaseTimeRef.current + (HIT_Y - sy) / speed);
-        
+        dragBaseTimeRef.current + (HIT_Y - sy) / speed;
+
       // ✅ offset 고정(튐 방지)
       dragOffsetMsRef.current = (picked.timing ?? 0) - mouseTimingDown;
       dragEndOffsetMsRef.current =
         (picked.type === 'long' ? (picked.endTime ?? picked.timing) : picked.timing) - mouseTimingDown;
 
-      const noteId = `${picked.timing}-${picked.lane}`;
-      draggingNoteRef.current = { noteId, mode: mode2 };
+      const pickedId = `${picked.timing}-${picked.lane}`;
+
+      // ✅ 선택 세트 확정(현재 selectedNoteIds + picked)
+      let selectedIds;
+
+      if (e.shiftKey) {
+        selectedIds = new Set(selectedNoteIds ?? []);
+        selectedIds.add(pickedId);
+      } else {
+        selectedIds = new Set([pickedId]); // ✅ 단일 선택
+      }
+      // ✅ 핵심: 드래그 시작 스냅샷(원본값) 저장 → 누적 이동 금지
+      const baseById = new Map();
+
+      for (const n of (notesRef.current ?? [])) {
+        const id = `${n.timing}-${n.lane}`;
+        if (!selectedIds.has(id)) continue;
+
+        baseById.set(id, {
+          timing: n.timing,
+          lane: n.lane,
+          endTime: n.endTime,
+          type: n.type,
+        });
+      }
+
+      draggingNoteRef.current = {
+        mode: dragMode,
+        baseTiming: picked.timing,
+        baseLane: picked.lane,
+        baseById,
+        selectedIds,
+      };
+
       dragStartPosRef.current = { x: e.clientX, y: e.clientY };
-      setSelectedNoteId?.(`${picked.timing}-${picked.lane}`); // 기존 체계 유지
+      setSelectedNoteIds?.(new Set([pickedId]));
       return;
     }
 
-    // ===== 롱노트 생성 =====
+    // ===== 롱노트 생성 드래그 시작 =====
     if (tool !== 'long') return;
     if (lane >= 0 && lane < getLaneCount()) {
       const { timing: startTiming } = getGameCoords(e.clientX, e.clientY);
@@ -950,8 +1057,34 @@ export default function GameSession({
     }
   };
 
-
   const handleEditorMouseUp = (e) => {
+
+    if (mode === 'edit' && draggingPreviewRef.current.size > 0) {
+      pushUndo(notesRef.current);
+
+      const preview = draggingPreviewRef.current;
+      const selectedIds = draggingNoteRef.current?.selectedIds;
+
+      usedSetNotes(prev => {
+        const next = prev.map(n => {
+          const id = `${n.timing}-${n.lane}`;
+          if (!selectedIds?.has(id)) return n;
+
+          const p = preview.get(id);
+          if (!p) return n;
+
+          return { ...n, ...p };
+        });
+
+        // ✅ ref도 즉시 동일한 값으로 동기화 (롤백 방지 핵심)
+        notesRef.current = next;
+        return next;
+      });
+
+      draggingPreviewRef.current.clear();
+    }
+
+    // ===== 공통 드래그 정리 =====
     if (mode === 'edit') {
       draggingNoteRef.current = null;
       dragBaseTimeRef.current = 0;
@@ -964,7 +1097,119 @@ export default function GameSession({
       }, 0);
     }
 
+    // ===== 공통 드래그 정리 =====
+    if (mode === 'edit') {
+      draggingNoteRef.current = null;
+      dragBaseTimeRef.current = 0;
+      dragOffsetMsRef.current = 0;
+      dragEndOffsetMsRef.current = 0;
+      dragStartPosRef.current = null;
 
+      setTimeout(() => {
+        justDraggedRef.current = false;
+      }, 0);
+    }
+
+    // ===== DELETE DRAG END =====
+    if (mode === 'edit' && tool === 'delete' && deleteDragRef.current) {
+      const { x1, y1, x2, y2 } = deleteDragRef.current;
+      deleteDragRef.current = null;
+
+      const minX = Math.min(x1, x2);
+      const maxX = Math.max(x1, x2);
+      const minY = Math.min(y1, y2);
+      const maxY = Math.max(y1, y2);
+
+      const rect = viewRef.current.getBoundingClientRect();
+
+      pushUndo(notesRef.current);
+
+      usedSetNotes(prev =>
+        prev.filter(n => {
+          const { lane, timing } = n;
+
+          const y =
+            GAME_CONFIG.CANVAS.HIT_LINE_Y -
+            (timing - currentTimeRef.current) * speed;
+
+          const xLeft = getLaneLeftX(lane);
+          const xRight = getLaneRightX(lane);
+
+          const centerX = GAME_CONFIG.CANVAS.WIDTH / 2;
+          const scale =
+            GAME_CONFIG.PERSPECTIVE.SCALE_MIN +
+            (y / GAME_CONFIG.CANVAS.HEIGHT) *
+            (GAME_CONFIG.PERSPECTIVE.SCALE_MAX - GAME_CONFIG.PERSPECTIVE.SCALE_MIN);
+
+          const screenLeft =
+            (centerX + (xLeft - centerX) * scale) * SCALE + rect.left;
+          const screenRight =
+            (centerX + (xRight - centerX) * scale) * SCALE + rect.left;
+          const screenY =
+            y * SCALE + rect.top;
+
+          const inside =
+            screenRight >= minX &&
+            screenLeft <= maxX &&
+            screenY >= minY &&
+            screenY <= maxY;
+
+          return !inside;
+        })
+      );
+
+      return;
+    }
+
+    // ===== SELECT DRAG END =====
+    if (mode === 'edit' && tool === 'select' && selectDragRef.current) {
+      const { x1, y1, x2, y2 } = selectDragRef.current;
+      selectDragRef.current = null;
+
+      const minX = Math.min(x1, x2);
+      const maxX = Math.max(x1, x2);
+      const minY = Math.min(y1, y2);
+      const maxY = Math.max(y1, y2);
+
+      const rect = viewRef.current.getBoundingClientRect();
+
+      const picked = new Set();
+      for (const n of notesRef.current) {
+        const y =
+          GAME_CONFIG.CANVAS.HIT_LINE_Y -
+          (n.timing - currentTimeRef.current) * speed;
+
+        const xLeft = getLaneLeftX(n.lane);
+        const xRight = getLaneRightX(n.lane);
+
+        const centerX = GAME_CONFIG.CANVAS.WIDTH / 2;
+        const scale =
+          GAME_CONFIG.PERSPECTIVE.SCALE_MIN +
+          (y / GAME_CONFIG.CANVAS.HEIGHT) *
+          (GAME_CONFIG.PERSPECTIVE.SCALE_MAX - GAME_CONFIG.PERSPECTIVE.SCALE_MIN);
+
+        const screenLeft =
+          (centerX + (xLeft - centerX) * scale) * SCALE + rect.left;
+        const screenRight =
+          (centerX + (xRight - centerX) * scale) * SCALE + rect.left;
+        const screenY =
+          y * SCALE + rect.top;
+
+        const inside =
+          screenRight >= minX &&
+          screenLeft <= maxX &&
+          screenY >= minY &&
+          screenY <= maxY;
+
+        if (inside) picked.add(`${n.timing}-${n.lane}`);
+      }
+
+      setSelectedNoteIds?.(picked);
+      forceRender(v => v + 1);
+      return;
+    }
+
+    // ===== LONG NOTE CREATE =====
     if (mode !== 'edit' || tool !== 'long' || !dragStartRef.current) return;
 
     const { timing: tEndRaw } = getGameCoords(e.clientX, e.clientY);
@@ -978,24 +1223,39 @@ export default function GameSession({
 
     if (tEnd - tStart < 150) return;
 
-    pushUndo(notesRef.current);
-
-    const HIT_Y = GAME_CONFIG.CANVAS.HIT_LINE_Y;
-
     const start = Math.min(tStart, tEnd);
     const end = Math.max(tStart, tEnd);
 
-    usedSetNotes((prev) => [
-      ...prev,
-      {
-        lane,
-        timing: Math.round(start),
-        endTime: Math.round(end),
-        type: 'long',
-        hit: false,
-        holding: false,
-      }
-    ]);
+    const newStart = Math.round(start);
+    const newEnd = Math.round(end);
+
+    pushUndo(notesRef.current);
+
+    usedSetNotes(prev => {
+      const isOverlap = prev.some(n => {
+        if (n.lane !== lane) return false;
+
+        if (n.type === 'long') {
+          return newStart < (n.endTime ?? n.timing) && newEnd > n.timing;
+        }
+
+        return n.timing > newStart && n.timing < newEnd;
+      });
+
+      if (isOverlap) return prev;
+
+      return [
+        ...prev,
+        {
+          lane,
+          timing: newStart,
+          endTime: newEnd,
+          type: 'long',
+          hit: false,
+          holding: false,
+        }
+      ];
+    });
   };
 
   // 4. 렌더링 (JSX)
@@ -1045,6 +1305,74 @@ export default function GameSession({
           transformOrigin: 'top left',
         }}
       >
+        {mode === 'edit' && tool === 'delete' && deleteDragRef.current && (() => {
+          const rect = viewRef.current?.getBoundingClientRect();
+          if (!rect) return null;
+
+          const { x1, y1, x2, y2 } = deleteDragRef.current;
+
+          // viewRef 기준 좌표로 변환 + SCALE 보정
+          const lx1 = (x1 - rect.left) / SCALE;
+          const ly1 = (y1 - rect.top) / SCALE;
+          const lx2 = (x2 - rect.left) / SCALE;
+          const ly2 = (y2 - rect.top) / SCALE;
+
+          const left = Math.min(lx1, lx2);
+          const top = Math.min(ly1, ly2);
+          const width = Math.abs(lx2 - lx1);
+          const height = Math.abs(ly2 - ly1);
+
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left,
+                top,
+                width,
+                height,
+                border: '2px dashed #ff5577',
+                background: 'rgba(255,80,120,0.15)',
+                pointerEvents: 'none',
+                zIndex: 10,
+              }}
+            />
+          );
+        })()}
+
+        {mode === 'edit' && tool === 'select' && selectDragRef.current && (() => {
+          const rect = viewRef.current?.getBoundingClientRect();
+          if (!rect) return null;
+
+          const { x1, y1, x2, y2 } = selectDragRef.current;
+
+          // client → viewRef 로컬 + SCALE 역보정
+          const lx1 = (x1 - rect.left) / SCALE;
+          const ly1 = (y1 - rect.top) / SCALE;
+          const lx2 = (x2 - rect.left) / SCALE;
+          const ly2 = (y2 - rect.top) / SCALE;
+
+          const left = Math.min(lx1, lx2);
+          const top = Math.min(ly1, ly2);
+          const width = Math.abs(lx2 - lx1);
+          const height = Math.abs(ly2 - ly1);
+
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left,
+                top,
+                width,
+                height,
+                border: '2px dashed #55ccff',
+                background: 'rgba(80,180,255,0.15)',
+                pointerEvents: 'none',
+                zIndex: 10,
+              }}
+            />
+          );
+        })()}
+
         <GameCanvas
           notes={
             mode === 'edit'
@@ -1064,8 +1392,9 @@ export default function GameSession({
           notes={usedNotes ?? []}
           currentTime={currentTime}
           speed={speed}
-          selectedNoteId={selectedNoteId}
-        />        {mode === 'play' && (
+          selectedNoteIds={selectedNoteIds}
+          draggingPreviewRef={draggingPreviewRef}
+        />      {mode === 'play' && (
           <>
             <KeyEffectLayer pressedKeys={pressedKeys} />
             <PixiEffects effects={effects} />
