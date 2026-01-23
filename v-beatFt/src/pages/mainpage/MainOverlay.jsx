@@ -44,28 +44,32 @@ export default function MainOverlay() {
   const [reportOpen, setReportOpen] = useState(false);
   const [listMode, setListMode] = useState('PUBLIC'); // PUBLIC | MY
   const [loginUserId, setLoginUserId] = useState(null);
+  const [isBlockUser, setIsBlockUser] = useState(false);
 
-useEffect(() => {
-  let alive = true;
+  useEffect(() => {
+    let alive = true;
 
-  (async () => {
-    try {
-      const res = await statusApi();
-      if(!alive) return;
+    (async () => {
+      try {
+        const res = await statusApi();
+        console.log('STATUS API =', res.data);
+        if (!alive) return;
 
-      if(res.data?.ok) {
-        setLoginUserId(Number(res.data.loginUserId));
-      } else {
+        if (res.data?.ok) {
+          setLoginUserId(Number(res.data.loginUserId));
+          setIsBlockUser(res.data.loginUserRole === 'BLOCK');
+        } else {
+          setLoginUserId(null);
+          setIsBlockUser(false);
+        }
+      } catch (e) {
+        if (!alive) return;
         setLoginUserId(null);
       }
-    } catch(e) {
-      if(!alive) return;
-      setLoginUserId(null);
-    }
-  })();
+    })();
 
-  return () => { alive = false; };
-}, []);
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     const unlocked = localStorage.getItem('bgmUnlocked') === 'true';
@@ -288,7 +292,7 @@ useEffect(() => {
   })();
   const selectedSong = songs[selectedIndex];
 
-  const isMySong = 
+  const isMySong =
     loginUserId != null &&
     selectedSong?.uploaderUserId != null &&
     Number(loginUserId) === Number(selectedSong.uploaderUserId);
@@ -296,54 +300,54 @@ useEffect(() => {
   //백엔드 reasonCode에 맞추기 (기존 프론트 mainReason, subReason 나눠져 있었음)
   const makeReasonCode = (p) => {
     const main = String(p?.mainReason ?? '').trim();
-    const sub = String(p?. subReason ?? '').trim();
+    const sub = String(p?.subReason ?? '').trim();
 
     return `${main}:${sub}`;
   };
 
   //노래 신고
- const submitSongReport = async (payload) => {
-  const body = {
-    targetType: 'SONG',
-    targetId: Number(selectedSong?.id),
-    reasonCode: makeReasonCode(payload),
-    description: String(payload?.description ?? ''),
-  };
+  const submitSongReport = async (payload) => {
+    const body = {
+      targetType: 'SONG',
+      targetId: Number(selectedSong?.id),
+      reasonCode: makeReasonCode(payload),
+      description: String(payload?.description ?? ''),
+    };
 
-  const res = await fetch('/api/report', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(body),
-  });
+    const res = await fetch('/api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
 
-  //먼저 JSON 파싱 시도 (실패하면 null)
-  const data = await res.json().catch(() => null);
+    //먼저 JSON 파싱 시도 (실패하면 null)
+    const data = await res.json().catch(() => null);
 
-  //401
-  if (res.status === 401) {
-    throw new Error(data?.message || '로그인이 필요한 기능입니다.');
-  }
-
-  //409
-  if (res.status === 409) {
-    if (data?.code === 'ALREADY_REPORTED') {
-      throw new Error('이미 접수된 신고입니다.');
+    //401
+    if (res.status === 401) {
+      throw new Error(data?.message || '로그인이 필요한 기능입니다.');
     }
-    throw new Error(data?.message || '이미 접수된 신고입니다.');
-  }
 
-  if (!res.ok) {
-    throw new Error(data?.message || `신고 실패 (${res.status})`);
-  }
+    //409
+    if (res.status === 409) {
+      if (data?.code === 'ALREADY_REPORTED') {
+        throw new Error('이미 접수된 신고입니다.');
+      }
+      throw new Error(data?.message || '이미 접수된 신고입니다.');
+    }
 
-  // ok:false 방어
-  if (data?.ok === false) {
-    throw new Error(data?.message ?? '신고 실패');
-  }
+    if (!res.ok) {
+      throw new Error(data?.message || `신고 실패 (${res.status})`);
+    }
 
-  return data;
-};
+    // ok:false 방어
+    if (data?.ok === false) {
+      throw new Error(data?.message ?? '신고 실패');
+    }
+
+    return data;
+  };
 
 
   useEffect(() => {
@@ -597,8 +601,8 @@ useEffect(() => {
                       onClose={() => setReportOpen(false)}
                       onSubmit={async (payload) => {
                         console.log('REPORT payload =', payload);
-                          try {
-                            const desc = String(payload?.description ?? '').trim();
+                        try {
+                          const desc = String(payload?.description ?? '').trim();
 
                           await submitSongReport(payload);
                           setReportOpen(false);
@@ -628,21 +632,30 @@ useEffect(() => {
             }}
           >
             {/* 공개곡/my곡 전환 */}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end'}}>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               {[
                 ['PUBLIC', '공개 곡'],
                 ['MY', '내 곡'],
               ].map(([v, label]) => {
                 const active = listMode === v;
+                const disabled = v === 'MY' && isBlockUser;
                 return (
                   <div
                     key={v}
-                    onClick={() => setListMode(v)}
+                    onClick={() => {
+                      if (disabled) {
+                        alert('차단된 사용자는 사용할 수 없는 기능입니다.');
+                        return;
+                      }
+                      setListMode(v)
+                    }}
                     style={{
                       padding: '6px 14px',
                       borderRadius: 12,
                       cursor: 'pointer',
                       fontSize: 13,
+                      opacity: disabled ? 0.35 : 1,          
+                      pointerEvents: disabled ? 'none' : 'auto', 
                       color: active ? '#0ff' : '#cfd8e3',
                       border: active
                         ? '2px solid rgba(90,234,255,0.9)'

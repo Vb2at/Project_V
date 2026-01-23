@@ -27,6 +27,9 @@ export default function Header() {
   // ✅ 로그인 상태
   const [status, setStatus] = useState(null);
   const [statusLoading, setStatusLoading] = useState(true);
+  
+  //차단 여부 확인
+  const isBlockUser = status?.loginUserRole === 'BLOCK';
 
   const handleToggle = () => {
     toggleMenuBgm();
@@ -74,6 +77,7 @@ export default function Header() {
             loginUserId: res.data.loginUserId,
             loginUser: res.data.loginUser,
             loginUserNickName: res.data.loginUserNickName,
+            loginUserRole: res.data.loginUserRole,
           });
         }
       } catch {
@@ -380,7 +384,7 @@ export default function Header() {
             boxShadow: '0 0 12px rgba(90,234,255,0.4)',
           }}
         >
-          {status && (
+          {status && !isBlockUser && (
             <button
               className="neon-btn"
               onClick={() => {
@@ -402,31 +406,33 @@ export default function Header() {
                     마이페이지
                   </button>
 
-                  <button
-                    className="neon-btn"
-                    style={{ position: 'relative' }}
-                    onClick={() => {
-                      setMobileOpen(false);
-                      navigate('/mypage', { state: { tab: 'messages' } });
-                    }}
-                  >
-                    메세지
+                  {!isBlockUser && (
+                    <button
+                      className="neon-btn"
+                      style={{ position: 'relative' }}
+                      onClick={() => {
+                        setMobileOpen(false);
+                        navigate('/mypage', { state: { tab: 'messages' } });
+                      }}
+                    >
+                      메세지
 
-                    {/* ✅ 쪽지(미확인) 있으면 점 (메세지 메뉴) */}
-                    {hasMessageDot && (
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: 2,
-                          right: 6,
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          background: '#ff4d4f',
-                        }}
-                      />
-                    )}
-                  </button>
+                      {/* ✅ 쪽지(미확인) 있으면 점 (메세지 메뉴) */}
+                      {hasMessageDot && (
+                        <span
+                          style={{
+                            position: 'absolute',
+                            top: 2,
+                            right: 6,
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: '#ff4d4f',
+                          }}
+                        />
+                      )}
+                    </button>
+                  )}
 
                   <button className="neon-btn" onClick={handleLogout}>
                     로그아웃
