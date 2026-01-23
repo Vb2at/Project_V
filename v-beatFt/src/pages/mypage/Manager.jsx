@@ -3,7 +3,7 @@ import SongReviewDetailModal from '../../components/Common/manager/SongReviewDet
 import { useState, useEffect } from 'react';
 import UserBlockModal from '../../components/Common/manager/UserBlockModal';
 import { fetchReviewSongs, fetchReviewSongDetail, reviewSong as reviewSongApi } from '../../api/adminSong';
-import { fetchAdminUsers } from '../../api/adminUser';
+import { fetchAdminUsers, blockUser as blockUserApi, unblockUser as unblockUserApi } from '../../api/adminUser';
 /* ================= Tabs ================= */
 
 const TABS = [
@@ -33,7 +33,7 @@ export default function Manager() {
     const [reviewOpen, setReviewOpen] = useState(false);
     const [reviewSong, setReviewSong] = useState(null);
     const [blockUserOpen, setBlockUserOpen] = useState(false);
-    const [blockUser, setBlockUser] = useState(null);
+    const [selectedUser, setSelectedUser] = useState(null);
     const [reviewSongs, setReviewSongs] = useState([]);
     const [songLoading, setSongLoading] = useState(false);
     const [songError, setSongError] = useState('');
@@ -48,6 +48,41 @@ export default function Manager() {
     const [userTotal, setUserTotal] = useState(0);
     const [userPage, setUserPage] = useState(1);
     const userSize = 10;
+
+    //관리자 유저 차단 처리 함수
+    async function handleUserBlock(userId, reason) {
+        try {
+            await blockUserApi(userId, reason);
+            alert('해당 사용자 차단이 완료되었습니다.');
+
+            setBlockUserOpen(false);
+            setSelectedUser(null);
+            //목록 갱신
+            loadUsers();
+        } catch(e) {
+            alert(e.response?.data?.message || '차단에 실패하였습니다.');
+        }
+    }
+
+    //관리자 유저 차단 해제 처리 함수
+    async function handleUserUnblock(user) {
+        const ok = window.confirm(
+            `[${user.nickname}]님의 차단을 해제 하시겠습니까?`
+        );
+        if(!ok) {
+            return;
+        }
+
+        try {
+            await unblockUserApi(user.id);
+            alert('해당 사용자의 차단 해제가 완료되었습니다.');
+
+            //목록 갱신
+            loadUsers();
+        } catch(e) {
+            alert(e.response?.data?.message || '차단 해제에 실패했습니다.');
+        }
+    }
 
     //사용자 목록 불러오는 함수
     async function loadUsers() {
@@ -217,7 +252,7 @@ export default function Manager() {
                         loading={userLoading}
                         error={userError}
                         onRequestBlock={(u) => { 
-                            setBlockUser(u);
+                            setSelectedUser(u);
                             setBlockUserOpen(true);
                         }}
                         onUnblock={(u) => handleUserUnblock(u)}
@@ -225,13 +260,15 @@ export default function Manager() {
                 )}
             </div>
             <UserBlockModal
-                key={blockUser?.id || 'empty'}   // ⭐ 사유 초기화용 (중요)
+                key={selectedUser?.id || 'empty'}   // ⭐ 사유 초기화용 (중요)
                 open={blockUserOpen}
-                user={blockUser}
-                onClose={() => setBlockUserOpen(false)}
-                onConfirm={(reason) => {
-                    handleAction(blockUser, reason);
+                user={selectedUser}
+                onClose={() => {
                     setBlockUserOpen(false);
+                    setSelectedUser(null);
+                }}
+                onConfirm={(userId, reason) => {
+                    handleUserBlock(userId, reason);
                 }}
             />
             <SongReviewDetailModal
