@@ -29,7 +29,6 @@ export default function ProfileSection({ myInfo, status }) {
   //비동기 (에러 메시지만, 성공 시 alert로)
   const [message, setMessage] = useState('');
 
-  /* ================= handlers ================= */
   useEffect(() => {
     setNickname(originNick);
   }, [originNick]);
@@ -39,7 +38,6 @@ export default function ProfileSection({ myInfo, status }) {
       const file = fileRef.current?.files?.[0];
       const nickChanged = nickname !== originNick;
 
-      // 이미지 업로드
       if (file) {
         const form = new FormData();
         form.append('profileImg', file);
@@ -51,7 +49,7 @@ export default function ProfileSection({ myInfo, status }) {
         });
 
         const imgData = await imgRes.json();
-        console.log('uploadProfile response:', imgData); // ✅ 이거 찍어
+        console.log('uploadProfile response:', imgData);
 
         if (!imgData.ok) {
           alert(imgData.message || '프로필 이미지 업로드 실패');
@@ -66,11 +64,9 @@ export default function ProfileSection({ myInfo, status }) {
           return;
         }
 
-        // ✅ 캐시 무시
         setPreview(`http://localhost:8080/upload/${path}?t=${Date.now()}`);
       }
 
-      // 닉네임 변경
       if (nickChanged) {
         const res = await fetch('/api/user/change-nickname', {
           method: 'POST',
@@ -97,7 +93,6 @@ export default function ProfileSection({ myInfo, status }) {
       alert('프로필 저장 실패');
     }
   }
-
 
   async function changePassword() {
     if (!currentPw) {
@@ -128,7 +123,6 @@ export default function ProfileSection({ myInfo, status }) {
         return;
       }
 
-      //성공 시는 동기
       setMessage('');
       alert('비밀번호가 변경되었습니다.');
 
@@ -142,10 +136,9 @@ export default function ProfileSection({ myInfo, status }) {
 
   return (
     <div style={pageWrap}>
-      {/* ================= 1. 프로필 카드 ================= */}
+      {/* 1. 프로필 카드 */}
       <div style={cardStyle}>
         <div style={profileRow}>
-          {/* avatar */}
           <div style={avatarWrap}>
             <ProfileAvatar
               profileImg={preview || status?.loginUser?.profileImg}
@@ -168,7 +161,6 @@ export default function ProfileSection({ myInfo, status }) {
             />
           </div>
 
-          {/* nickname */}
           <div style={{ width: 380 }}>
             <div style={title}>닉네임</div>
             <input
@@ -179,7 +171,6 @@ export default function ProfileSection({ myInfo, status }) {
           </div>
         </div>
 
-        {/* save */}
         <div style={cardFooterCenter}>
           <button style={btnMain} onClick={saveProfile}>
             프로필 저장
@@ -187,7 +178,7 @@ export default function ProfileSection({ myInfo, status }) {
         </div>
       </div>
 
-      {/* ================= 2. 계정 정보 카드 ================= */}
+      {/* 2. 계정 정보 카드 */}
       <div style={cardStyle}>
         <div style={title}>계정 정보</div>
         <div style={infoWrap}>
@@ -198,61 +189,61 @@ export default function ProfileSection({ myInfo, status }) {
         </div>
       </div>
 
-      {/* ================= 3. 비밀번호 변경 카드 ================= */}
-      <div style={cardStyle}>
-        <div style={title}>비밀번호 변경</div>
+      {/* 3. 비밀번호 변경 카드 */}
+      {provider === 'LOCAL' && (
+        <div style={cardStyle}>
+          <div style={title}>비밀번호 변경</div>
 
-        <div style={pwWrap}>
-          <input
-            type="password"
-            placeholder="현재 비밀번호"
-            value={currentPw}
-            onChange={(e) => setCurrentPw(e.target.value)}
-            style={inputStyle()}
-          />
-          <input
-            type="password"
-            placeholder="새 비밀번호"
-            value={newPw}
-            onChange={(e) => setNewPw(e.target.value)}
-            style={inputStyle()}
-          />
-          <input
-            type="password"
-            placeholder="새 비밀번호 확인"
-            value={newPw2}
-            onChange={(e) => setNewPw2(e.target.value)}
-            style={inputStyle()}
-          />
-        </div>
+          <div style={pwWrap}>
+            <input
+              type="password"
+              placeholder="현재 비밀번호"
+              value={currentPw}
+              onChange={(e) => setCurrentPw(e.target.value)}
+              style={inputStyle()}
+            />
+            <input
+              type="password"
+              placeholder="새 비밀번호"
+              value={newPw}
+              onChange={(e) => setNewPw(e.target.value)}
+              style={inputStyle()}
+            />
+            <input
+              type="password"
+              placeholder="새 비밀번호 확인"
+              value={newPw2}
+              onChange={(e) => setNewPw2(e.target.value)}
+              style={inputStyle()}
+            />
+          </div>
 
-        {/* 알림 메시지*/}
-        <div
-          style={{
-            minHeight: 13,
-            textAlign: 'center',
-            fontSize: 13,
-            color: '#ff6b6b',
-            opacity: message ? 1 : 0, //없으면 투명으로 공간 유지
-            transition: 'opacity 120ms ease',
-            lineHeight: '18px',
-          }}
-        >
-          {message || '\u00A0'}
-        </div>
+          <div
+            style={{
+              minHeight: 13,
+              textAlign: 'center',
+              fontSize: 13,
+              color: '#ff6b6b',
+              opacity: message ? 1 : 0,
+              transition: 'opacity 120ms ease',
+              lineHeight: '18px',
+            }}
+          >
+            {message || '\u00A0'}
+          </div>
 
-        <div style={cardFooterCenter}>
-          <button style={btnMain} onClick={changePassword}>
-            비밀번호 변경
-          </button>
+          <div style={cardFooterCenter}>
+            <button style={btnMain} onClick={changePassword}>
+              비밀번호 변경
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
 /* ================= styles ================= */
-
 const pageWrap = {
   display: 'flex',
   flexDirection: 'column',

@@ -165,33 +165,54 @@ public class AuthController {
         res.put("message", "인증코드가 일치하지 않습니다.");
         return res;
     }
+    
+    //비밀번호 강화 메서드
+    private boolean isValidPassword(String pw) {
+    	if(pw.length() < 8 || pw.length() > 16) {
+    		return false;
+    	}
+    	
+    	boolean letter = pw.chars().anyMatch(Character::isLetter);
+    	boolean digit = pw.chars().anyMatch(Character::isDigit);
+    	return letter && digit;
+    }
+    
 
     // 회원가입 처리
     @PostMapping("/doJoin")
     public Map<String, Object> doJoin(@RequestBody CheckReq req) {
         Map<String, Object> res = new HashMap<>();
-
+        
         // 입력 여부 확인
         if (req.getEmail() == null || req.getEmail().trim().isEmpty()) {
             res.put("ok", false);
             res.put("message", "이메일을 입력하세요.");
             return res;
         }
+        
         if (req.getNickName() == null || req.getNickName().trim().isEmpty()) {
             res.put("ok", false);
             res.put("message", "닉네임을 입력하세요.");
             return res;
         }
+        
         if (req.getLoginPw() == null || req.getLoginPw().trim().isEmpty()) {
             res.put("ok", false);
             res.put("message", "비밀번호를 입력하세요.");
             return res;
         }
+        
+        //비밀번호 강화
+        if (!isValidPassword(req.getLoginPw().trim())) {
+        	res.put("ok", false);
+        	res.put("message", "비밀번호는 8~16자리, 영문+숫자를 포함해야 합니다.");
+        	return res;
+        	}
 
         String email = req.getEmail().trim();
         String nickName = req.getNickName().trim();
 
-        // ✅ 닉네임 비속어 체크 (최종 방어는 AuthService에서 하지만, 여기서도 빠르게 UX 제공)
+        //닉네임 비속어 체크 (최종 방어는 AuthService에서 하지만, 여기서도 빠르게 UX 제공)
         if (profanityFilterService.containsProfanity(nickName)) {
             res.put("ok", false);
             res.put("message", "적절하지 않은 닉네임입니다.");
@@ -237,7 +258,7 @@ public class AuthController {
             return res;
 
         } catch (IllegalArgumentException e) {
-            // ✅ 서비스에서 던진 검증 메시지를 그대로 프론트에 전달 (닉네임 비속어 등)
+            //서비스에서 던진 검증 메시지를 그대로 프론트에 전달 (닉네임 비속어 등)
             res.put("ok", false);
             res.put("message", e.getMessage());
             return res;

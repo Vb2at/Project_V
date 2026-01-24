@@ -33,6 +33,8 @@ export default function JoinForm() {
     const codeRef = useRef(null);
 
     const update = (key) => (e) => {
+        const value = e.target.value;
+
         // 이메일 변경 시 인증 상태 초기화
         if (key === 'email') {
             setVerified(false);
@@ -41,6 +43,15 @@ export default function JoinForm() {
         }
 
         setForm((f) => ({ ...f, [key]: e.target.value }));
+
+        //비밀번호 입력 시 실시간 검증 -> 조건 만족하면 에러 메시지 제거
+        if (key === 'password' && isValidPassword(value)) {
+            setErrorMessage('');
+        }
+
+        if (key === 'passwordConfirm' && value === form.password) {
+            setErrorMessage('');
+        }
     };
 
     //공통 에러 처리 유틸
@@ -95,10 +106,27 @@ export default function JoinForm() {
         }
     };
 
+    //비밀번호 강화 체크 함수
+    const isValidPassword = (pw) => {
+        if (!pw) return false;
+        if (pw.length < 8 || pw.length > 16) return false;
+        const letter = /[a-zA-Z]/.test(pw);
+        const digit = /[0-9]/.test(pw);
+        return letter && digit;
+    }
+
     //비밀번호 검증 (Spring 연동)
     //POST /api/auth/check-loginPw
     const handleCheckPassword = async () => {
         if (!form.password) return;
+
+        //서버 확인 이전에 프론트에서 먼저 강화 체크
+        if (!isValidPassword(form.password)) {
+            return raiseError(
+                '비밀번호는 8~16자리, 영문+숫자를 포함해야 합니다.',
+                passwordRef
+            );
+        }
 
         try {
             const { data } = await api.post('/api/auth/check-loginPw', {
@@ -108,7 +136,7 @@ export default function JoinForm() {
             if (!data.ok) {
                 raiseError(data.message, passwordRef);
             }
-        } catch  {
+        } catch {
             raiseError('서버 연결에 실패했습니다.', passwordRef);
         }
     };
@@ -141,7 +169,7 @@ export default function JoinForm() {
             setErrorMessage('인증이 완료되었습니다.');
 
             passwordRef.current?.focus();
-        } catch  {
+        } catch {
             setVerified(false);
             return raiseError('서버 연결에 실패하였습니다.', codeRef);
         } finally {
@@ -165,7 +193,7 @@ export default function JoinForm() {
                 setIsSuccessMessage(true); // 성공 메시지는초록
                 setErrorMessage(data.message);
             }
-        } catch  {
+        } catch {
             raiseError('서버 연결에 실패했습니다.', nicknameRef);
         }
     };
@@ -180,6 +208,7 @@ export default function JoinForm() {
         if (!verified) return raiseError('이메일 인증을 완료하세요.', codeRef);
         if (!form.password) return raiseError('비밀번호를 입력하세요.', passwordRef);
         if (!form.passwordConfirm) return raiseError('비밀번호 확인을 입력하세요', passwordConfirmRef);
+        if (!isValidPassword(form.password)) return raiseError('비밀번호는 8~16자리, 영문+숫자를 포함해야 합니다.', passwordRef);
         if (form.password !== form.passwordConfirm) return raiseError('비밀번호가 일치하지 않습니다.', passwordConfirmRef);
         if (!form.nickname) return raiseError('닉네임을 입력하세요.', nicknameRef);
 
@@ -202,7 +231,7 @@ export default function JoinForm() {
             alert('회원가입이 완료되었습니다!');
             // 로그인 페이지 이동
             navigate('/login');
-        } catch  {
+        } catch {
             return raiseError('서버 연결에 실패하였습니다.', nicknameRef);
         }
     };
@@ -286,7 +315,7 @@ export default function JoinForm() {
                         value={form.password}
                         onChange={update('password')}
                         onBlur={handleCheckPassword}
-                        placeholder="비밀번호"
+                        placeholder="비밀번호 (8~16자리, 숫자+영문)"
                     />
                 </FormRow>
 
