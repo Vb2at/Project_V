@@ -1,5 +1,8 @@
 // pages/mypage/MyGames.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getMysongs } from '../../api/song';
+
+
 const FILTER_MAP = {
     전체: 'ALL',
     비공개: 'PRIVATE',
@@ -9,38 +12,30 @@ const FILTER_MAP = {
     차단: 'BLOCKED',
 };
 
-/* ===== 더미 데이터 ===== */
-const DUMMY_GAMES = [
-    {
-        id: 1,
-        title: 'My First Beat',
-        cover: '/images/album_dummy.png',
-        status: 'PRIVATE',
-        playCount: 12,
-    },
-    {
-        id: 2,
-        title: 'Night Drive',
-        cover: '/images/album_dummy.png',
-        status: 'BLOCKED',
-        playCount: 0,
-    },
-    {
-        id: 3,
-        title: 'Neon Rush',
-        cover: '/images/album_dummy.png',
-        status: 'PUBLIC',
-        playCount: 245,
-    },
-
-];
-
 const FILTERS = ['전체', '비공개', '부분공개', '심사중', '전체공개', '차단'];
 
 function MyGames() {
     const [filter, setFilter] = useState('전체');
-    const [games] = useState(DUMMY_GAMES);
+    const [games, setGames] = useState([]);
     const [keyword, setKeyword] = useState('');
+
+    useEffect(() => {
+        const fetchMySongs = async () => {
+            const visibility = FILTER_MAP[filter];
+            const res = await getMysongs(visibility);
+
+            setGames( 
+                res.data.map(s => ({
+                    id: s.id,
+                    title: s.title,
+                    status: s.visibility,
+                    cover: `/api/songs/${s.id}/cover`,
+                }))
+            );
+        };
+
+        fetchMySongs();
+    }, [filter]);
 
     const list = games.filter((g) => {
         const statusOk =
@@ -80,19 +75,19 @@ function MyGames() {
             </div>
 
             {/* ===== 리스트 ===== */}
-            {list.length === 0 ? (
-                <Empty>등록된 곡이 없습니다</Empty>
-            ) : (
-                <div style={grid}>
-                    {list.map((g) => (
-                        <Card key={g.id} game={g} />
-                    ))}
-                </div>
-            )}
+            <div style={listWrap}>
+                {list.length === 0 ? (
+                    <Empty>등록된 곡이 없습니다.</Empty>
+                ) : (
+                    <div style={grid}>
+                        {list.map((g) => (
+                            <Card key={g.id} game={g} />
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
-
-
 }
 
 export default MyGames;
@@ -109,8 +104,6 @@ function Card({ game }) {
             <div style={badgeWrap}>
                 <StatusBadge status={game.status} />
             </div>
-
-            <div style={meta}>▶ {game.playCount}</div>
 
             <div style={btnRow}>
                 {game.status !== 'BLOCKED' && (
@@ -273,6 +266,11 @@ const filterRow = {
     gap: 15,
     flexWrap: 'wrap',
 };
+
+const listWrap = {
+    textAlign: 'center',
+    margin: '45px 0'
+}
 
 function Empty({ children }) {
     return <div style={{ opacity: 0.5 }}>{children}</div>;

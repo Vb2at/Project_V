@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.V_Beat.ai.dao.SongDao;
+import com.V_Beat.ai.dto.MySong;
 import com.V_Beat.ai.dto.NoteResult;
 import com.V_Beat.ai.dto.SongNotesResult;
 import com.V_Beat.dto.Song;
@@ -144,9 +145,18 @@ public class SongService {
 		songDao.updateVisibility(songId, result);
 	}
 
+	//본인 업록드 곡 조회
 	@Transactional(readOnly = true)
-	public List<Song> getMySongs(int userId) {
-		return songDao.getMySongs(userId);
+	public List<MySong> getMySongs(int userId, String visibility) {
+		if(visibility != null) {
+			visibility = visibility.toUpperCase();
+		}
+		
+		if(visibility == null || "ALL".equals(visibility)) {
+			return this.songDao.findByUserId(userId);
+		}
+		
+		return this.songDao.getMySongs(userId, visibility);
 	}
 	
 	@Transactional

@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.V_Beat.ai.dto.MySong;
 import com.V_Beat.ai.dto.NoteResult;
 import com.V_Beat.ai.dto.SongNotesResult;
 import com.V_Beat.ai.service.SongService;
@@ -202,12 +203,12 @@ public class SongController {
 
 	// 내 곡 목록
 	@GetMapping("/my")
-	public ResponseEntity<List<Song>> getMySongs(HttpSession session) {
+	public ResponseEntity<List<MySong>> getMySongs(@RequestParam(required=false) String visibility, HttpSession session) {
 		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
 		if (loginUserId == null) {
 			return ResponseEntity.status(401).build();
 		}
-		return ResponseEntity.ok(songService.getMySongs(loginUserId));
+		return ResponseEntity.ok(this.songService.getMySongs(loginUserId, visibility));
 	}
 
 	// 음원 미리듣기 (싸비 5~10초)
