@@ -10,14 +10,6 @@ import Visualizer from '../../components/visualizer/Visualizer';
 import UserProfileModal from "../../components/Common/UserProfileModal";
 import UserReportModal from "../../components/Common/UserReportModal";
 
-const dummySongs = [
-  { id: 1, title: 'Song A', artist: 'Artist A', cover: null },
-  { id: 2, title: 'Song B', artist: 'Artist B', cover: null },
-  { id: 3, title: 'Song C', artist: 'Artist C', cover: null },
-  { id: 4, title: 'Song D', artist: 'Artist D', cover: null },
-  { id: 5, title: 'Song E', artist: 'Artist E', cover: null },
-];
-
 const formatDuration = (sec) => {
   const n = Number(sec);
   if (!n || n <= 0) return '--:--';
@@ -98,8 +90,8 @@ export default function MainOverlay() {
   const [loading, setLoading] = useState(true);
   const [_errorMsg, setErrorMsg] = useState('');
 
-  //서버에서 받아온 공개곡을 여기에 덮어씀 (없으면 dummySongs 사용)
-  const [songs, setSongs] = useState(dummySongs);
+  //서버에서 받아온 공개곡을 여기에 덮어씀
+  const [songs, setSongs] = useState([]);
 
   //공개곡 목록: GET /api/songs
   useEffect(() => {
@@ -654,8 +646,8 @@ export default function MainOverlay() {
                       borderRadius: 12,
                       cursor: 'pointer',
                       fontSize: 13,
-                      opacity: disabled ? 0.35 : 1,          
-                      pointerEvents: disabled ? 'none' : 'auto', 
+                      opacity: disabled ? 0.35 : 1,
+                      pointerEvents: disabled ? 'none' : 'auto',
                       color: active ? '#0ff' : '#cfd8e3',
                       border: active
                         ? '2px solid rgba(90,234,255,0.9)'
@@ -670,61 +662,83 @@ export default function MainOverlay() {
                 );
               })}
             </div>
+            {/* 곡 없음 안내 */}
+            {!loading && songs.length === 0 && (
+              <div
+                style={{
+                  fontsize: 17,
+                  textAlign: 'center',
+                  margin: '85px 0',
+                  opacity: 0.42,
+                }}
+              >
+                {listMode === 'MY'
+                  ? '업로드한 곡이 존재하지 않습니다.'
+                  : '등록된 공개 곡이 존재하지 않습니다.'
+                }
+              </div>
+            )}
 
-            {/* 난이도 기준선 */}
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                top: '42%',
-                height: '1px',
-                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
-                pointerEvents: 'none',
-                zIndex: 3,
-              }}
-            >
-              {/* 라벨 */}
+            {songs.length > 0 && (
+              <>
+
+                {/* 난이도 기준선 */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: '42%',
+                    height: '1px',
+                    background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
+                    pointerEvents: 'none',
+                    zIndex: 3,
+                  }}
+                >
+                  {/* 라벨 */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 210,
+                      top: '-24px',
+                      display: 'flex',
+                      gap: '12px',
+                      fontSize: '18px',
+                      color: '#cfd8e3',
+                      opacity: 0.7,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        letterSpacing: '0.12em',
+                        color: '#ffffff',
+                      }}
+                    >
+                      {selectedSong?.diff ?? 'NORMAL'}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* 고정 포커스 라인 */}
+            {songs.length > 0 && (
               <div
                 style={{
                   position: 'absolute',
-                  left: 210,
-                  top: '-24px',
-                  display: 'flex',
-                  gap: '12px',
-                  fontSize: '18px',
-                  color: '#cfd8e3',
-                  opacity: 0.7,
+                  left: 0,
+                  right: 0,
+                  top: '50%',
+                  height: ITEM_HEIGHT,
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                  background: 'rgba(255,255,255,0.06)',
+                  borderRadius: '6px',
+                  zIndex: 2,
                 }}
-              >
-                <span
-                  style={{
-                    fontWeight: 700,
-                    letterSpacing: '0.12em',
-                    color: '#ffffff',
-                  }}
-                >
-                  {selectedSong?.diff ?? 'NORMAL'}
-                </span>
-              </div>
-            </div>
-
-
-            {/* 고정 포커스 라인 */}
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                top: '50%',
-                height: ITEM_HEIGHT,
-                transform: 'translateY(-50%)',
-                pointerEvents: 'none',
-                background: 'rgba(255,255,255,0.06)',
-                borderRadius: '6px',
-                zIndex: 2,
-              }}
-            />
+              />
+            )}
 
             {/* 리스트 트랙 */}
             <div

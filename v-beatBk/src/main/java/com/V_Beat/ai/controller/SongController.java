@@ -177,10 +177,6 @@ public class SongController {
 		if (isAdmin == null)
 			isAdmin = false;
 
-		if (!songService.canAccess(song, loginUserId, isAdmin)) {
-			return ResponseEntity.status(403).build();
-		}
-
 		String path = song.getCoverPath();
 		if (path == null || path.isBlank())
 			return ResponseEntity.notFound().build();

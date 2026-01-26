@@ -56,6 +56,9 @@ export default function MyPage() {
   //차단 여부 확인
   const isBlockUser = status?.loginUserRole === 'BLOCK';
 
+  //관리자 확인
+  const isAdmin = status?.loginUserRole === 'ADMIN';
+
   // ✅ 최신 tab 추적 (클로저 문제 해결)
   useEffect(() => {
     tabRef.current = tab;
@@ -389,6 +392,9 @@ export default function MyPage() {
             const blockedTabs = ['manager', 'games', 'records', 'friends', 'messages'];
             const isBlockedTab = isBlockUser && blockedTabs.includes(key);
 
+            //관리자 탭은 관리자가 아니라면 렌더링 안 함
+            if(key === 'manager' && !isAdmin) return null;
+
             if(isBlockedTab) return null;
 
             return (
@@ -448,7 +454,7 @@ export default function MyPage() {
             maxHeight: 'calc(100vh - 64px - 80px)',
           }}
         >
-          {tab === 'manager' && <Manager />}
+          {tab === 'manager' && isAdmin && <Manager />}
           {tab === 'profile' && (
             <ProfileSection myInfo={myInfo} status={status} />
           )}

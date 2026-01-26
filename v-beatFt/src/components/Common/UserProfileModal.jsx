@@ -69,8 +69,7 @@ export default function UserProfileModal({ open, user, onClose }) {
                 </div>
 
                 <div style={btnRow}>
-                    <button style={btnSub}>친구 추가</button>
-                    <button style={btnSub}>차단</button>
+
                     <button
                         style={btnDanger}
                         onClick={() => setReportOpen(true)}

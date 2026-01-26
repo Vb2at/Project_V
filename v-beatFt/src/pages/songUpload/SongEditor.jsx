@@ -70,7 +70,7 @@ export default function SongEditor() {
         axios.get(`/api/songs/${songId}`, { withCredentials: true })
             .then(res => {
                 const s = res.data;
-                setTitle(s.title || '');
+                setTitle(s.title.replace('.mp3', '') || '');
                 setArtist(s.artist || '');
                 setVisibility(s.visibility || 'PRIVATE');
                 if (s.coverPath) {
