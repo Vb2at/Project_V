@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { stopPreview } from "../components/engine/SFXManager";
 import { LOADING_TIPS as TIPS } from "../constants/LoadingTips";
 const TOTAL_DURATION = 1800;
 
 export default function StartPage() {
     const navigate = useNavigate();
+    const { state } = useLocation();
     const startRef = useRef(0);
     const phaseRef = useRef(0);
     const [phase, setPhase] = useState(0);
@@ -72,7 +73,12 @@ export default function StartPage() {
                 setProgress(100);
                 setTimeout(() => {
                     stopPreview();
-                    navigate('/main', { replace: true });
+                    navigate(state?.target || '/main', {
+                        replace: true,
+                        state: {
+                            needPwChange: state?.needPwChange === true,
+                        },
+                    });
                 }, 100); // transition 시간보다 약간 크게
             }
         };

@@ -9,6 +9,7 @@ import RankTable from './RankTable';
 import Visualizer from '../../components/visualizer/Visualizer';
 import UserProfileModal from "../../components/Common/UserProfileModal";
 import UserReportModal from "../../components/Common/UserReportModal";
+import PasswordChangeModal from '../../components/Common/PasswordChangeModal'; 
 
 const dummySongs = [
   { id: 1, title: 'Song A', artist: 'Artist A', cover: null },
@@ -29,7 +30,10 @@ const formatDuration = (sec) => {
 const ITEM_HEIGHT = 72;
 const INPUT_LOCK_MS = 50;
 
-export default function MainOverlay() {
+export default function MainOverlay({
+  showPwChangeModal,
+  onClosePwChangeModal,
+}) {
   const navigate = useNavigate();
   const wheelLockRef = useRef(false);
   const keyLockRef = useRef(false);
@@ -45,27 +49,27 @@ export default function MainOverlay() {
   const [listMode, setListMode] = useState('PUBLIC'); // PUBLIC | MY
   const [loginUserId, setLoginUserId] = useState(null);
 
-useEffect(() => {
-  let alive = true;
+  useEffect(() => {
+    let alive = true;
 
-  (async () => {
-    try {
-      const res = await statusApi();
-      if(!alive) return;
+    (async () => {
+      try {
+        const res = await statusApi();
+        if (!alive) return;
 
-      if(res.data?.ok) {
-        setLoginUserId(Number(res.data.loginUserId));
-      } else {
+        if (res.data?.ok) {
+          setLoginUserId(Number(res.data.loginUserId));
+        } else {
+          setLoginUserId(null);
+        }
+      } catch (e) {
+        if (!alive) return;
         setLoginUserId(null);
       }
-    } catch(e) {
-      if(!alive) return;
-      setLoginUserId(null);
-    }
-  })();
+    })();
 
-  return () => { alive = false; };
-}, []);
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     const unlocked = localStorage.getItem('bgmUnlocked') === 'true';
@@ -138,7 +142,10 @@ useEffect(() => {
         });
 
         if (!mounted) return;
-
+        const DIFF_SORT = { EASY: 1, NORMAL: 2, HARD: 3, HELL: 4 };
+        mapped.sort((a, b) =>
+          (DIFF_SORT[a.diff] ?? 99) - (DIFF_SORT[b.diff] ?? 99)
+        );
         setSongs(mapped);
         setSelectedIndex(0);
 
@@ -288,7 +295,7 @@ useEffect(() => {
   })();
   const selectedSong = songs[selectedIndex];
 
-  const isMySong = 
+  const isMySong =
     loginUserId != null &&
     selectedSong?.uploaderUserId != null &&
     Number(loginUserId) === Number(selectedSong.uploaderUserId);
@@ -296,54 +303,54 @@ useEffect(() => {
   //백엔드 reasonCode에 맞추기 (기존 프론트 mainReason, subReason 나눠져 있었음)
   const makeReasonCode = (p) => {
     const main = String(p?.mainReason ?? '').trim();
-    const sub = String(p?. subReason ?? '').trim();
+    const sub = String(p?.subReason ?? '').trim();
 
     return `${main}:${sub}`;
   };
 
   //노래 신고
- const submitSongReport = async (payload) => {
-  const body = {
-    targetType: 'SONG',
-    targetId: Number(selectedSong?.id),
-    reasonCode: makeReasonCode(payload),
-    description: String(payload?.description ?? ''),
-  };
+  const submitSongReport = async (payload) => {
+    const body = {
+      targetType: 'SONG',
+      targetId: Number(selectedSong?.id),
+      reasonCode: makeReasonCode(payload),
+      description: String(payload?.description ?? ''),
+    };
 
-  const res = await fetch('/api/report', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(body),
-  });
+    const res = await fetch('/api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
 
-  //먼저 JSON 파싱 시도 (실패하면 null)
-  const data = await res.json().catch(() => null);
+    //먼저 JSON 파싱 시도 (실패하면 null)
+    const data = await res.json().catch(() => null);
 
-  //401
-  if (res.status === 401) {
-    throw new Error(data?.message || '로그인이 필요한 기능입니다.');
-  }
-
-  //409
-  if (res.status === 409) {
-    if (data?.code === 'ALREADY_REPORTED') {
-      throw new Error('이미 접수된 신고입니다.');
+    //401
+    if (res.status === 401) {
+      throw new Error(data?.message || '로그인이 필요한 기능입니다.');
     }
-    throw new Error(data?.message || '이미 접수된 신고입니다.');
-  }
 
-  if (!res.ok) {
-    throw new Error(data?.message || `신고 실패 (${res.status})`);
-  }
+    //409
+    if (res.status === 409) {
+      if (data?.code === 'ALREADY_REPORTED') {
+        throw new Error('이미 접수된 신고입니다.');
+      }
+      throw new Error(data?.message || '이미 접수된 신고입니다.');
+    }
 
-  // ok:false 방어
-  if (data?.ok === false) {
-    throw new Error(data?.message ?? '신고 실패');
-  }
+    if (!res.ok) {
+      throw new Error(data?.message || `신고 실패 (${res.status})`);
+    }
 
-  return data;
-};
+    // ok:false 방어
+    if (data?.ok === false) {
+      throw new Error(data?.message ?? '신고 실패');
+    }
+
+    return data;
+  };
 
 
   useEffect(() => {
@@ -597,8 +604,8 @@ useEffect(() => {
                       onClose={() => setReportOpen(false)}
                       onSubmit={async (payload) => {
                         console.log('REPORT payload =', payload);
-                          try {
-                            const desc = String(payload?.description ?? '').trim();
+                        try {
+                          const desc = String(payload?.description ?? '').trim();
 
                           await submitSongReport(payload);
                           setReportOpen(false);
@@ -628,7 +635,7 @@ useEffect(() => {
             }}
           >
             {/* 공개곡/my곡 전환 */}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end'}}>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               {[
                 ['PUBLIC', '공개 곡'],
                 ['MY', '내 곡'],
@@ -858,6 +865,10 @@ useEffect(() => {
           pointerEvents: 'none',
         }}
       />
+      {/* 비밀번호 변경 모달 */}
+      {showPwChangeModal && (
+        <PasswordChangeModal onClose={onClosePwChangeModal} />
+      )}
     </div >
   );
 }

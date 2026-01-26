@@ -13,7 +13,7 @@ import TermsPage from './pages/auth/TermsPage';
 import SongUpload from './pages/songUpload/SongUpload';
 import SongEditor from './pages/songUpload/SongEditor';
 import NoteEditor from './pages/songUpload/NoteEditor';
-
+import RePw from './pages/member/RePw';
 
 function App() {
   return (
@@ -21,6 +21,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/join" element={<Join />} />
+        <Route path="/re-password" element={<RePw />} />
         <Route path="/start" element={<StartPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/mypage" element={<MyPage />} />

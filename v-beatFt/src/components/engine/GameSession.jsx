@@ -1005,8 +1005,12 @@ export default function GameSession({
       if (e.shiftKey) {
         selectedIds = new Set(selectedNoteIds ?? []);
         selectedIds.add(pickedId);
+      } else if (selectedNoteIds?.has(pickedId)) {
+        // ✅ 기존 다중 선택 유지하고 드래그
+        selectedIds = new Set(selectedNoteIds);
       } else {
-        selectedIds = new Set([pickedId]); // ✅ 단일 선택
+        // ✅ 새로 단일 선택
+        selectedIds = new Set([pickedId]);
       }
       // ✅ 핵심: 드래그 시작 스냅샷(원본값) 저장 → 누적 이동 금지
       const baseById = new Map();
@@ -1030,7 +1034,7 @@ export default function GameSession({
       };
 
       dragStartPosRef.current = { x: e.clientX, y: e.clientY };
-      setSelectedNoteIds?.(new Set([pickedId]));
+      setSelectedNoteIds?.(new Set(selectedIds));
       return;
     }
 
@@ -1148,40 +1152,66 @@ export default function GameSession({
 
       usedSetNotes(prev =>
         prev.filter(n => {
-          const { lane, timing } = n;
+          const rect = viewRef.current.getBoundingClientRect();
 
-          const y =
-            GAME_CONFIG.CANVAS.HIT_LINE_Y -
-            (timing - currentTimeRef.current) * speed;
+          const minX = Math.min(x1, x2);
+          const maxX = Math.max(x1, x2);
+          const minY = Math.min(y1, y2);
+          const maxY = Math.max(y1, y2);
 
-          const xLeft = getLaneLeftX(lane);
-          const xRight = getLaneRightX(lane);
+          const xLeft = getLaneLeftX(n.lane);
+          const xRight = getLaneRightX(n.lane);
 
           const centerX = GAME_CONFIG.CANVAS.WIDTH / 2;
-          const scale =
-            GAME_CONFIG.PERSPECTIVE.SCALE_MIN +
-            (y / GAME_CONFIG.CANVAS.HEIGHT) *
-            (GAME_CONFIG.PERSPECTIVE.SCALE_MAX - GAME_CONFIG.PERSPECTIVE.SCALE_MIN);
 
-          const screenLeft =
-            (centerX + (xLeft - centerX) * scale) * SCALE + rect.left;
-          const screenRight =
-            (centerX + (xRight - centerX) * scale) * SCALE + rect.left;
-          const screenY =
-            y * SCALE + rect.top;
+          const toScreen = (timingMs) => {
+            const y =
+              GAME_CONFIG.CANVAS.HIT_LINE_Y -
+              (timingMs - currentTimeRef.current) * speed;
 
-          const inside =
-            screenRight >= minX &&
-            screenLeft <= maxX &&
-            screenY >= minY &&
-            screenY <= maxY;
+            const scale =
+              GAME_CONFIG.PERSPECTIVE.SCALE_MIN +
+              (y / GAME_CONFIG.CANVAS.HEIGHT) *
+              (GAME_CONFIG.PERSPECTIVE.SCALE_MAX - GAME_CONFIG.PERSPECTIVE.SCALE_MIN);
 
-          return !inside;
+            const screenLeft =
+              (centerX + (xLeft - centerX) * scale) * SCALE + rect.left;
+            const screenRight =
+              (centerX + (xRight - centerX) * scale) * SCALE + rect.left;
+            const screenY = y * SCALE + rect.top;
+
+            return { screenLeft, screenRight, screenY };
+          };
+
+          // ===== X 겹침 먼저 =====
+          const posStart = toScreen(n.timing);
+          const inX = posStart.screenRight >= minX && posStart.screenLeft <= maxX;
+          if (!inX) return true;
+
+          // ===== TAP =====
+          if (n.type !== 'long') {
+            const HIT_H = 6;
+            const inY =
+              posStart.screenY >= (minY - HIT_H) &&
+              posStart.screenY <= (maxY + HIT_H);
+
+            return !(inX && inY);
+          }
+
+          // ===== LONG (start~end 구간) =====
+          const posEnd = toScreen(n.endTime ?? n.timing);
+
+          const segTop = Math.min(posStart.screenY, posEnd.screenY);
+          const segBottom = Math.max(posStart.screenY, posEnd.screenY);
+
+          const inY = segBottom >= minY && segTop <= maxY;
+
+          return !(inX && inY);
         })
       );
-
       return;
     }
+
 
     // ===== SELECT DRAG END =====
     if (mode === 'edit' && tool === 'select' && selectDragRef.current) {
@@ -1305,7 +1335,14 @@ export default function GameSession({
 
         usedSetNotes((prev) => {
           pushUndo(prev);
-          return prev.filter(n => !(n.lane === lane && Math.abs(n.timing - timing) < 150));
+          return prev.filter(n => {
+            if (n.lane !== lane) return true;
+
+            const dy = Math.abs(n.timing - timing);
+            const HIT_MS = 60; // ← 줄일수록 한 개만 삭제됨 (40~80 권장)
+
+            return dy > HIT_MS;
+          });
         });
       }}
       style={{

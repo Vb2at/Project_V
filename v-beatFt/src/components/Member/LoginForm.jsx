@@ -71,7 +71,12 @@ export default function LoginForm() {
                 return;
             }
 
-            navigate('/nav-loading', { state: { target: '/main' } });
+            navigate('/start', {
+                state: {
+                    target: '/main',
+                    needPwChange: data.needPwChange === true, 
+                },
+            });
         } catch {
             setErrorMessage('서버 연결에 실패했습니다.');
         } finally {
@@ -254,9 +259,9 @@ export default function LoginForm() {
                         style={{ cursor: 'pointer', transition: 'color 0.2s' }}
                         onMouseOver={(e) => e.target.style.color = '#00ccff'}
                         onMouseOut={(e) => e.target.style.color = '#aaa'}
-                        onClick={() => navigate('/find-password')}
+                        onClick={() => navigate('/re-password')}
                     >
-                        비밀번호 찾기
+                        비밀번호 재설정
                     </span>
                 </div>
 
@@ -295,7 +300,13 @@ export default function LoginForm() {
                     <button
                         onClick={() => {
                             unlockAudioContext();
-                            navigate('/start', { state: { target: '/main' } });
+                            navigate('/start', {
+                                state: {
+                                    target: '/main',
+                                    // needPwChange: data.needPwChange === true, 
+                                    needPwChange: true,
+                                },
+                            });
                         }}
                         style={{
                             width: 260,
