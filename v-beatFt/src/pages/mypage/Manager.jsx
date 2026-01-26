@@ -341,7 +341,7 @@ function SongReviewPanel({ onOpenReview, songs, loading, error }) {
                         style={{ ...songInfo, cursor: 'pointer', flex: 1 }}
                         onClick={() => onOpenReview?.(s)}
                     >
-                        <div style={{ fontWeight: 600 }}>{s.title}</div>
+                        <div style={{ fontWeight: 600 }}>{s.title.replace('.mp3', '')}</div>
                         <div style={songMeta}>by {s.uploader}</div>
                     </div>
                     <button

@@ -13,4 +13,5 @@ public class MySong {
 	private String title;
 	private String visibility;
 	private String coverPath;
+	private String diff;
 }

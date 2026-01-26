@@ -4,6 +4,7 @@ package com.V_Beat.report.dao;
 
 import java.util.List;
 
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
@@ -168,4 +169,12 @@ public interface ReportDao {
              WHERE id = #{targetId}
             """)
     Integer findSongOwnerId(@Param("targetId") long targetId);
+
+    //해당 곡 관련 기록 삭제(노래 삭제)
+	@Delete("""
+			DELETE FROM report
+			WHERE target_type = 'SONG'
+			AND target_id = #{songId}
+			""")
+	void deleteBySongId(long songId);
 }

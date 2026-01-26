@@ -10,3 +10,8 @@ export const getMysongs = (visibility) => {
                 : {},
     });
 };
+
+//곡 삭제
+export const deleteSong = (songId) => {
+    return api.delete(`/api/songs/${songId}`);
+}

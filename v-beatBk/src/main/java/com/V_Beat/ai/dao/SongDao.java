@@ -126,7 +126,8 @@ public interface SongDao {
 				id AS id,
 			  	title AS title,
 				visibility AS visibility,
-				cover_path AS coverPath
+				cover_path AS coverPath,
+				diff AS diff
 			FROM song
 			WHERE user_id = #{userId}
 			AND visibility = #{visibility}
@@ -140,7 +141,8 @@ public interface SongDao {
 				id AS id,
 				title AS title,
 				visibility AS visibility,
-				cover_path AS coverPath
+				cover_path AS coverPath,
+				diff AS diff
 			FROM song
 			WHERE user_id = #{userId}
 			ORDER BY create_date DESC
@@ -166,4 +168,11 @@ public interface SongDao {
 		    @Param("time") BigDecimal time,
 		    @Param("endTime") BigDecimal endTime
 		);
+
+	//곡 삭제
+	@Delete("""
+			DELETE FROM song
+			WHERE id = #{songId}
+			""")
+	void deleteSong(long songId);
 }
