@@ -1,5 +1,9 @@
 // pages/mypage/MyGames.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getMysongs, deleteSong } from '../../api/song';
+import { useNavigate } from 'react-router-dom';
+
+
 const FILTER_MAP = {
     전체: 'ALL',
     비공개: 'PRIVATE',
@@ -9,38 +13,48 @@ const FILTER_MAP = {
     차단: 'BLOCKED',
 };
 
-/* ===== 더미 데이터 ===== */
-const DUMMY_GAMES = [
-    {
-        id: 1,
-        title: 'My First Beat',
-        cover: '/images/album_dummy.png',
-        status: 'PRIVATE',
-        playCount: 12,
-    },
-    {
-        id: 2,
-        title: 'Night Drive',
-        cover: '/images/album_dummy.png',
-        status: 'BLOCKED',
-        playCount: 0,
-    },
-    {
-        id: 3,
-        title: 'Neon Rush',
-        cover: '/images/album_dummy.png',
-        status: 'PUBLIC',
-        playCount: 245,
-    },
-
-];
-
 const FILTERS = ['전체', '비공개', '부분공개', '심사중', '전체공개', '차단'];
 
 function MyGames() {
     const [filter, setFilter] = useState('전체');
-    const [games] = useState(DUMMY_GAMES);
+    const [games, setGames] = useState([]);
     const [keyword, setKeyword] = useState('');
+
+    //삭제 api 
+    const handleDelete = async (songId) => {
+        if(!window.confirm('정말 삭제하시겠습니까?')) return;
+
+        try {
+            await deleteSong(songId);
+            alert('삭제가 완료되었습니다.');
+            setGames(prev => prev.filter(g => g.id !== songId));
+        } catch(e) {
+            const status = e.response?.status;
+            if(status === 401) alert('로그인이 필요한 기능입니다.');
+            else if(status === 403) alert('해당 곡에 삭제 권한이 없습니다.');
+            else if(status === 404) alert('이미 삭제된 곡입니다.');
+            else alert('삭제에 실패했습니다.'); 
+        }
+    }
+
+    useEffect(() => {
+        const fetchMySongs = async () => {
+            const visibility = FILTER_MAP[filter];
+            const res = await getMysongs(visibility);
+
+            setGames( 
+                res.data.map(s => ({
+                    id: s.id,
+                    title: s.title.replace('.mp3', ''),
+                    status: s.visibility,
+                    cover: `/api/songs/${s.id}/cover`,
+                    diff: s.diff.toLowerCase(),
+                }))
+            );
+        };
+
+        fetchMySongs();
+    }, [filter]);
 
     const list = games.filter((g) => {
         const statusOk =
@@ -80,26 +94,32 @@ function MyGames() {
             </div>
 
             {/* ===== 리스트 ===== */}
-            {list.length === 0 ? (
-                <Empty>등록된 곡이 없습니다</Empty>
-            ) : (
-                <div style={grid}>
-                    {list.map((g) => (
-                        <Card key={g.id} game={g} />
-                    ))}
-                </div>
-            )}
+            <div style={listWrap}>
+                {list.length === 0 ? (
+                    <Empty>등록된 곡이 없습니다.</Empty>
+                ) : (
+                    <div style={grid}>
+                        {list.map((g) => (
+                            <Card key={g.id} game={g} onDelete={handleDelete} />
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
-
-
 }
 
 export default MyGames;
 
 /* ================= 카드 ================= */
 
-function Card({ game }) {
+function Card({ game, onDelete }) {
+    const navigate = useNavigate();
+
+    const handlePlay = () => {
+        navigate(`/game/play?songId=${game.id}&diff=${game.diff}`);
+    };
+
     return (
         <div style={card}>
             <img src={game.cover} alt="" style={cover} />
@@ -110,16 +130,14 @@ function Card({ game }) {
                 <StatusBadge status={game.status} />
             </div>
 
-            <div style={meta}>▶ {game.playCount}</div>
-
             <div style={btnRow}>
                 {game.status !== 'BLOCKED' && (
                     <>
-                        <BtnMain>플레이</BtnMain>
+                        <BtnMain onClick={handlePlay}>플레이</BtnMain>
                         <BtnSub>수정</BtnSub>
                     </>
                 )}
-                <BtnSub>삭제</BtnSub>
+                <BtnSub onClick={() => onDelete(game.id)}>삭제</BtnSub>
             </div>
         </div>
     );
@@ -236,12 +254,12 @@ const btnRow = {
     marginTop: 4,
 };
 
-const BtnMain = ({ children }) => (
-    <button style={btnMain}>{children}</button>
+const BtnMain = ({ children, onClick }) => (
+    <button style={btnMain} onClick={onClick}>{children}</button>
 );
 
-const BtnSub = ({ children }) => (
-    <button style={btnSub}>{children}</button>
+const BtnSub = ({ children, onClick }) => (
+    <button style={btnSub} onClick={onClick}>{children}</button>
 );
 
 const ACCENT = '#5aeaff';
@@ -273,6 +291,11 @@ const filterRow = {
     gap: 15,
     flexWrap: 'wrap',
 };
+
+const listWrap = {
+    textAlign: 'center',
+    margin: '45px 0'
+}
 
 function Empty({ children }) {
     return <div style={{ opacity: 0.5 }}>{children}</div>;

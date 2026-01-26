@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function UserBlockModal({ open, user, onClose, onConfirm }) {
   const [reason, setReason] = useState('');
 
   if (!open || !user) return null;
+
+  useEffect(() => {
+    if(!open) {
+      setReason('');
+    }
+  }, [open]);
 
   return (
     <>
@@ -35,7 +41,7 @@ export default function UserBlockModal({ open, user, onClose, onConfirm }) {
                 alert('차단 사유를 입력하세요');
                 return;
               }
-              onConfirm(reason);
+              onConfirm(user.id, reason);
             }}
           >
             차단

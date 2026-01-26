@@ -8,6 +8,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.V_Beat.ai.dto.MySong;
 import com.V_Beat.ai.dto.NoteResult;
 import com.V_Beat.ai.dto.SongNotesResult;
 import com.V_Beat.ai.service.SongService;
@@ -175,10 +177,6 @@ public class SongController {
 		if (isAdmin == null)
 			isAdmin = false;
 
-		if (!songService.canAccess(song, loginUserId, isAdmin)) {
-			return ResponseEntity.status(403).build();
-		}
-
 		String path = song.getCoverPath();
 		if (path == null || path.isBlank())
 			return ResponseEntity.notFound().build();
@@ -202,12 +200,12 @@ public class SongController {
 
 	// 내 곡 목록
 	@GetMapping("/my")
-	public ResponseEntity<List<Song>> getMySongs(HttpSession session) {
+	public ResponseEntity<List<MySong>> getMySongs(@RequestParam(required=false) String visibility, HttpSession session) {
 		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
 		if (loginUserId == null) {
 			return ResponseEntity.status(401).build();
 		}
-		return ResponseEntity.ok(songService.getMySongs(loginUserId));
+		return ResponseEntity.ok(this.songService.getMySongs(loginUserId, visibility));
 	}
 
 	// 음원 미리듣기 (싸비 5~10초)
@@ -268,5 +266,18 @@ public class SongController {
 		} catch (RuntimeException e) {
 			return ResponseEntity.badRequest().build();
 		}
+	}
+	
+	//곡 삭제
+	@DeleteMapping("/{songId}")
+	public ResponseEntity<?> deleteSong(@PathVariable long songId, HttpSession session) {
+		Number loginUserId = (Number) session.getAttribute("loginUserId");
+		if(loginUserId == null) {
+			return ResponseEntity.status(401).build();
+		}
+		
+		this.songService.deleteSong(songId, loginUserId.longValue());
+		
+		return ResponseEntity.ok().build();
 	}
 }

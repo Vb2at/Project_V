@@ -53,6 +53,12 @@ export default function MyPage() {
   // ✅ Friends -> Message "쪽지 쓰기 프리셋"
   const [composeTo, setComposeTo] = useState(null);
 
+  //차단 여부 확인
+  const isBlockUser = status?.loginUserRole === 'BLOCK';
+
+  //관리자 확인
+  const isAdmin = status?.loginUserRole === 'ADMIN';
+
   // ✅ 최신 tab 추적 (클로저 문제 해결)
   useEffect(() => {
     tabRef.current = tab;
@@ -205,7 +211,7 @@ export default function MyPage() {
     const client = new Client({
       webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
       reconnectDelay: 3000,
-      debug: () => {},
+      debug: () => { },
 
       onConnect: () => {
         console.log('[NOTIFY] STOMP connected');
@@ -382,35 +388,57 @@ export default function MyPage() {
             ['friends', '친구'],
             ['messages', '메시지'],
             ['policy', '약관 / 탈퇴'],
-          ].map(([key, label]) => (
-            <div
-              key={key}
-              onClick={() => setTab(key)}
-              style={{
-                padding: '10px 12px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                color: tab === key ? '#5aeaff' : '#cfd8e3',
-                fontWeight: tab === key ? 600 : 400,
-              }}
-            >
+          ].map(([key, label]) => {
+            const blockedTabs = ['manager', 'games', 'records', 'friends', 'messages'];
+            const isBlockedTab = isBlockUser && blockedTabs.includes(key);
+
+            //관리자 탭은 관리자가 아니라면 렌더링 안 함
+            if(key === 'manager' && !isAdmin) return null;
+
+            if(isBlockedTab) return null;
+
+            return (
               <div
+                key={key}
+                onClick={() => setTab(key)}
                 style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  color: tab === key ? '#5aeaff' : '#cfd8e3',
+                  fontWeight: tab === key ? 600 : 400,
                 }}
               >
-                <span>{label}</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span>{label}</span>
+                  {/* ✅ 관리자/친구/메시지 알림 있으면 느낌표 */}
+                  {key === 'manager' && notify.adminAlerts > 0 && <AlertMark />}
+                  {key === 'friends' && notify.pendingFriends > 0 && <AlertMark />}
+                  {key === 'messages' &&
+                    notify.unreadMessages > 0 && <AlertMark />}
 
-                {/* ✅ 관리자/친구/메시지 알림 있으면 느낌표 */}
-                {key === 'manager' && notify.adminAlerts > 0 && <AlertMark />}
-                {key === 'friends' && notify.pendingFriends > 0 && <AlertMark />}
-                {key === 'messages' &&
-                  notify.unreadMessages > 0 && <AlertMark />}
+                  {/* 차단 유저 느낌표 표시 x */}
+                  {!isBlockUser && key === 'manager' && notify.adminAlerts > 0 && (
+                    <AlertMark />
+                  )}
+
+                  {!isBlockUser && key === 'friends' && notify.pendingFriends > 0 && (
+                    <AlertMark />
+                  )}
+
+                  {!isBlockUser && key === 'messages' && notify.unreadMessages > 0 && (
+                    <AlertMark />
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </aside>
 
         {/* 우측 패널 */}
@@ -426,7 +454,7 @@ export default function MyPage() {
             maxHeight: 'calc(100vh - 64px - 80px)',
           }}
         >
-          {tab === 'manager' && <Manager />}
+          {tab === 'manager' && isAdmin && <Manager />}
           {tab === 'profile' && (
             <ProfileSection myInfo={myInfo} status={status} />
           )}

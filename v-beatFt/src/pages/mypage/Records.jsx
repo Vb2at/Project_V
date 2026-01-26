@@ -26,7 +26,7 @@ export default function Record() {
       {loading ? (
         <Empty>불러오는 중...</Empty>
       ) : record.length === 0 ? (
-        <Empty>플레이 기록이 없습니다</Empty>
+        <Empty>플레이 기록이 없습니다.</Empty>
       ) : (
         record.map((r, idx) => <Row key={idx} record={r} />)
       )}
@@ -84,5 +84,5 @@ const row = {
 };
 
 function Empty({ children }) {
-  return <div style={{ opacity: 0.5 }}>{children}</div>;
+  return <div style={{ opacity: 0.5, textAlign: 'center', margin: '45px 0' }}>{children}</div>;
 }

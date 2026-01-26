@@ -80,6 +80,13 @@ public class UserController {
             return res;
         }
 
+        //소셜 로그인자 비밀번호 변경 불가
+        if(req.getLoginType() != 0) {
+        	res.put("ok", false);
+        	res.put("message", "소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다.");
+        	return res;
+        }
+        
         String currentPw = (req.getCurrentPw() == null) ? "" : req.getCurrentPw().trim();
         String newPw = (req.getLoginPw() == null) ? "" : req.getLoginPw().trim();
 

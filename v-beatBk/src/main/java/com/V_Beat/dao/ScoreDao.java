@@ -44,4 +44,11 @@ public interface ScoreDao {
 			ORDER BY sc.reg_date DESC
 			""")
 	List<Score> findByUserId(@Param("userId") Integer userId);
+
+	//해당 곡 기록 삭제
+	@Delete("""
+			DELETE FROM score
+			WHERE song_id = #{songId}
+			""")
+	void deleteBySongId(long songId);
 }
