@@ -26,11 +26,18 @@ function App() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/mypage" element={<MyPage />} />
         <Route path="/main" element={<MainPage />} />
+
         <Route path="/song/upload" element={<SongUpload />} />
-        <Route path="/song/editor/:songId" element={<SongEditor />} />        
+
+        {/* ✅ 구체 라우트 먼저 */}
+        <Route path="/song/:songId/edit" element={<SongEditor />} />
+        <Route path="/song/:songId/note/edit" element={<NoteEditor />} />
+
+        {/* ✅ 일반 플레이는 마지막 */}
+        <Route path="/song/:songId" element={<GamePlay />} />
+
         <Route path="/game/play" element={<GamePlay />} />
         <Route path="/game/test" element={<GamePlay />} />
-        <Route path="/song/:songId/note/edit" element={<NoteEditor />} />
         <Route path="/game/result" element={<Result />} />
         <Route path="/nav-loading" element={<NavLoading />} />
       </Routes>

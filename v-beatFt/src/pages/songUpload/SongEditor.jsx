@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { stopMenuBgm } from '../../components/engine/SFXManager';
 import axios from 'axios';
 
 import Header from '../../components/Common/Header';
@@ -7,6 +8,8 @@ import Background from '../../components/Common/Background';
 
 export default function SongEditor() {
     const { songId } = useParams();
+    console.log('SongEditor mounted, songId =', songId, window.location.pathname);
+
     const navigate = useNavigate();
     const { state } = useLocation();
     const fromPublicUpload = state?.fromPublicUpload === true;
@@ -65,8 +68,13 @@ export default function SongEditor() {
     //public선택 시 저장 버튼 숨김
     const hideSave = fromPublicUpload || visibility === 'PENDING';
 
+    useEffect(() => {
+        stopMenuBgm();
+    }, []);
+
     /* ===== 초기 정보 로드 ===== */
     useEffect(() => {
+        if (!songId) return;
         axios.get(`/api/songs/${songId}`, { withCredentials: true })
             .then(res => {
                 const s = res.data;
@@ -308,11 +316,13 @@ export default function SongEditor() {
                 </div>
 
                 {/* audio */}
-                <audio
-                    ref={audioRef}
-                    src={`/api/songs/${songId}/audio`}
-                    onEnded={() => setIsPlaying(false)}
-                />
+                {songId && (
+                    <audio
+                        ref={audioRef}
+                        src={`/api/songs/${songId}/audio`}
+                        onEnded={() => setIsPlaying(false)}
+                    />
+                )}
             </main>
         </div>
     );

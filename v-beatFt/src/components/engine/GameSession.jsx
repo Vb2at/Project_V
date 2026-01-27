@@ -84,6 +84,11 @@ export default function GameSession({
     if (combo >= 20) return 2;
     return 1;
   };
+  const onStateRef = useRef(onState);
+
+  useEffect(() => {
+    onStateRef.current = onState;
+  }, [onState]);
 
   useEffect(() => {
     if (seekTime == null) return;
@@ -146,7 +151,7 @@ export default function GameSession({
 
     // eslint-disable-next-line react-hooks/immutability
     audioRef.current.volume = bgmVolume;
-  }, [bgmVolume, mode]);
+  }, [bgmVolume, mode, effectivePaused]);
 
   useEffect(() => {
     if (mode === 'edit') {
@@ -161,7 +166,7 @@ export default function GameSession({
     if (score >= SAFE_SCORE) {
       passedSafeZoneRef.current = true;
     }
-  }, [score, mode]);
+  }, [score, mode, effectivePaused]);
 
   useEffect(() => {
     if (effectivePaused) return;
@@ -179,7 +184,7 @@ export default function GameSession({
         gameOver: true,
       });
     }
-  }, [score, mode]);
+  }, [score, mode, effectivePaused]);
 
   useEffect(() => {
     maxComboRef.current = Math.max(maxComboRef.current, combo);
@@ -187,32 +192,22 @@ export default function GameSession({
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
-  const getSongIdFromUrl = () => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('songId') || '1';
-  };
-
-  const getDiffFromUrl = () => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('diff') || 'unknown';
-  };
-
-  const [songId, setSongId] = useState(propSongId || getSongIdFromUrl());
+  const [songId, setSongId] = useState(propSongId ?? null);
 
   useEffect(() => {
     if (propSongId) setSongId(propSongId);
   }, [propSongId]);
 
-  const [diff, setDiff] = useState(getDiffFromUrl());
+  const [diff, setDiff] = useState('unknown');
   const speed =
     (GAME_CONFIG.DIFFICULTY?.[diff?.toUpperCase()]?.SPEED) ??
     (GAME_CONFIG.SPEED) ??
     2;
 
   useEffect(() => {
-    if (typeof onState !== 'function') return;
+    if (typeof onStateRef.current !== 'function') return;
 
-    onState({
+    onStateRef.current({
       score,
       combo,
       diff,
@@ -222,8 +217,7 @@ export default function GameSession({
         : 0,
       maxScore: maxScoreRef.current,
     });
-  }, [score, combo, diff, currentTime, onState, mode]);
-
+  }, [score, combo, diff, currentTime]);
 
   const [audioUrl, setAudioUrl] = useState('');
   const audioRef = useRef(null);
@@ -413,8 +407,10 @@ export default function GameSession({
   };
 
   const loadSongById = useCallback(async (sidRaw) => {
+    if (sidRaw == null) return false;          // ✅ null / undefined 차단
+
     const sid = String(sidRaw).trim();
-    if (!sid) return false;
+    if (!sid || sid === 'undefined') return false;
 
     if (mode === 'edit') {
       setAudioUrl(`${API_BASE}/api/songs/${sid}/audio`);
@@ -444,20 +440,10 @@ export default function GameSession({
     resetGame();
     usedSetNotes(mapped);
     return true;
-  }, [API_BASE, isEditorTest, usedSetNotes]);
+  }, [API_BASE, isEditorTest, usedSetNotes, mode]);
 
   useEffect(() => {
-    const onPopState = () => {
-      const sid = getSongIdFromUrl();
-      const d = getDiffFromUrl();
-      setSongId(sid);
-      setDiff(d);
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, []);
-
-  useEffect(() => {
+    if (songId == null || songId === 'undefined') return;
     resetGame();
     loadSongById(songId);
   }, [songId, loadSongById]);
@@ -479,6 +465,7 @@ export default function GameSession({
   }, [effectivePaused]);
 
   useEffect(() => {
+    if (mode === 'edit') return;
     const interval = setInterval(() => {
       if (effectivePaused) return;
       const now = currentTimeRef.current;
@@ -532,9 +519,10 @@ export default function GameSession({
     }, 50);
 
     return () => clearInterval(interval);
-  }, [paused, mode, usedSetNotes]);
+  }, [paused, mode, usedSetNotes, effectivePaused]);
 
   useEffect(() => {
+    if (mode === 'edit') return;
     const interval = setInterval(() => {
       if (effectivePaused) return;
       const holdingNotes = notesRef.current.filter((n) => n.holding && !n.released);
@@ -551,10 +539,10 @@ export default function GameSession({
     }, 100);
 
     return () => clearInterval(interval);
-  }, [paused, mode, isPlaying]);
+  }, [paused, mode, isPlaying, effectivePaused]);
 
   useEffect(() => {
-    if (effectivePaused) return;
+    if (effectivePaused || mode === 'edit') return; 
     const handleKeyPress = (laneIndex) => {
       if (paused) return;
 
@@ -682,7 +670,7 @@ export default function GameSession({
 
     const ih = new InputHandler(handleKeyPress, handleKeyRelease);
     return () => ih.destroy();
-  }, [pressedKeys, paused, sfxVolume, mode, usedSetNotes]);
+  }, [pressedKeys, paused, sfxVolume, mode, usedSetNotes, effectivePaused]);
 
   const SCALE = 0.8;
 

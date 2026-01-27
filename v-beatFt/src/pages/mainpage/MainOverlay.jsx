@@ -9,7 +9,7 @@ import RankTable from './RankTable';
 import Visualizer from '../../components/visualizer/Visualizer';
 import UserProfileModal from "../../components/Common/UserProfileModal";
 import UserReportModal from "../../components/Common/UserReportModal";
-import PasswordChangeModal from '../../components/Common/PasswordChangeModal'; 
+import PasswordChangeModal from '../../components/Common/PasswordChangeModal';
 
 const formatDuration = (sec) => {
   const n = Number(sec);
@@ -39,6 +39,8 @@ export default function MainOverlay({
   const [moreOpen, setMoreOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [listMode, setListMode] = useState('PUBLIC'); // PUBLIC | MY
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [shareLink, setShareLink] = useState('');
   const [loginUserId, setLoginUserId] = useState(null);
   const [isBlockUser, setIsBlockUser] = useState(false);
 
@@ -209,6 +211,7 @@ export default function MainOverlay({
   =============================== */
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (linkOpen) return;
       if (keyLockRef.current) return;
 
       // ↑ ↓ 이동
@@ -231,32 +234,42 @@ export default function MainOverlay({
       // Enter 확정
       if (e.key === 'Enter') {
         e.preventDefault();
-        if (!songs.length) return;
+        const s = songs[selectedIndex];
+        if (!s?.id) return;
 
         console.log('선택 확정:', songs[selectedIndex]);
         playMenuConfirm();
         stopPreview();
-        navigate(`/game/play?songId=${songs[selectedIndex].id}&diff=${String(songs[selectedIndex].diff).toLowerCase()}`);
+        navigate(`/game/play?songId=${s.id}&diff=${String(s.diff).toLowerCase()}`);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIndex, songs, navigate]);
+  }, [selectedIndex, songs, navigate, linkOpen]);
 
   useEffect(() => {
-    const song = songs[selectedIndex];
-    const url = songs[selectedIndex]?.previewUrl;
-
-    if (!url) {
+    if (!songs || songs.length === 0) {
       stopPreview();
       return;
     }
 
+    if (linkOpen) {
+      stopPreview();
+      return;
+    }
+
+    const song = songs[selectedIndex];
+    if (!song?.id || !song.previewUrl) {
+      stopPreview();
+      return;
+    }
+
+    const url = song.previewUrl;
     playPreview(url, { durationSec: 8 });
-    //곡 선택 바뀔 때 이전 소리 겹치는 거 방지
+
     return () => stopPreview();
-  }, [selectedIndex, songs]);
+  }, [selectedIndex, songs, linkOpen]);
 
 
   const DIFF_ORDER = ['EASY', 'NORMAL', 'HARD', 'HELL'];
@@ -620,24 +633,37 @@ export default function MainOverlay({
           </div>
 
           {/* Game List */}
+
           <section
-            ref={wheelContainerRef}
+            ref={!linkOpen ? wheelContainerRef : null}
             style={{
               position: 'relative',
               flex: 1,
               overflow: 'hidden',
               perspective: '900px',
-              left: 80
+              left: 80,
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
-            {/* 공개곡/my곡 전환 */}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            {/* ================= 상단 버튼 영역 ================= */}
+            <div
+              style={{
+                display: 'flex',
+                gap: 10,
+                justifyContent: 'flex-end',
+                flexWrap: 'wrap',
+                paddingBottom: 10,
+                zIndex: 5,
+              }}
+            >
               {[
                 ['PUBLIC', '공개 곡'],
                 ['MY', '내 곡'],
               ].map(([v, label]) => {
                 const active = listMode === v;
                 const disabled = v === 'MY' && isBlockUser;
+
                 return (
                   <div
                     key={v}
@@ -646,7 +672,8 @@ export default function MainOverlay({
                         alert('차단된 사용자는 사용할 수 없는 기능입니다.');
                         return;
                       }
-                      setListMode(v)
+                      setListMode(v);
+                      setLinkOpen(false);
                     }}
                     style={{
                       padding: '6px 14px',
@@ -668,177 +695,255 @@ export default function MainOverlay({
                   </div>
                 );
               })}
-            </div>
-            {/* 곡 없음 안내 */}
-            {!loading && songs.length === 0 && (
+
+              {/* 링크 입장 버튼 */}
               <div
+                onClick={() => {
+                  stopPreview();
+                  setLinkOpen(v => !v);
+                }}
                 style={{
-                  fontsize: 17,
-                  textAlign: 'center',
-                  margin: '85px 0',
-                  opacity: 0.42,
+                  padding: '6px 14px',
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  color: linkOpen ? '#0ff' : '#cfd8e3',
+                  border: linkOpen
+                    ? '2px solid rgba(90,234,255,0.9)'
+                    : '2px solid rgba(90,234,255,0.3)',
+                  background: linkOpen
+                    ? 'linear-gradient(180deg, rgba(90,234,255,0.25), rgba(10,20,30,0.9))'
+                    : 'linear-gradient(180deg, #0e141b, #0a0f15)',
                 }}
               >
-                {listMode === 'MY'
-                  ? '업로드한 곡이 존재하지 않습니다.'
-                  : '등록된 공개 곡이 존재하지 않습니다.'
-                }
+                링크 입장
               </div>
-            )}
+            </div>
 
-            {songs.length > 0 && (
-              <>
-
-                {/* 난이도 기준선 */}
+            {/* ================= 메인 영역 ================= */}
+            <div
+              style={{
+                position: 'relative',
+                flex: 1,
+                overflow: 'hidden',
+              }}
+            >
+              {/* ===== 링크 입장 화면 ===== */}
+              {linkOpen && (
                 <div
                   style={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 0,
-                    top: '42%',
-                    height: '1px',
-                    background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
-                    pointerEvents: 'none',
-                    zIndex: 3,
+                    height: '70%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                 >
-                  {/* 라벨 */}
+                  <div
+                    style={{
+                      width: 420,
+                      padding: 24,
+                      borderRadius: 14,
+                      background: 'rgba(10,20,30,0.85)',
+                      border: '2px solid rgba(90,234,255,0.45)',
+                      boxShadow: '0 0 20px rgba(90,234,255,0.4)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 14,
+                    }}
+                  >
+                    <h3 style={{ color: '#5aeaff', textAlign: 'center' }}>
+                      공유 링크로 입장
+                    </h3>
+
+                    <input
+                      value={shareLink}
+                      onChange={(e) => setShareLink(e.target.value)}
+                      placeholder="공유 링크를 붙여넣으세요"
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        background: '#0b1118',
+                        border: '1px solid rgba(90,234,255,0.4)',
+                        color: '#e6f7ff',
+                        fontSize: 14,
+                      }}
+                    />
+
+                    <button
+                      onClick={() => {
+                        try {
+                          const url = new URL(shareLink);
+                          navigate(url.pathname + url.search);
+                        } catch {
+                          alert('올바른 링크를 입력해 주세요.');
+                        }
+                      }}
+                      style={{
+                        padding: '10px',
+                        borderRadius: 8,
+                        border: '1px solid rgba(90,234,255,0.6)',
+                        background: 'rgba(90,234,255,0.15)',
+                        color: '#5aeaff',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      입장
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ===== 기존 리스트 화면 ===== */}
+              {!linkOpen && (
+                <>
+                  {!loading && songs.length === 0 && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: 0,
+                        right: 0,
+                        transform: 'translateY(-50%)',
+                        textAlign: 'center',
+                        fontSize: 16,
+                        opacity: 0.45,
+                      }}
+                    >
+                      {listMode === 'MY'
+                        ? '업로드한 곡이 존재하지 않습니다.'
+                        : '등록된 공개 곡이 존재하지 않습니다.'}
+                    </div>
+                  )}
+                  {/* 난이도 기준선 */}
+                  {songs.length > 0 && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        top: '42%',
+                        height: '1px',
+                        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
+                        pointerEvents: 'none',
+                        zIndex: 3,
+                      }}
+                    />
+                  )}
+
+                  {/* 고정 포커스 라인 */}
+                  {songs.length > 0 && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        top: '50%',
+                        height: ITEM_HEIGHT,
+                        transform: 'translateY(-50%)',
+                        pointerEvents: 'none',
+                        background: 'rgba(255,255,255,0.06)',
+                        borderRadius: '6px',
+                        zIndex: 2,
+                      }}
+                    />
+                  )}
+
+                  {/* 리스트 트랙 */}
                   <div
                     style={{
                       position: 'absolute',
-                      left: 210,
-                      top: '-24px',
-                      display: 'flex',
-                      gap: '12px',
-                      fontSize: '18px',
-                      color: '#cfd8e3',
-                      opacity: 0.7,
+                      top: '50%',
+                      left: 0,
+                      right: 0,
+                      transform: `translateY(calc(-${renderSelectedIndex * ITEM_HEIGHT}px - ${ITEM_HEIGHT / 2}px))`,
+                      transition: 'transform 0.25s ease-out',
                     }}
                   >
-                    <span
-                      style={{
-                        fontWeight: 700,
-                        letterSpacing: '0.12em',
-                        color: '#ffffff',
-                      }}
-                    >
-                      {selectedSong?.diff ?? 'NORMAL'}
-                    </span>
+                    {renderList.map((item, index) => {
+                      const d = index - renderSelectedIndex;
+                      const a = Math.abs(d);
+
+                      const scale = Math.max(0.8, 1 - a * 0.12);
+                      const z = -a * 60;
+                      const y = d * 10;
+                      const opacity = Math.max(0.35, 1 - a * 0.25);
+
+                      if (item.type === 'header') {
+                        const isCurrent = item.diff === selectedSong?.diff;
+                        return (
+                          <div
+                            key={item.id}
+                            style={{
+                              height: ITEM_HEIGHT,
+                              paddingLeft: 12,
+                              display: 'flex',
+                              alignItems: 'center',
+                              fontSize: 15,
+                              fontWeight: 700,
+                              letterSpacing: '0.12em',
+                              color: '#cfd8e3',
+                              opacity: isCurrent ? 0 : 0.7,
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            {!isCurrent && item.diff}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            setSelectedIndex(item.songIndex);
+                            playMenuConfirm();
+                            stopPreview();
+                            navigate(`/game/play?songId=${item.id}&diff=${String(item.diff ?? 'NORMAL').toLowerCase()}`);
+                          }}
+                          style={{
+                            height: ITEM_HEIGHT,
+                            boxSizing: 'border-box',
+                            padding: '12px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                            borderBottom: '1px solid rgba(255,255,255,0.1)',
+                            transform: `translateY(${y}px) translateZ(${z}px) scale(${scale})`,
+                            opacity,
+                            transition: 'transform 0.2s, opacity 0.2s',
+                            cursor: 'pointer',
+                            background:
+                              item.songIndex === selectedIndex
+                                ? 'rgba(255,255,255,0.08)'
+                                : 'transparent',
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: item.songIndex === selectedIndex ? '25px' : '18px',
+                              color: item.songIndex === selectedIndex ? '#ffffff' : '#b8c4d6',
+                              fontWeight: item.songIndex === selectedIndex ? 600 : 400,
+                            }}
+                          >
+                            {item.title}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '14px',
+                              color: item.songIndex === selectedIndex ? '#cfd8e3' : '#7f8fa6',
+                            }}
+                          >
+                            {item.artist}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-              </>
-            )}
-
-            {/* 고정 포커스 라인 */}
-            {songs.length > 0 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  right: 0,
-                  top: '50%',
-                  height: ITEM_HEIGHT,
-                  transform: 'translateY(-50%)',
-                  pointerEvents: 'none',
-                  background: 'rgba(255,255,255,0.06)',
-                  borderRadius: '6px',
-                  zIndex: 2,
-                }}
-              />
-            )}
-
-            {/* 리스트 트랙 */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: 0,
-                right: 0,
-                transform: `translateY(calc(-${renderSelectedIndex * ITEM_HEIGHT}px - ${ITEM_HEIGHT / 2}px))`,
-                transition: 'transform 0.25s ease-out',
-              }}
-            >
-              {renderList.map((item, index) => {
-                const d = index - renderSelectedIndex;
-                const a = Math.abs(d);
-
-                const scale = Math.max(0.8, 1 - a * 0.12);
-                const z = -a * 60;
-                const y = d * 10;
-                const opacity = Math.max(0.35, 1 - a * 0.25);
-
-                // ✅ HEADER
-                if (item.type === 'header') {
-                  const isCurrent = item.diff === selectedSong?.diff;
-                  return (
-                    <div
-                      key={item.id}
-                      style={{
-                        height: ITEM_HEIGHT,
-                        paddingLeft: 12,
-                        display: 'flex',
-                        alignItems: 'center',
-                        fontSize: 15,
-                        fontWeight: 700,
-                        letterSpacing: '0.12em',
-                        color: '#cfd8e3',
-                        opacity: isCurrent ? 0 : 0.7,
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      {!isCurrent && item.diff}
-                    </div>
-                  );
-                }
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => {
-                      setSelectedIndex(item.songIndex);
-                      playMenuConfirm();
-                      stopPreview();
-                      navigate(`/game/play?songId=${item.id}&diff=${String(item.diff ?? 'NORMAL').toLowerCase()}`);
-                    }}
-                    style={{
-                      height: ITEM_HEIGHT,
-                      boxSizing: 'border-box',
-                      padding: '12px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'center',
-                      borderBottom: '1px solid rgba(255,255,255,0.1)',
-                      transform: `translateY(${y}px) translateZ(${z}px) scale(${scale})`,
-                      opacity,
-                      transition: 'transform 0.2s, opacity 0.2s',
-                      cursor: 'pointer',
-                      background:
-                        item.songIndex === selectedIndex
-                          ? 'rgba(255,255,255,0.08)'
-                          : 'transparent',
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: item.songIndex === selectedIndex ? '25px' : '18px',
-                        color: item.songIndex === selectedIndex ? '#ffffff' : '#b8c4d6',
-                        fontWeight: item.songIndex === selectedIndex ? 600 : 400,
-                      }}
-                    >
-                      {item.title}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '14px',
-                        color: item.songIndex === selectedIndex ? '#cfd8e3' : '#7f8fa6',
-                      }}
-                    >
-                      {item.artist}
-                    </div>
-                  </div>
-                );
-              })}
+                </>
+              )}
             </div>
           </section>
+
         </div>
         {/* RIGHT RANK PANEL */}
         <div

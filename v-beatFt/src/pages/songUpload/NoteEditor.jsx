@@ -1,6 +1,7 @@
 // src/pages/editor/NoteEditor.jsx
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { stopMenuBgm } from '../../components/engine/SFXManager';
 import GameSession from '../../components/engine/GameSession';
 import Header from '../../components/Common/Header';
 import LeftSidebar from '../gameplay/LeftSidebar';
@@ -30,7 +31,7 @@ export default function NoteEditor() {
     // eslint-disable-next-line no-unused-vars
     const [undoStack, setUndoStack] = useState([]);
     const [notes, setNotes] = useState([]);
-
+    const pendingStateRef = useRef(null);
     const [tool, setTool] = useState('tap');
     const [selectedNoteIds, setSelectedNoteIds] = useState(new Set());
     const navigate = useNavigate();
@@ -65,6 +66,10 @@ export default function NoteEditor() {
         setIsScrubbing(false);
     };
 
+    const handleGameState = useCallback(({ currentTime, duration }) => {
+        setCurrentTime(currentTime);
+        setDuration(duration);
+    }, []);
 
     const getTimeFromClientX = (clientX) => {
         if (!timelineRef.current || !duration) return currentTime;
@@ -105,6 +110,10 @@ export default function NoteEditor() {
             alert('저장 실패');
         }
     };
+
+    useEffect(() => {
+        stopMenuBgm();
+    }, []);
 
     useEffect(() => {
         console.log('[PARENT NOTES LENGTH]', notes.length);
@@ -237,10 +246,7 @@ export default function NoteEditor() {
                         selectedNoteIds={selectedNoteIds}
                         setSelectedNoteIds={setSelectedNoteIds}
                         songId={songId}
-                        onState={({ currentTime, duration }) => {
-                            setCurrentTime(currentTime);
-                            setDuration(duration);
-                        }}
+                        onState={handleGameState}
                     />
                 </div>
             </div>

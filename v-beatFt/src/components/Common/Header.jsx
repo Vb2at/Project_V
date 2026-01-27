@@ -20,14 +20,18 @@ export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const isGamePage = location.pathname.startsWith('/game');
+  const isEditorPage =
+    location.pathname.startsWith('/song/editor') ||
+    location.pathname.includes('/note/edit');
 
+  const isMenuPage = !isGamePage && !isEditorPage;
   const [isPlaying, setIsPlaying] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // ✅ 로그인 상태
   const [status, setStatus] = useState(null);
   const [statusLoading, setStatusLoading] = useState(true);
-  
+
   //차단 여부 확인
   const isBlockUser = status?.loginUserRole === 'BLOCK';
 
@@ -138,23 +142,23 @@ export default function Header() {
 
   // ✅ 게임 페이지에서는 메뉴 BGM 끄기
   useEffect(() => {
-    if (isGamePage) {
+    if (!isMenuPage) {
       stopMenuBgm();
       setIsPlaying(false);
       setMobileOpen(false);
     }
-  }, [isGamePage]);
+  }, [isMenuPage]);
 
   // ✅ 게임 페이지가 아닐 때만, 실제 재생상태 polling으로 맞추기
   useEffect(() => {
-    if (isGamePage) return;
+    if (!isMenuPage) return;
 
     const sync = setInterval(() => {
       setIsPlaying(isMenuBgmPlaying());
     }, 300);
 
     return () => clearInterval(sync);
-  }, [isGamePage]);
+  }, [isMenuPage]);
 
   // ✅ 햄버거: 쪽지 OR 관리자 OR 친구 / 메시지 메뉴: 쪽지만
   const hasDot = notify.messages || notify.admin || notify.friend; // ✅ 수정
@@ -196,7 +200,7 @@ export default function Header() {
       </div>
 
       {/* 🎧 메인메뉴에서만 BGM 컨트롤 표시 */}
-      {!isGamePage && (
+      {isMenuPage && (
         <div
           style={{
             position: 'absolute',
@@ -311,7 +315,7 @@ export default function Header() {
       )}
 
       {/* 우측 모바일 메뉴 버튼 */}
-      {!isGamePage && (
+      {isMenuPage && (
         <div
           style={{
             position: 'absolute',
@@ -366,7 +370,7 @@ export default function Header() {
       )}
 
       {/* 모바일 메뉴 패널 */}
-      {!isGamePage && mobileOpen && (
+      {isMenuPage && mobileOpen && (
         <div
           className="mobile-menu-panel"
           style={{

@@ -6,26 +6,19 @@ import LeftSidebar from './LeftSidebar';
 import RightSidebar from './RightSidebar';
 import HUD from './HUD.jsx';
 import HUDFrame from './HUDFrame.jsx';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import LoadingNoteRain from './LoadingNoteRain';
 import { playCountTick, playCountStart } from '../../components/engine/SFXManager';
 import { playMenuConfirm } from '../../components/engine/SFXManager';
 import Visualizer from '../../components/visualizer/Visualizer';
 import { LOADING_TIPS as TIPS } from '../../constants/LoadingTips';
-
+import { useSearchParams } from 'react-router-dom';
 
 function GamePlay() {
-  const getSongIdFromUrl = () => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('songId') || '1';
-  };
-  const getDiffFromUrl = () => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('diff') || 'unknown';
-  };
-
-  const [songId, setSongId] = useState(getSongIdFromUrl());
-  const [diff, setDiff] = useState(getDiffFromUrl());
+  const { songId: paramSongId } = useParams();
+  const [searchParams] = useSearchParams();
+  const songId = paramSongId ?? searchParams.get('songId');
+  const [diff, setDiff] = useState('unknown');
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [loadingDone, setLoadingDone] = useState(false);
@@ -48,6 +41,7 @@ function GamePlay() {
   const loadingStartRef = useRef(0);
   const loadingEndRef = useRef(null);
   const HEADER_HEIGHT = 25;
+  const location = useLocation();
 
   const navigate = useNavigate();
 
@@ -81,15 +75,6 @@ function GamePlay() {
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  useEffect(() => {
-    const onPopState = () => {
-      setSongId(getSongIdFromUrl());
-      setDiff(getDiffFromUrl());
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
   useEffect(() => {
@@ -469,48 +454,51 @@ function GamePlay() {
             clipPath: 'polygon(40% 8%, 60% 8%, 100% 100%, 0% 100%)',
           }}
         />
-        <GameSession
-          analyserRef={analyserRef}
-          key={sessionKey}
-          paused={paused}
-          bgmVolume={effectiveBgmVolume}
-          sfxVolume={effectiveSfxVolume}
-          onReady={() => {
-            loadingEndRef.current = performance.now();
-            setLoadingDone(true);
-          }}
-          onState={({ score, combo, diff, currentTime, duration, maxScore }) => {
-            if (paused) return;
+        {songId && (
+          <GameSession
+            songId={songId}
+            analyserRef={analyserRef}
+            key={sessionKey}
+            paused={paused}
+            bgmVolume={effectiveBgmVolume}
+            sfxVolume={effectiveSfxVolume}
+            onReady={() => {
+              loadingEndRef.current = performance.now();
+              setLoadingDone(true);
+            }}
+            onState={({ score, combo, diff, currentTime, duration, maxScore }) => {
+              if (paused) return;
 
-            setScore(score);
-            setCombo(combo);
-            if (diff) setDiff(diff);
+              setScore(score);
+              setCombo(combo);
+              if (diff) setDiff(diff);
 
-            setSongProgress(
-              duration > 0 ? Math.min(1, currentTime / duration) : 0
-            );
-            setClassProgress(
-              maxScore > 0 ? Math.min(1, score / maxScore) : 0
-            );
-          }}
-          onFinish={({ score, maxScore, maxCombo, diff: finishDiff }) => {
-            if (finished) return;
-            setFinished(true);
+              setSongProgress(
+                duration > 0 ? Math.min(1, currentTime / duration) : 0
+              );
+              setClassProgress(
+                maxScore > 0 ? Math.min(1, score / maxScore) : 0
+              );
+            }}
+            onFinish={({ score, maxScore, maxCombo, diff: finishDiff }) => {
+              if (finished) return;
+              setFinished(true);
 
-            const params = new URLSearchParams(window.location.search);
-            const isEditorTest = params.get('mode') === 'editorTest';
+              const params = new URLSearchParams(window.location.search);
+              const isEditorTest = params.get('mode') === 'editorTest';
 
-            if (isEditorTest) {
-              navigate(`/song/${songId}/note/edit?mode=editorTest`, { replace: true });
-              return;
-            }
+              if (isEditorTest) {
+                navigate(`/song/${songId}/note/edit?mode=editorTest`, { replace: true });
+                return;
+              }
 
-            // ✅ 일반 플레이만 Result 이동
-            navigate('/game/result', {
-              state: { score, maxScore, maxCombo, diff: finishDiff ?? diff ?? 'unknown', songId },
-            });
-          }}
-        />
+              navigate('/game/result', {
+                state: { score, maxScore, maxCombo, diff: finishDiff ?? diff ?? 'unknown', songId },
+              });
+            }}
+          />
+        )}
+
 
         {/* ===== 카운트다운 ===== */}
         {countdown !== null && (

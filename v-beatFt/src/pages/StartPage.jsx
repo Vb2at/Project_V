@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { stopPreview } from "../components/engine/SFXManager";
 import { LOADING_TIPS as TIPS } from "../constants/LoadingTips";
 const TOTAL_DURATION = 1800;
@@ -7,6 +7,8 @@ const TOTAL_DURATION = 1800;
 export default function StartPage() {
     const navigate = useNavigate();
     const { state } = useLocation();
+    const [searchParams] = useSearchParams();
+    const targetFromQuery = searchParams.get('target');
     const startRef = useRef(0);
     const phaseRef = useRef(0);
     const [phase, setPhase] = useState(0);
@@ -73,7 +75,7 @@ export default function StartPage() {
                 setProgress(100);
                 setTimeout(() => {
                     stopPreview();
-                    navigate(state?.target || '/main', {
+                    navigate(state?.target || targetFromQuery || '/main', {
                         replace: true,
                         state: {
                             needPwChange: state?.needPwChange === true,
