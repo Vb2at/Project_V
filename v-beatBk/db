@@ -10,9 +10,11 @@ CREATE TABLE `user` (
     nickName VARCHAR(50) NOT NULL,
     login_type TINYINT NOT NULL DEFAULT 0 COMMENT '0=일반, 1=카카오, 2=구글',
     social_id VARCHAR(80) NULL,
+    need_pw_change BOOLEAN NOT NULL DEFAULT FALSE COMMENT '임시 비밀번호 로그인 후 비밀번호 변경 필요 여부',
     reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     profile_img VARCHAR(255) NOT NULL DEFAULT '/upload/profileImg/default.png',
     `role` VARCHAR(15) NOT NULL DEFAULT 'USER' COMMENT 'USER=일반, ADMIN=관리자, BLOCK=차단',
+
     UNIQUE KEY uq_user_email (email),
     UNIQUE KEY uq_user_nick (nickName)
 );
@@ -185,4 +187,4 @@ CREATE TABLE report_target_snapshot (
 
 
 # 관리자 권한 부여
-UPDATE `user` SET `role` = 'ADMIN' WHERE id = 1;
+UPDATE `user` SET `role` = 'BLOCK' WHERE id = 2;

@@ -23,7 +23,7 @@ public class UserService {
     private final ScoreDao scoreDao;
     private final PasswordEncoder passwordEncoder;
 
-    // ✅ 추가: 로컬 badwords.txt 기반 필터
+    // 로컬 badwords.txt 기반 필터
     private final ProfanityFilterService profanityFilterService;
 
     public UserService(UserDao userDao,
@@ -36,34 +36,32 @@ public class UserService {
         this.profanityFilterService = profanityFilterService;
     }
 
-    // =========================
     // 닉네임 변경
-    // =========================
     public String changeNickName(Integer loginUserId, String nickName) {
         if (loginUserId == null) return "로그인이 필요합니다.";
         if (nickName == null || nickName.trim().isEmpty()) return "닉네임을 입력해주세요.";
 
         String trimmed = nickName.trim();
 
-        // ✅ 1) 변경 없음 (본인 닉네임) - 먼저 처리(불필요한 검사/쿼리 줄임)
+        // (본인 닉네임) - 먼저 처리(불필요한 검사/쿼리 줄임)
         String current = this.userDao.findNickNameById(loginUserId);
         if (current != null && current.equals(trimmed)) {
             return "현재 사용 중인 닉네임입니다.";
         }
 
-        // ✅ 2) 비속어 필터링 (오늘 추가)
+        // 비속어 필터링 (오늘 추가)
         // - 닉네임은 '마스킹'이 아니라 '차단'이므로 메시지 반환
         if (profanityFilterService.containsProfanity(trimmed)) {
             return "적절하지 않은 닉네임입니다.";
         }
 
-        // ✅ 3) 중복 체크 (본인 제외)
+        // 중복 체크 (본인 제외)
         int cnt = this.userDao.countByNickName(trimmed, loginUserId);
         if (cnt > 0) {
             return "이미 사용 중인 닉네임입니다.";
         }
 
-        // ✅ 4) 새 닉네임으로 업데이트
+        // 새 닉네임으로 업데이트
         int updated = this.userDao.changeNickName(loginUserId, trimmed);
         if (updated == 1) {
             return "success";
@@ -71,11 +69,9 @@ public class UserService {
         return "닉네임 변경에 실패했습니다.";
     }
 
-    // =========================
-    // 비밀번호 변경
-    // =========================
+    //평상 시 비밀번호 변경
     public String changePw(Integer loginUserId, String currentPw, String newPw) {
-        String encodedPw = userDao.selectPwById(loginUserId);
+        String encodedPw = this.userDao.selectPwById(loginUserId);
         if (encodedPw == null) return "사용자 정보를 찾을 수 없습니다.";
 
         if (!passwordEncoder.matches(currentPw, encodedPw)) {
@@ -89,10 +85,14 @@ public class UserService {
         if (updated == 1) return "success";
         return "비밀번호 변경에 실패했습니다.";
     }
+    
+    //임시 비밀번호 발급 후 비밀번호 변경
+  	public void changePwEmptyCurrent(Integer loginUserId, String newPw) {
+  		String encodedPw = passwordEncoder.encode(newPw);
+  		this.userDao.changePwEmptyCurrent(loginUserId, encodedPw);
+  	}
 
-    // =========================
     // 프로필 이미지 업로드
-    // =========================
     public String uploadProfile(Integer loginUserId, MultipartFile profileImg) {
         if (profileImg == null || profileImg.isEmpty()) {
             return "업로드할 파일이 없습니다.";
@@ -127,9 +127,7 @@ public class UserService {
         }
     }
 
-    // =========================
     // 회원탈퇴
-    // =========================
     @Transactional
     public String deleteAccount(Integer loginUserId) {
         // 점수 기록 삭제

@@ -75,7 +75,7 @@ public interface AuthDao {
     """)
     User getUserByEmail(String email);
 
-    // 비밀번호 업데이트
+    //비밀번호 업데이트
     @Update("""
         UPDATE `user`
         SET login_pw = #{encodedPw}
@@ -83,4 +83,12 @@ public interface AuthDao {
     """)
     void updatePw(@Param("id") int id,
                   @Param("encodedPw") String encodedPw);
+    
+    //임시 비번 발급 후 need_pw_change true로 업데이트 -> 로그인 시 비밀번호 변경 요구
+    @Update("""
+    		UPDATE `user`
+    		SET need_pw_change = #{b}
+    		WHERE email = #{email}
+    		""")
+	void updateNeedPwChangeStatus(String email, boolean b);
 }

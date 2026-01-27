@@ -1,5 +1,5 @@
 // pages/mainpage/MainOverlay.jsx
-import { statusApi } from '../../api/auth';
+import { changePasswordApi } from '../../api/auth';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { playMenuMove, playMenuConfirm, playPreview, stopPreview, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
@@ -23,6 +23,7 @@ const ITEM_HEIGHT = 72;
 const INPUT_LOCK_MS = 50;
 
 export default function MainOverlay({
+  auth,
   showPwChangeModal,
   onClosePwChangeModal,
 }) {
@@ -32,7 +33,6 @@ export default function MainOverlay({
   const wheelContainerRef = useRef(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const analyserRef = useRef(null);
-  //랭킹 데이터
   const [ranking, setRanking] = useState([]);
   const [rankLoading, setRankLoading] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -361,6 +361,22 @@ export default function MainOverlay({
     return data;
   };
 
+  const handleChangePw = async (currentPw, newPw) => {
+    try {
+      const res = await changePasswordApi(currentPw, newPw);
+
+      if (res.data?.ok) {
+        alert(res.data.message || '비밀번호가 변경되었습니다.');
+        //모달 닫기
+        onClosePwChangeModal();
+      } else {
+        alert(res.data?.message || '비밀번호 변경에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err?.response?.data?.message || '비밀번호 변경 중 오류가 발생했습니다.');
+    }
+  };
 
   useEffect(() => {
     const s = selectedSong;
@@ -371,6 +387,7 @@ export default function MainOverlay({
     }
 
     let alive = true;
+
 
     const loadRanking = async () => {
       try {
@@ -999,7 +1016,7 @@ export default function MainOverlay({
       />
       {/* 비밀번호 변경 모달 */}
       {showPwChangeModal && (
-        <PasswordChangeModal onClose={onClosePwChangeModal} />
+        <PasswordChangeModal onClose={onClosePwChangeModal} onSubmit={handleChangePw} />
       )}
     </div >
   );
