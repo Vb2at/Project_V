@@ -16,4 +16,5 @@ public class CheckReq {
 	private String newPw;
 	private String role;
 	private int loginType;
+	private boolean needPwChange;
 }

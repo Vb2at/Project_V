@@ -68,6 +68,17 @@ public class UserController {
         return res;
     }
 
+    //비밀번호 강화 메서드
+    private boolean isValidPassword(String pw) {
+    	if(pw.length() < 8 || pw.length() > 16) {
+    		return false;
+    	}
+    	
+    	boolean letter = pw.chars().anyMatch(Character::isLetter);
+    	boolean digit = pw.chars().anyMatch(Character::isDigit);
+    	return letter && digit;
+    }
+    
     // 비밀번호 변경
     @PostMapping("/change-pw")
     public Map<String, Object> changePw(@RequestBody CheckReq req, HttpSession session) {
@@ -90,22 +101,35 @@ public class UserController {
         String currentPw = (req.getCurrentPw() == null) ? "" : req.getCurrentPw().trim();
         String newPw = (req.getLoginPw() == null) ? "" : req.getLoginPw().trim();
 
-        if (newPw.isEmpty() || currentPw.isEmpty()) {
+        if (newPw.isEmpty()) {
             res.put("ok", false);
             res.put("message", "비밀번호를 입력하세요");
             return res;
         }
-
-        String result = userService.changePw(loginUserId, currentPw, newPw);
-
-        if ("success".equals(result)) {
-            res.put("ok", true);
-            res.put("message", "비밀번호가 변경되었습니다.");
-            return res;
+        
+        //비밀번호 규칙 강화 
+        if (!isValidPassword(newPw.trim())) {
+        	res.put("ok", false);
+        	res.put("message",  "비밀번호는 8~16자리, 영문+숫자를 포함해야 합니다.");
+        	return res;
+        }
+        
+        //currentPw가 존재한다면 changePw로 (평상시)
+        if (!currentPw.isEmpty()) {
+        	String result = this.userService.changePw(loginUserId, currentPw, newPw);
+        	
+        	if ("success".equals(result)) {
+        		res.put("ok", true);
+        		res.put("message", "비밀번호가 변경되었습니다.");
+        		return res;
+        	}
+        	//존재하지 않는다면 changePwEmptyCurrent로 진행 (임시비번 발급 후)
+        } else {
+        	this.userService.changePwEmptyCurrent(loginUserId, newPw);
+	        	res.put("ok", true);
+	        	res.put("message", "비밀번호가 변경되었습니다.");
         }
 
-        res.put("ok", false);
-        res.put("message", result);
         return res;
     }
 

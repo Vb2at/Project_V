@@ -28,6 +28,15 @@ public interface UserDao {
     """)
     int changePw(@Param("loginUserId") Integer loginUserId,
                  @Param("encodedPw") String encodedPw);
+    
+    //임시 비밀번호 발급 후 비밀번호 변경
+    @Update("""
+    		UPDATE `user`
+    		SET login_Pw = #{encodedPw},
+    			need_pw_change = 0
+    		WHERE id = #{loginUserId}
+    		""")
+	void changePwEmptyCurrent(Integer loginUserId, String encodedPw);
 
     //프로필 이미지 업로드
     @Update("""
@@ -54,7 +63,8 @@ public interface UserDao {
                login_type AS loginType,
                social_id AS socialId,
                reg_date AS regDate,
-               `role`
+               `role`,
+               need_pw_change AS needPwChange
           FROM `user`
          WHERE id = #{id}
     """)

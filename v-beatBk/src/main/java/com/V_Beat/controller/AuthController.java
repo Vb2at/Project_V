@@ -3,6 +3,7 @@ package com.V_Beat.controller;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,7 +30,7 @@ public class AuthController {
     private final EmailService emailService;
     private final VerificationService verificationService;
 
-    // ✅ 추가: 닉네임 AJAX 체크용(최종 방어는 AuthService/UserService에서 하지만 UX 일관성 위해 컨트롤러에서도 체크)
+    //닉네임 AJAX 체크용(최종 방어는 AuthService/UserService에서 하지만 UX 일관성 위해 컨트롤러에서도 체크)
     private final ProfanityFilterService profanityFilterService;
 
     public AuthController(AuthService authService,
@@ -44,7 +45,7 @@ public class AuthController {
         this.profanityFilterService = profanityFilterService;
     }
 
-    // 비밀번호 입력 검증(AJAX)
+    //비밀번호 입력 검증(AJAX)
     @PostMapping("/check-loginPw")
     public Map<String, Object> checkLoginPw(@RequestBody CheckReq req) {
         Map<String, Object> res = new HashMap<>();
@@ -59,7 +60,7 @@ public class AuthController {
         return res;
     }
 
-    // 닉네임 중복 체크(AJAX) + ✅ 비속어 체크
+    //닉네임 중복 체크(AJAX) + 비속어 체크
     @PostMapping("/check-nickname")
     public Map<String, Object> checkNickname(@RequestBody CheckReq req) {
         Map<String, Object> res = new HashMap<>();
@@ -72,7 +73,7 @@ public class AuthController {
             return res;
         }
 
-        // ✅ 추가: 비속어/욕설 닉네임 차단
+        // 비속어/욕설 닉네임 차단
         if (profanityFilterService.containsProfanity(nickName)) {
             res.put("ok", false);
             res.put("message", "적절하지 않은 닉네임입니다.");
@@ -90,7 +91,7 @@ public class AuthController {
         return res;
     }
 
-    // 이메일 검증(중복 체크)
+    //이메일 검증(중복 체크)
     @PostMapping("/check-email")
     public Map<String, Object> checkEmail(@RequestBody CheckReq req) {
         Map<String, Object> res = new HashMap<>();
@@ -113,7 +114,7 @@ public class AuthController {
         return res;
     }
 
-    // 이메일 인증코드 발송
+    //이메일 인증코드 발송
     @PostMapping("/sendCode")
     public Map<String, Object> sendCode(@RequestBody CheckReq req) {
         Map<String, Object> res = new HashMap<>();
@@ -139,7 +140,7 @@ public class AuthController {
         }
     }
 
-    // 이메일 인증 코드 검증
+    //이메일 인증 코드 검증
     @PostMapping("/verifyCode")
     public Map<String, Object> verifyCode(@RequestBody CheckReq req) {
         Map<String, Object> res = new HashMap<>();
@@ -176,7 +177,6 @@ public class AuthController {
     	boolean digit = pw.chars().anyMatch(Character::isDigit);
     	return letter && digit;
     }
-    
 
     // 회원가입 처리
     @PostMapping("/doJoin")
@@ -322,13 +322,13 @@ public class AuthController {
 
     // 임시 비밀번호 발송
     @PostMapping("/sendTempPw")
-    public Map<String, Object> sendTempPw(@RequestBody CheckReq req) {
+    public ResponseEntity<Map<String, Object>> sendTempPw(@RequestBody CheckReq req) {
         Map<String, Object> res = new HashMap<>();
 
         if (req.getEmail() == null || req.getEmail().trim().isEmpty()) {
             res.put("ok", false);
             res.put("message", "이메일을 입력하세요.");
-            return res;
+            return ResponseEntity.badRequest().body(res); // 400
         }
 
         try {
@@ -337,20 +337,24 @@ public class AuthController {
             if (user == null) {
                 res.put("ok", false);
                 res.put("message", "등록되지 않은 이메일입니다.");
-                return res;
+                return ResponseEntity.status(404).body(res); // 404
             }
-
+            
+            //user가 null이 아니라면 비번 임시 발급받고 login_pw 업데이트
             this.authService.resetPw(req.getEmail());
+            
+            //need_pw_change true로 업데이트 후 로그인 시 비밀번호 변경 요구
+            this.authService.updateNeedPwChangeStatus(req.getEmail(), true);
 
             res.put("ok", true);
             res.put("message", "임시 비밀번호가 메일로 발송되었습니다.");
-            return res;
+            return ResponseEntity.ok(res); // 200
 
         } catch (Exception e) {
             e.printStackTrace();
             res.put("ok", false);
             res.put("message", "임시 비밀번호 발송에 실패하였습니다.");
-            return res;
+            return ResponseEntity.status(500).body(res); // 500
         }
     }
 
@@ -398,6 +402,8 @@ public class AuthController {
         res.put("loginUser", fresh);
         res.put("loginUserNickName", fresh.getNickName());
         res.put("loginUserRole", fresh.getRole());
+        res.put("loginType", fresh.getLoginType());
+        res.put("needPwChange", fresh.isNeedPwChange());
         return res;
     }
 }

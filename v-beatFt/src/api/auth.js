@@ -14,3 +14,12 @@ export async function statusApi() {
 export async function deleteAccountApi() {
     return api.post("/api/user/deleteAccount");
 }
+
+//비밀번호 변경 API
+export async function changePasswordApi(currentPw, newPw) {
+    return api.post("/api/user/change-pw", {
+        currentPw,
+        loginPw: newPw,
+        loginType: 0,  //일반 로그인
+    });
+}

@@ -15,7 +15,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
 
-    // ✅ 추가: 로컬 badwords.txt 기반 필터
+    //로컬 badwords.txt 기반 필터
     private final ProfanityFilterService profanityFilterService;
 
     public AuthService(AuthDao authDao,
@@ -38,13 +38,11 @@ public class AuthService {
         return this.authDao.existsByNickName(nickName);
     }
 
-    // =========================
-    // ✅ 회원가입 처리 (일반)
-    // =========================
+    // 회원가입 처리 (일반)
     public void join(User user) {
         if (user == null) throw new IllegalArgumentException("user is null");
 
-        // ✅ 닉네임 비속어 검사 (가입 전에 차단)
+        //닉네임 비속어 검사 (가입 전에 차단)
         profanityFilterService.validateNicknameOrThrow(user.getNickName());
 
         String encoded = this.passwordEncoder.encode(user.getLoginPw());
@@ -53,9 +51,7 @@ public class AuthService {
         this.authDao.join(user);
     }
 
-    // =========================
-    // ✅ 소셜 로그인 가입 (kakao, google)
-    // =========================
+    //소셜 로그인 가입 (kakao, google)
     public void joinSocial(User user) {
         if (user == null) {
             throw new IllegalArgumentException("user is null");
@@ -78,10 +74,10 @@ public class AuthService {
         }
         baseNick = baseNick.trim();
 
-        // ✅ baseNick 자체도 먼저 검사 (baseNick이 욕설이면 즉시 차단)
+        //baseNick 자체도 먼저 검사 (baseNick이 욕설이면 즉시 차단)
         profanityFilterService.validateNicknameOrThrow(baseNick);
 
-        // 닉네임 중복 방지 + ✅ 후보마다 욕설 검사
+        // 닉네임 중복 방지 + 후보마다 욕설 검사
         String candidate = baseNick;
         int suffix = 1;
 
@@ -115,9 +111,7 @@ public class AuthService {
         this.authDao.joinBySocialId(user);
     }
 
-    // =========================
     // 로그인 처리
-    // =========================
     public User doLogin(String email, String loginPw) {
         User user = this.authDao.getUserByEmail(email);
 
@@ -161,7 +155,7 @@ public class AuthService {
         return tempPw.toString();
     }
 
-    // 비밀번호 찾기
+    // 비밀번호 초기화
     public void resetPw(String email) {
         // 이메일로 회원 조회
         User user = this.authDao.getUserByEmail(email);
@@ -181,6 +175,11 @@ public class AuthService {
         // 평문 임시 비밀번호를 이메일로 발송
         this.emailService.sendTempPw(email, tempPw);
     }
+    
+    //임시 비번 발급 후 need_pw_change true로 업데이트 -> 로그인 시 비밀번호 변경 요구
+	public void updateNeedPwChangeStatus(String email, boolean b) {
+		this.authDao.updateNeedPwChangeStatus(email, b);
+	}
 
     // 소셜아이디로 조회
     public User findBySocialId(String socialId, int loginType) {

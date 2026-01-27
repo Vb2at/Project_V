@@ -51,15 +51,22 @@ export default function RePw() {
     setMsg('');
 
     try {
-      await fetch('/api/auth/reset-password', {
+      const res = await fetch('/api/auth/sendTempPw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ email }),
       });
 
-      setMsg('입력하신 이메일로 임시 비밀번호를 전송했습니다.');
-      setCooldown(60);
+      const data = await res.json();
+
+      if(!res.ok || !data.ok) {
+        setMsg(data.message || '임시 비밀번호 발송에 실패했습니다.');
+        return;
+      }
+
+      alert('임시 비밀번호가 전송되었습니다.\n로그인 후 비밀번호를 변경해 주세요.');
+      navigate('/login');
     } catch {
       setMsg('서버 연결에 실패했습니다.');
     } finally {

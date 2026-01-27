@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { changePasswordApi } from '../../api/auth';
 
 export default function PasswordChangeModal({ onClose }) {
   const [pw, setPw] = useState('');
@@ -25,24 +26,17 @@ export default function PasswordChangeModal({ onClose }) {
     setMsg('');
 
     try {
-      const res = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ newPassword: pw }),
-      });
+      const res = await changePasswordApi('', pw);
 
-      const data = await res.json();
-
-      if (!res.ok || data?.ok === false) {
-        setMsg(data?.message || '비밀번호 변경 실패');
-        return;
+      if (res.data?.ok) {
+        alert(res.data.message || '비밀번호가 변경되었습니다.');
+        onClose();
+      } else {
+        setMsg(res.data?.message || '비밀번호 변경에 실패했습니다.');
       }
-
-      alert('비밀번호가 변경되었습니다.');
-      onClose();
-    } catch {
-      setMsg('서버 연결 실패');
+    } catch (err) {
+      console.error(err);
+      setMsg(err?.response?.data?.message || '서버 연결에 실패했습니다.');
     } finally {
       setLoading(false);
     }

@@ -4,6 +4,7 @@ import MainOverlay from './MainOverlay';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { playMenuBgmRandom } from '../../components/engine/SFXManager';
+import { statusApi } from '../../api/auth';
 
 export default function MainPage() {
   const { state } = useLocation();
@@ -14,14 +15,17 @@ export default function MainPage() {
   }, []);
 
 useEffect(() => {
-  setShowPwModal(true); // ✅ 무조건 모달 띄우기 테스트용, 끝나면 지우고 밑에있는 주석으로 교체
+  (async () => {
+    try {
+      const res = await statusApi();
+      if(res.data?.ok && res.data.needPwChange === true) {
+        setShowPwModal(true);
+      }
+    } catch(e) {
+      //로그인 안된 경우 아무것도 못 함
+    }
+  })();
 }, []);
-
-  // useEffect(() => {
-  //   if (state?.needPwChange === true) {
-  //     setShowPwModal(true);
-  //   }
-  // }, [state]);
 
   return (
     <>

@@ -20,6 +20,7 @@ public class User {
 	private LocalDateTime regDate;
 	private String profileImg;
 	private String role;
+	private boolean needPwChange;
 	// =========================
 	// 친구 기능용 임시 필드 (DB 컬럼 아님)
 	// - @Param / Map 없이 MyBatis 파라미터 1개로 처리하려고 추가

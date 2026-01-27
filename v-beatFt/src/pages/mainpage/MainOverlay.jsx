@@ -1,5 +1,5 @@
 // pages/mainpage/MainOverlay.jsx
-import { statusApi } from '../../api/auth';
+import { changePasswordApi } from '../../api/auth';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { playMenuMove, playMenuConfirm, playPreview, stopPreview, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
@@ -9,7 +9,7 @@ import RankTable from './RankTable';
 import Visualizer from '../../components/visualizer/Visualizer';
 import UserProfileModal from "../../components/Common/UserProfileModal";
 import UserReportModal from "../../components/Common/UserReportModal";
-import PasswordChangeModal from '../../components/Common/PasswordChangeModal'; 
+import PasswordChangeModal from '../../components/Common/PasswordChangeModal';
 
 const formatDuration = (sec) => {
   const n = Number(sec);
@@ -23,6 +23,7 @@ const ITEM_HEIGHT = 72;
 const INPUT_LOCK_MS = 50;
 
 export default function MainOverlay({
+  auth,
   showPwChangeModal,
   onClosePwChangeModal,
 }) {
@@ -32,40 +33,14 @@ export default function MainOverlay({
   const wheelContainerRef = useRef(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const analyserRef = useRef(null);
-  //랭킹 데이터
   const [ranking, setRanking] = useState([]);
   const [rankLoading, setRankLoading] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [listMode, setListMode] = useState('PUBLIC'); // PUBLIC | MY
-  const [loginUserId, setLoginUserId] = useState(null);
-  const [isBlockUser, setIsBlockUser] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      try {
-        const res = await statusApi();
-        console.log('STATUS API =', res.data);
-        if (!alive) return;
-
-        if (res.data?.ok) {
-          setLoginUserId(Number(res.data.loginUserId));
-          setIsBlockUser(res.data.loginUserRole === 'BLOCK');
-        } else {
-          setLoginUserId(null);
-          setIsBlockUser(false);
-        }
-      } catch (e) {
-        if (!alive) return;
-        setLoginUserId(null);
-      }
-    })();
-
-    return () => { alive = false; };
-  }, []);
+  const loginUserId = auth?.loginUserId ?? null;
+  const isBlockUser = auth?.loginUserRole === 'BLOCK';
 
   useEffect(() => {
     const unlocked = localStorage.getItem('bgmUnlocked') === 'true';
@@ -348,6 +323,22 @@ export default function MainOverlay({
     return data;
   };
 
+  const handleChangePw = async (currentPw, newPw) => {
+    try {
+      const res = await changePasswordApi(currentPw, newPw);
+
+      if (res.data?.ok) {
+        alert(res.data.message || '비밀번호가 변경되었습니다.');
+        //모달 닫기
+        onClosePwChangeModal();
+      } else {
+        alert(res.data?.message || '비밀번호 변경에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err?.response?.data?.message || '비밀번호 변경 중 오류가 발생했습니다.');
+    }
+  };
 
   useEffect(() => {
     const s = selectedSong;
@@ -358,6 +349,7 @@ export default function MainOverlay({
     }
 
     let alive = true;
+
 
     const loadRanking = async () => {
       try {
@@ -894,7 +886,7 @@ export default function MainOverlay({
       />
       {/* 비밀번호 변경 모달 */}
       {showPwChangeModal && (
-        <PasswordChangeModal onClose={onClosePwChangeModal} />
+        <PasswordChangeModal onClose={onClosePwChangeModal} onSubmit={handleChangePw} />
       )}
     </div >
   );
