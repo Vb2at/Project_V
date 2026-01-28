@@ -64,12 +64,44 @@ function GamePlay() {
   const loadingEndRef = useRef(null);
   const HEADER_HEIGHT = 25;
   const location = useLocation();
+  const DEFAULT_SETTINGS = {
+    fps: 60,
+    hitEffect: true,
+    judgeText: true,
+    comboText: true,
+    lowEffect: false,
+    visualizer: true,
+    tapNoteColor: 0x05acb5,
+    longNoteColor: 0xb50549,
+  };
 
+  const [settings, setSettings] = useState(() => {
+    try {
+      const v = localStorage.getItem('userSettings');
+      const parsed = v ? JSON.parse(v) : {};
+      return { ...DEFAULT_SETTINGS, ...parsed };
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  });
   const navigate = useNavigate();
 
   const [tipIndex, setTipIndex] = useState(
     () => Math.floor(Math.random() * TIPS.length)
   );
+
+  useEffect(() => {
+    const sync = () => {
+      try {
+        const v = localStorage.getItem('userSettings');
+        const parsed = v ? JSON.parse(v) : {};
+        setSettings(prev => ({ ...prev, ...DEFAULT_SETTINGS, ...parsed }));
+      } catch { /* ignore */ }
+    };
+
+    window.addEventListener('settings:changed', sync);
+    return () => window.removeEventListener('settings:changed', sync);
+  }, []);
 
 
   useEffect(() => {
@@ -553,9 +585,10 @@ function GamePlay() {
             analyserRef={analyserRef}
             key={sessionKey}
             paused={paused}
+            fpsLimit={settings.fps} 
             bgmVolume={effectiveBgmVolume}
             sfxVolume={effectiveSfxVolume}
-
+            settings={settings}
             // ✅ 멀티 전달
             isMulti={isMulti}
             roomId={roomId}

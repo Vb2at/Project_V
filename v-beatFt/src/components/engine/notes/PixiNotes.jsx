@@ -10,7 +10,8 @@ const longPool = [];
 const longOutlinePool = [];
 const longFadeStartMap = new Map(); // noteId → fade 시작 시점
 
-export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, draggingPreviewRef, onReady }) {
+
+export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, draggingPreviewRef, tapNoteColor, longNoteColor, fpsLimit = 60, onReady }) {
     const appRef = useRef(null);
     const readyRef = useRef(false);
     const speedRef = useRef(speed);
@@ -19,6 +20,22 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, 
     const notesRef = useRef(notes);
     const timeRef = useRef(currentTime);
     const selectedRef = useRef(selectedNoteIds);
+    const tapColorRef = useRef(tapNoteColor);
+    const longColorRef = useRef(longNoteColor);
+
+    useEffect(() => {
+        const app = appRef.current;
+        if (!app) return;
+        app.ticker.maxFPS = fpsLimit || 60;
+    }, [fpsLimit]);
+
+    useEffect(() => {
+        tapColorRef.current = tapNoteColor;
+    }, [tapNoteColor]);
+
+    useEffect(() => {
+        longColorRef.current = longNoteColor;
+    }, [longNoteColor]);
 
     useEffect(() => { notesRef.current = notes; }, [notes]);
     useEffect(() => { timeRef.current = currentTime; }, [currentTime]);
@@ -46,7 +63,7 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, 
                 backgroundAlpha: 0,
                 antialias: true,
             });
-
+            app.ticker.maxFPS = fpsLimit || 60;
             if (!mounted) {
                 try { app.destroy(true); } catch (e) { void e; }
                 return;
@@ -63,7 +80,7 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, 
             tickerFn = () => {
                 const nowNotes = notesRef.current || [];
                 const nowTime = timeRef.current;
-                syncNotes(app.stage, textures, nowNotes, nowTime, speedRef.current, selectedRef.current, draggingPreviewRef);
+                syncNotes(app.stage, textures, nowNotes, nowTime, speedRef.current, selectedRef.current, draggingPreviewRef, tapColorRef.current, longColorRef.current);
             };
 
             app.ticker.add(tickerFn);
@@ -104,8 +121,9 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, 
     );
 }
 
-function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, draggingPreviewRef) {
+function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, draggingPreviewRef, tapNoteColor, longNoteColor) {
     const sprites = spritesRefSingleton;
+    longFadeStartMap.clear();
     const { NOTE_HEIGHT, HIT_LINE_Y, HEIGHT: CANVAS_HEIGHT } = GAME_CONFIG.CANVAS;
     const SPEED = speed;
     const visibleIds = new Set();
@@ -229,7 +247,7 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, 
                 verts[6] = brx; verts[7] = bottomY;
                 buffer.update();
 
-                sprite.tint = isSelected ? 0x00ffff : 0xff0059;
+                sprite.tint = isSelected ? 0x00ffff : longNoteColor;
                 const baseAlpha = renderNote.holding ? 0.9 : 0.8;
                 sprite.alpha = (isSelected ? 1.0 : baseAlpha) * fadeAlpha;
 
@@ -277,7 +295,7 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, 
                     overts[6] = obrx; overts[7] = botY;
                     obuf.update();
 
-                    outline.tint = 0x50ff00;
+                    outline.tint = longNoteColor;
                     outline.alpha = renderNote.holding ? 0.2 : fadeAlpha;
                 }
 
@@ -311,8 +329,8 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, 
         const centerX = (left + right) / 2;
 
         const sel = isSelected ? 1.18 : 1.0;
-        const adjLeft = centerX + (left - centerX) * (1.2 * sel);
-        const adjRight = centerX + (right - centerX) * (1.2 * sel);
+        const adjLeft = centerX + (left - centerX) * sel;
+        const adjRight = centerX + (right - centerX) * sel;
 
         const scale = getPerspectiveScale(y);
         const h = NOTE_HEIGHT * scale * sel;
@@ -331,7 +349,7 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, 
         verts[6] = brx; verts[7] = y + halfH;
         buffer.update();
 
-        sprite.tint = isSelected ? 0xffe600 : 0xffffff;
+        sprite.tint = isSelected ? 0xffe600 : tapNoteColor;
         sprite.alpha = isSelected ? 1.0 : 0.85;
     });
 
@@ -366,8 +384,8 @@ function createMesh(texture, type) {
 }
 
 function acquireTapSprite(textures) {
-    const sprite = tapPool.pop() || createMesh(textures.tap, 'tap');
-    sprite.texture = textures.tap;
+    const sprite = tapPool.pop() || createMesh(Texture.WHITE, 'tap');
+    sprite.texture = Texture.WHITE;
     return sprite;
 }
 

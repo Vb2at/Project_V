@@ -1,5 +1,6 @@
 // pages/mainpage/MainOverlay.jsx
 import { changePasswordApi } from '../../api/auth';
+import { statusApi } from '../../api/auth';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { playMenuMove, playMenuConfirm, playPreview, stopPreview, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
@@ -331,7 +332,7 @@ export default function MainOverlay({
     return renderList.findIndex((item) => item.id === id);
   })();
   const selectedSong = songs[selectedIndex];
-  const isLoggedIn = loginUserId != null;
+  const isLoggedIn = !!auth?.user || loginUserId != null;
   const linkActive = listMode === 'LINK';
   const multiActive = listMode === 'MULTI';
   const isMySong =
