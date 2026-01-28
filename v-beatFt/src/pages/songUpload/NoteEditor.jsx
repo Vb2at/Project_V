@@ -105,7 +105,7 @@ export default function NoteEditor() {
             if (!res.ok) throw new Error('save failed');
 
             alert('저장 완료');
-            navigate(`/song/editor/${songId}`, { replace: true });
+            navigate(`/song/${songId}/edit`, { replace: true });
         } catch {
             alert('저장 실패');
         }

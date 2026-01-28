@@ -22,18 +22,18 @@ function MyGames() {
 
     //삭제 api 
     const handleDelete = async (songId) => {
-        if(!window.confirm('정말 삭제하시겠습니까?')) return;
+        if (!window.confirm('정말 삭제하시겠습니까?')) return;
 
         try {
             await deleteSong(songId);
             alert('삭제가 완료되었습니다.');
             setGames(prev => prev.filter(g => g.id !== songId));
-        } catch(e) {
+        } catch (e) {
             const status = e.response?.status;
-            if(status === 401) alert('로그인이 필요한 기능입니다.');
-            else if(status === 403) alert('해당 곡에 삭제 권한이 없습니다.');
-            else if(status === 404) alert('이미 삭제된 곡입니다.');
-            else alert('삭제에 실패했습니다.'); 
+            if (status === 401) alert('로그인이 필요한 기능입니다.');
+            else if (status === 403) alert('해당 곡에 삭제 권한이 없습니다.');
+            else if (status === 404) alert('이미 삭제된 곡입니다.');
+            else alert('삭제에 실패했습니다.');
         }
     }
 
@@ -42,7 +42,7 @@ function MyGames() {
             const visibility = FILTER_MAP[filter];
             const res = await getMysongs(visibility);
 
-            setGames( 
+            setGames(
                 res.data.map(s => ({
                     id: s.id,
                     title: s.title.replace('.mp3', ''),
@@ -120,6 +120,10 @@ function Card({ game, onDelete }) {
         navigate(`/game/play?songId=${game.id}&diff=${game.diff}`);
     };
 
+    const handleEdit = () => {
+        navigate(`/song/${game.id}/edit`);
+    };
+
     return (
         <div style={card}>
             <img src={game.cover} alt="" style={cover} />
@@ -134,7 +138,7 @@ function Card({ game, onDelete }) {
                 {game.status !== 'BLOCKED' && (
                     <>
                         <BtnMain onClick={handlePlay}>플레이</BtnMain>
-                        <BtnSub>수정</BtnSub>
+                        <BtnSub onClick={handleEdit}>수정</BtnSub>
                     </>
                 )}
                 <BtnSub onClick={() => onDelete(game.id)}>삭제</BtnSub>
