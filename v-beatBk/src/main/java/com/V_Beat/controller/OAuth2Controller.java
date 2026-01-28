@@ -52,7 +52,7 @@ public class OAuth2Controller {
 
         // ✅ 프론트로 리다이렉트 (React 라우터에서 처리)
         // 예: /oauth/success 같은 페이지 만들어서 toast 띄우고 /main 이동 등
-        return "redirect:" + frontBaseUrl + "/nav-loading?target=/main";
+        return "redirect:" + frontBaseUrl + "/start?target=/main";
     }
 
     private String onLoginFail(String message) {
