@@ -14,4 +14,7 @@ public class MySong {
 	private String visibility;
 	private String coverPath;
 	private String diff;
+	private String artist;
+	private String duration;
+	private String shareToken;
 }

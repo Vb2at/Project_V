@@ -69,7 +69,6 @@ export default function PasswordChangeModal({ onClose }) {
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-          <button onClick={onClose} style={btnGray}>취소</button>
           <button onClick={handleSubmit} disabled={loading} style={btnBlue}>
             {loading ? '변경 중...' : '변경'}
           </button>

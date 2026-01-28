@@ -22,18 +22,18 @@ function MyGames() {
 
     //삭제 api 
     const handleDelete = async (songId) => {
-        if(!window.confirm('정말 삭제하시겠습니까?')) return;
+        if (!window.confirm('정말 삭제하시겠습니까?')) return;
 
         try {
             await deleteSong(songId);
             alert('삭제가 완료되었습니다.');
             setGames(prev => prev.filter(g => g.id !== songId));
-        } catch(e) {
+        } catch (e) {
             const status = e.response?.status;
-            if(status === 401) alert('로그인이 필요한 기능입니다.');
-            else if(status === 403) alert('해당 곡에 삭제 권한이 없습니다.');
-            else if(status === 404) alert('이미 삭제된 곡입니다.');
-            else alert('삭제에 실패했습니다.'); 
+            if (status === 401) alert('로그인이 필요한 기능입니다.');
+            else if (status === 403) alert('해당 곡에 삭제 권한이 없습니다.');
+            else if (status === 404) alert('이미 삭제된 곡입니다.');
+            else alert('삭제에 실패했습니다.');
         }
     }
 
@@ -42,13 +42,14 @@ function MyGames() {
             const visibility = FILTER_MAP[filter];
             const res = await getMysongs(visibility);
 
-            setGames( 
+            setGames(
                 res.data.map(s => ({
                     id: s.id,
                     title: s.title.replace('.mp3', ''),
-                    status: s.visibility,
+                    status: s.shareToken ? 'UNLISTED' : s.visibility,
                     cover: `/api/songs/${s.id}/cover`,
                     diff: s.diff.toLowerCase(),
+                    shareToken: s.shareToken,
                 }))
             );
         };
@@ -56,14 +57,17 @@ function MyGames() {
         fetchMySongs();
     }, [filter]);
 
-    const list = games.filter((g) => {
+    const list = games.filter(g => {
         const statusOk =
-            FILTER_MAP[filter] === 'ALL' || g.status === FILTER_MAP[filter];
+            FILTER_MAP[filter] === 'ALL' ||
+            (filter === '부분공개' && g.status === 'UNLISTED') ||
+            g.status === FILTER_MAP[filter];
 
         const keywordOk = g.title.toLowerCase().includes(keyword.toLowerCase());
 
         return statusOk && keywordOk;
     });
+
     return (
         <div style={wrap}>
             {/* ===== 필터 + 검색 ===== */}
@@ -134,7 +138,13 @@ function Card({ game, onDelete }) {
                 {game.status !== 'BLOCKED' && (
                     <>
                         <BtnMain onClick={handlePlay}>플레이</BtnMain>
-                        <BtnSub>수정</BtnSub>
+                        <BtnSub onClick={() => {
+                            if (!game.id) return;
+                            navigate(`/song/${game.id}/note/edit`);
+                        }}
+                        >
+                            수정
+                        </BtnSub>
                     </>
                 )}
                 <BtnSub onClick={() => onDelete(game.id)}>삭제</BtnSub>

@@ -21,4 +21,7 @@ public class Song {
 	private String visibility; // PRIVATE, UNLISTED, PENDING, PUBLIC, BLOCKED
 	private LocalDateTime createDate;
 	private String previewPath;
+	private String nickname;
+	private String profileImg;
+	private String shareToken;
 }

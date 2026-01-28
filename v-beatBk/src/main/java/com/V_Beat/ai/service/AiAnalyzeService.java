@@ -3,6 +3,7 @@ package com.V_Beat.ai.service;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.UUID;
 
 import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
@@ -99,13 +100,17 @@ public class AiAnalyzeService {
 
 		String v = (reqVisibility == null) ? "PRIVATE" : reqVisibility.trim().toUpperCase();
 		String saveVisibility;
-		
-		if("PRIVATE".equals(v)) {
-			saveVisibility = "PRIVATE";
-		} else if("PUBLIC".equals(v)) {
-			saveVisibility = "PENDING";
+		boolean needShareToken = false;
+
+		if ("PRIVATE".equals(v)) {
+		    saveVisibility = "PRIVATE";
+		} else if ("PUBLIC".equals(v)) {
+		    saveVisibility = "PENDING";
+		} else if ("UNLISTED".equals(v)) {
+		    saveVisibility = "PRIVATE";
+		    needShareToken = true;
 		} else {
-			throw new IllegalArgumentException("visibility 값이 올바르지 않습니다.");
+		    throw new IllegalArgumentException("visibility 값이 올바르지 않습니다.");
 		}
 		
 		song.setUserId(loginUserId);
@@ -113,6 +118,10 @@ public class AiAnalyzeService {
 		
 		this.aiAnalyzeDao.insertSong(song);
 		Long songId = song.getId();
+		if (needShareToken) {
+		    String token = UUID.randomUUID().toString().replace("-", "");
+		    this.aiAnalyzeDao.updateShareToken(songId, token);
+		}
 
 		// 4) mp3 파일 저장 (songId로 파일명 고정)
 		Files.createDirectories(Path.of(UPLOAD_DIR));
@@ -263,6 +272,11 @@ public class AiAnalyzeService {
 		if (!out.exists() || out.length() <= 0) {
 			throw new RuntimeException("preview mp3 not created: " + previewPath);
 		}
+	}
+
+	//토큰 조회
+	public String getShareToken(Long songId) {
+		return this.aiAnalyzeDao.getShareToken(songId);
 	}
 
 }

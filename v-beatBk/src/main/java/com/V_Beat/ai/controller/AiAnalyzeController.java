@@ -1,5 +1,7 @@
 package com.V_Beat.ai.controller;
 
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,7 +25,7 @@ public class AiAnalyzeController {
     }
 
     @PostMapping("/analyze/{diff}")
-    public ResponseEntity<Long> analyze(
+    public ResponseEntity<Map<String, Object>> analyze(
             @RequestParam("file") MultipartFile file,
             @RequestParam("visibility") String visibility,
             @PathVariable String diff,
@@ -36,6 +38,20 @@ public class AiAnalyzeController {
         }
 
         Long songId = this.aiAnalyzeService.analyzeSave(file, diff, visibility, loginUserId);
-        return ResponseEntity.ok(songId);
+        
+        //기본 응답
+        if (!"UNLISTED".equalsIgnoreCase(visibility)) {
+        	return ResponseEntity.ok(Map.of("songId", songId));
+        }
+        
+        //unlisted -> 토큰 조회
+        String shareToken = this.aiAnalyzeService.getShareToken(songId);
+        
+        return ResponseEntity.ok(
+        	Map.of(
+        		"songId", songId,
+        		"shareToken", shareToken
+        			)
+        );
     }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { statusApi } from '../../api/auth';
 import Header from '../../components/Common/Header';
 import GameSession from '../../components/engine/GameSession';
 import Background from '../../components/Common/Background';
@@ -18,6 +19,8 @@ function GamePlay() {
   const { songId: paramSongId } = useParams();
   const [searchParams] = useSearchParams();
   const songId = paramSongId ?? searchParams.get('songId');
+  const diffParam = searchParams.get('diff');
+  const tokenParam = searchParams.get('token');
   const [diff, setDiff] = useState('unknown');
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
@@ -41,13 +44,82 @@ function GamePlay() {
   const loadingStartRef = useRef(0);
   const loadingEndRef = useRef(null);
   const HEADER_HEIGHT = 25;
+  const [loginUser, setLoginUser] = useState(null);
   const location = useLocation();
+
 
   const navigate = useNavigate();
 
   const [tipIndex, setTipIndex] = useState(
     () => Math.floor(Math.random() * TIPS.length)
   );
+
+  const [song, setSong] = useState(null);
+
+  useEffect(() => {
+    statusApi()
+      .then(res => {
+        setLoginUser(res.data);
+      })
+      .catch(err => {
+        console.error("로그인 상태 확인 실패:", err);
+        setLoginUser(null);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (loginUser === null) return; // 로그인 상태 확인 전이면 기다림
+
+    if (tokenParam) {
+      fetch(`/api/songs/by-token/${tokenParam}`)
+        .then(res => {
+          if (!res.ok) throw new Error('토큰 접근 불가');
+          return res.json();
+        })
+        .then(fetchedSong => {
+          if (!fetchedSong) throw new Error('곡을 찾을 수 없음');
+
+          // 로그인 유저 없으면 접근 불가
+          if (fetchedSong.visibility === 'PRIVATE' && !tokenParam &&
+            (!loginUser || fetchedSong.userId !== loginUser.loginUser.id)) {
+            throw new Error('잘못된 접근입니다.');
+          }
+
+          setSong(fetchedSong);
+          setDiff(fetchedSong.diff ?? 'unknown');
+        })
+        .catch(err => {
+          alert(err.message);
+          navigate('/main');
+        });
+      return;
+    }
+
+    if (!songId) {
+      alert('곡 정보를 찾을 수 없습니다.');
+      navigate('/main');
+      return;
+    }
+
+    fetch(`/api/songs/${songId}`)
+      .then(res => {
+        if (!res.ok) throw new Error('곡 접근 불가');
+        return res.json();
+      })
+      .then(fetchedSong => {
+        if (fetchedSong.visibility === 'PRIVATE' && !tokenParam &&
+          (!loginUser || fetchedSong.userId !== loginUser.loginUser.id)) {
+          throw new Error('잘못된 접근입니다.');
+        }
+
+        setSong(fetchedSong);
+        setDiff(fetchedSong.diff ?? 'unknown');
+      })
+      .catch(err => {
+        alert(err.message);
+        navigate('/main');
+      });
+  }, [tokenParam, songId, loginUser]);
 
   useEffect(() => {
     const tipTimer = setInterval(() => {
@@ -454,9 +526,10 @@ function GamePlay() {
             clipPath: 'polygon(40% 8%, 60% 8%, 100% 100%, 0% 100%)',
           }}
         />
-        {songId && (
+        {song && diff && (
           <GameSession
-            songId={songId}
+            songId={song.id}
+            diff={diff}
             analyserRef={analyserRef}
             key={sessionKey}
             paused={paused}

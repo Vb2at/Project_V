@@ -1,5 +1,5 @@
 // pages/mainpage/MainOverlay.jsx
-import { changePasswordApi } from '../../api/auth';
+import { changePasswordApi, statusApi } from '../../api/auth';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { playMenuMove, playMenuConfirm, playPreview, stopPreview, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
@@ -51,6 +51,7 @@ export default function MainOverlay({
       try {
         const res = await statusApi();
         console.log('STATUS API =', res.data);
+
         if (!alive) return;
 
         if (res.data?.ok) {
@@ -68,6 +69,7 @@ export default function MainOverlay({
 
     return () => { alive = false; };
   }, []);
+
 
   useEffect(() => {
     const unlocked = localStorage.getItem('bgmUnlocked') === 'true';
@@ -135,10 +137,20 @@ export default function MainOverlay({
             previewUrl: `/api/songs/${s.id}/preview`,
             lengthSec: Number.isFinite(Number(len)) ? Number(len) : null,
             diff: (s.diff ? String(s.diff).toUpperCase() : 'NORMAL'),
-            uploaderUserId: s.uploaderUserId ?? s.userId ?? s.ownerId ?? null,  //업로드한 유저 Id
+            uploaderUserId: s.uploaderUserId != null
+              ? Number(s.uploaderUserId)
+              : s.userId != null
+                ? Number(s.userId)
+                : s.ownerId != null
+                  ? Number(s.ownerId)
+                  : null,
+            nickname: s.nickname ?? 'unknown',
+            profileImg: s.profileImg ? encodeURI(s.profileImg) : null,
+
           };
         });
-
+        console.log('mapped songs:', mapped);
+        console.log('loginUserId:', loginUserId);
         if (!mounted) return;
         const DIFF_SORT = { EASY: 1, NORMAL: 2, HARD: 3, HELL: 4 };
         mapped.sort((a, b) =>
@@ -304,10 +316,10 @@ export default function MainOverlay({
   })();
   const selectedSong = songs[selectedIndex];
 
-  const isMySong =
-    loginUserId != null &&
-    selectedSong?.uploaderUserId != null &&
-    Number(loginUserId) === Number(selectedSong.uploaderUserId);
+  console.log('selectedSong', selectedSong);
+
+  const isMySong = selectedSong?.uploaderUserId != null
+    && Number(loginUserId) === Number(selectedSong.uploaderUserId);
 
   //백엔드 reasonCode에 맞추기 (기존 프론트 mainReason, subReason 나눠져 있었음)
   const makeReasonCode = (p) => {
@@ -566,58 +578,75 @@ export default function MainOverlay({
                         );
                       })}
                     </span>
-                    {/* More (profile / report) */}
-                    <div style={{ position: 'relative', marginLeft: 'auto' }}>
-                      <button
-                        style={moreBtn}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMoreOpen((v) => !v);
-                        }}
-                      >
-                        ⋯
-                      </button>
 
-                      {moreOpen && (
-                        <div style={moreMenu}>
-                          <div
-                            style={menuItem}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMoreOpen(false);
-                              setProfileOpen(true);
-                              // TODO: 제작자 프로필 모달 오픈
-                            }}
-                          >
-                            제작자 프로필
-                          </div>
-                          <div
-                            style={{
-                              ...menuItem,
-                              color: isMySong ? 'rgba(255,255,255,0.35)' : '#ff6b6b',
-                              cursor: isMySong ? 'not-allowed' : 'pointer',
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isMySong) {
-                                alert('본인이 업로드한 곡은 신고할 수 없습니다.');
-                                setMoreOpen(false);
-                                return;
+                    {listMode === 'PUBLIC' && (
+                      <div style={{ position: 'relative', marginLeft: 'auto' }}>
+                        <button
+                          style={{
+                            ...moreBtn,
+                            cursor: !loginUserId || isBlockUser || isMySong ? 'not-allowed' : 'pointer',
+                            opacity: !loginUserId || isBlockUser || isMySong ? 0.35 : 1,
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!loginUserId || isBlockUser || isMySong) {
+                              if (!loginUserId || isBlockUser) {
+                                alert('이용이 제한된 기능입니다.');
                               }
-                              setMoreOpen(false);
-                              setReportOpen(true);
-                            }}
-                          >
-                            신고하기
+                              return;
+                            }
+                            setMoreOpen((v) => !v);
+                          }}
+                        >
+                          ⋯
+                        </button>
+
+                        {moreOpen && !isMySong && ( // 내 곡이면 메뉴 자체 렌더링 안 함
+                          <div style={moreMenu}>
+                            {/* 제작자 프로필 */}
+                            <div
+                              style={{
+                                ...menuItem,
+                                color: '#cfd8e3',
+                                cursor: 'pointer',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMoreOpen(false);
+                                setProfileOpen(true);
+                              }}
+                            >
+                              제작자 프로필
+                            </div>
+
+                            {/* 신고하기 */}
+                            <div
+                              style={{
+                                ...menuItem,
+                                color: '#ff6b6b',
+                                cursor: 'pointer',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMoreOpen(false);
+                                setReportOpen(true);
+                              }}
+                            >
+                              신고하기
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
+
+
+
                     <UserProfileModal
                       open={profileOpen}
                       user={{
-                        id: selectedSong?.id,          // TODO: 추후 제작자 id
-                        nickname: selectedSong?.artist // 임시
+                        id: selectedSong?.uploaderUserId,          //추후 제작자 id
+                        nickname: selectedSong?.nickname, //제작자 닉네임
+                        profileImg: selectedSong?.profileImg ?? null,
                       }}
                       onClose={() => setProfileOpen(false)}
                     />
@@ -679,7 +708,7 @@ export default function MainOverlay({
                 ['MY', '내 곡'],
               ].map(([v, label]) => {
                 const active = listMode === v;
-                const disabled = v === 'MY' && isBlockUser;
+                const disabled = v === 'MY' && (!loginUserId || isBlockUser);
 
                 return (
                   <div
@@ -716,13 +745,17 @@ export default function MainOverlay({
               {/* 링크 입장 버튼 */}
               <div
                 onClick={() => {
+                  if (!loginUserId || isBlockUser) {
+                    alert('이용이 제한된 기능입니다.');
+                    return;
+                  }
                   stopPreview();
                   setLinkOpen(v => !v);
                 }}
                 style={{
                   padding: '6px 14px',
                   borderRadius: 12,
-                  cursor: 'pointer',
+                  cursor: !loginUserId || isBlockUser ? 'not-allowed' : 'pointer',
                   fontSize: 13,
                   color: linkOpen ? '#0ff' : '#cfd8e3',
                   border: linkOpen
@@ -731,6 +764,8 @@ export default function MainOverlay({
                   background: linkOpen
                     ? 'linear-gradient(180deg, rgba(90,234,255,0.25), rgba(10,20,30,0.9))'
                     : 'linear-gradient(180deg, #0e141b, #0a0f15)',
+                  opacity: !loginUserId || isBlockUser ? 0.35 : 1,
+                  pointerEvents: !loginUserId || isBlockUser ? 'none' : 'auto',
                 }}
               >
                 링크 입장
@@ -787,12 +822,49 @@ export default function MainOverlay({
                     />
 
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         try {
-                          const url = new URL(shareLink);
-                          navigate(url.pathname + url.search);
-                        } catch {
-                          alert('올바른 링크를 입력해 주세요.');
+                          let token = shareLink.trim();
+                          if (!token) {
+                            alert('토큰을 입력해주세요.');
+                            return;
+                          }
+
+                          // 전체 URL이면 파싱
+                          let path = '/game/play';
+                          try {
+                            const url = new URL(shareLink);
+                            path = url.pathname;
+                            token = url.searchParams.get('token') || token;
+                          } catch { }
+
+                          // ✅ 토큰 유효성 검증
+                          const res = await fetch(`/api/songs/by-token/${token}`, {
+                            method: 'GET',
+                            headers: { Accept: 'application/json' },
+                            credentials: 'include',
+                          });
+
+                          if (!res.ok) {
+                            if (res.status === 404) {
+                              alert('존재하지 않는 토큰입니다.');
+                            } else {
+                              alert(`토큰 검증 중 오류 발생 (${res.status})`);
+                            }
+                            return;
+                          }
+
+                          const data = await res.json();
+                          if (!data?.id) {
+                            alert('존재하지 않는 토큰입니다.');
+                            return;
+                          }
+
+                          // 유효하면 이동
+                          navigate(`${path}?token=${token}`);
+                        } catch (e) {
+                          console.error(e);
+                          alert('입장 중 오류가 발생했습니다.');
                         }
                       }}
                       style={{

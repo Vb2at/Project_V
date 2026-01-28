@@ -17,8 +17,7 @@ export default function UserProfileModal({ open, user, onClose }) {
         return `http://localhost:8080/${s}`;
     };
 
-    const targetProfileImg =
-        user?.otherProfileImg ?? null;
+    const targetProfileImg = user?.profileImg ?? null;
 
     const submitUserReport = async (payload) => {
         const body = {
@@ -65,7 +64,7 @@ export default function UserProfileModal({ open, user, onClose }) {
                         )}
                     </div>
 
-                    <div style={name}>{user?.otherNickName ?? user?.nickname}</div>
+                    <div style={name}>{user?.nickname}</div>
                 </div>
 
                 <div style={btnRow}>
@@ -89,7 +88,7 @@ export default function UserProfileModal({ open, user, onClose }) {
                 type="USER"
                 targetId={user?.otherUserId ?? user?.id}
                 targetName={user?.otherNickName ?? user?.nickname ?? user?.nickName}
-                targetProfileImg={targetProfileImg}  //신고 모달에 상대 프로필 이미지 URL 전달
+                targetProfileImg={user?.profileImg || '/default/profile.png'}    //신고 모달에 상대 프로필 이미지 URL 전달
                 onClose={() => setReportOpen(false)}
                 onSubmit={async (payload) => {
                     try {
