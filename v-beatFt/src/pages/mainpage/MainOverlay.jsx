@@ -38,8 +38,7 @@ export default function MainOverlay({
   const [profileOpen, setProfileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
-  const [listMode, setListMode] = useState('PUBLIC'); // PUBLIC | MY | MULTI
-  const [linkOpen, setLinkOpen] = useState(false);
+  const [listMode, setListMode] = useState('PUBLIC'); // PUBLIC | MY | LINK | MULTI
   const [shareLink, setShareLink] = useState('');
   const [loginUserId, setLoginUserId] = useState(null);
   const [isBlockUser, setIsBlockUser] = useState(false);
@@ -201,7 +200,7 @@ export default function MainOverlay({
      Wheel: 한 번에 한 칸
   =============================== */
   const handleWheel = useCallback((e) => {
-    if (listMode === 'MULTI') return;
+    if (listMode === 'MULTI' || listMode === 'LINK') return;
     e.preventDefault();
     if (wheelLockRef.current) return;
     if (!songs.length) return;
@@ -241,8 +240,7 @@ export default function MainOverlay({
   =============================== */
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (listMode === 'MULTI') return;
-      if (linkOpen) return;
+      if (listMode === 'MULTI' || listMode === 'LINK') return;
       if (keyLockRef.current) return;
 
       // ↑ ↓ 이동
@@ -277,19 +275,14 @@ export default function MainOverlay({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIndex, songs, navigate, linkOpen]);
+  }, [selectedIndex, songs, navigate, listMode]);
 
   useEffect(() => {
-    if (listMode === 'MULTI') {
+    if (listMode === 'MULTI' || listMode === 'LINK') {
       stopPreview();
       return;
     }
     if (!songs || songs.length === 0) {
-      stopPreview();
-      return;
-    }
-
-    if (linkOpen) {
       stopPreview();
       return;
     }
@@ -304,7 +297,7 @@ export default function MainOverlay({
     playPreview(url, { durationSec: 8 });
 
     return () => stopPreview();
-  }, [selectedIndex, songs, linkOpen, listMode]);
+  }, [selectedIndex, songs, listMode]);
 
 
   const DIFF_ORDER = ['EASY', 'NORMAL', 'HARD', 'HELL'];
@@ -338,7 +331,9 @@ export default function MainOverlay({
     return renderList.findIndex((item) => item.id === id);
   })();
   const selectedSong = songs[selectedIndex];
-
+  const isLoggedIn = loginUserId != null;
+  const linkActive = listMode === 'LINK';
+  const multiActive = listMode === 'MULTI';
   const isMySong =
     loginUserId != null &&
     selectedSong?.uploaderUserId != null &&
@@ -412,6 +407,12 @@ export default function MainOverlay({
       alert(err?.response?.data?.message || '비밀번호 변경 중 오류가 발생했습니다.');
     }
   };
+
+  useEffect(() => {
+    if (!isLoggedIn && listMode !== 'PUBLIC') {
+      setListMode('PUBLIC');
+    }
+  }, [isLoggedIn, listMode]);
 
   useEffect(() => {
     const s = selectedSong;
@@ -688,7 +689,7 @@ export default function MainOverlay({
           {/* Game List */}
 
           <section
-            ref={!linkOpen ? wheelContainerRef : null}
+            ref={(listMode === 'PUBLIC' || listMode === 'MY') ? wheelContainerRef : null}
             style={{
               position: 'relative',
               flex: 1,
@@ -714,7 +715,7 @@ export default function MainOverlay({
             >
               {[
                 ['PUBLIC', '공개 곡'],
-                ['MY', '내 곡'],
+                ...(isLoggedIn ? [['MY', '내 곡']] : []),
               ].map(([v, label]) => {
                 const active = listMode === v;
                 const disabled = v === 'MY' && isBlockUser;
@@ -727,7 +728,6 @@ export default function MainOverlay({
                         return;
                       }
                       setListMode(v);
-                      setLinkOpen(false);
                     }}
                     style={{
                       padding: '6px 14px',
@@ -751,47 +751,53 @@ export default function MainOverlay({
               })}
 
               {/* 링크 입장 버튼 */}
-              <div
-                onClick={() => {
-                  stopPreview();
-                  setLinkOpen(v => !v);
-                }}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: 12,
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  color: linkOpen ? '#0ff' : '#cfd8e3',
-                  border: linkOpen
-                    ? '2px solid rgba(90,234,255,0.9)'
-                    : '2px solid rgba(90,234,255,0.3)',
-                  background: linkOpen
-                    ? 'linear-gradient(180deg, rgba(90,234,255,0.25), rgba(10,20,30,0.9))'
-                    : 'linear-gradient(180deg, #0e141b, #0a0f15)',
-                }}
-              >
-                링크 입장
-              </div>
+              {isLoggedIn && (
+                <div
+                  onClick={() => {
+                    stopPreview();
+                    setListMode('LINK');
+                  }}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    color: linkActive ? '#0ff' : '#cfd8e3',
+                    border: linkActive
+                      ? '2px solid rgba(90,234,255,0.9)'
+                      : '2px solid rgba(90,234,255,0.3)',
+                    background: linkActive
+                      ? 'linear-gradient(180deg, rgba(90,234,255,0.25), rgba(10,20,30,0.9))'
+                      : 'linear-gradient(180deg, #0e141b, #0a0f15)',
+                  }}
+                >
+                  링크 입장
+                </div>
+              )}
               {/* ✅ 멀티 플레이 버튼 (여기로 이동) */}
-              <div
-                onClick={() => {
-                  stopPreview();
-                  playMenuConfirm();
-                  setListMode('MULTI');
-                  setLinkOpen(false);
-                }}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: 12,
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  color: '#5aeaff',
-                  border: '2px solid rgba(90,234,255,0.9)',
-                  background: 'linear-gradient(180deg, rgba(90,234,255,0.25), rgba(10,20,30,0.9))',
-                }}
-              >
-                멀티 플레이
-              </div>
+              {isLoggedIn && (
+                <div
+                  onClick={() => {
+                    stopPreview();
+                    setListMode('MULTI');
+                  }}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    color: multiActive ? '#0ff' : '#cfd8e3',
+                    border: multiActive
+                      ? '2px solid rgba(90,234,255,0.9)'
+                      : '2px solid rgba(90,234,255,0.3)',
+                    background: multiActive
+                      ? 'linear-gradient(180deg, rgba(90,234,255,0.25), rgba(10,20,30,0.9))'
+                      : 'linear-gradient(180deg, #0e141b, #0a0f15)',
+                  }}
+                >
+                  멀티 플레이
+                </div>
+              )}
             </div>
 
             {/* ================= 메인 영역 ================= */}
@@ -837,7 +843,7 @@ export default function MainOverlay({
               )}
 
               {/* ===== 링크 입장 화면 ===== */}
-              {linkOpen && (
+              {listMode === 'LINK' && (
                 <div
                   style={{
                     height: '70%',
@@ -902,7 +908,7 @@ export default function MainOverlay({
               )}
 
               {/* ===== 기존 리스트 화면 ===== */}
-              {!linkOpen && listMode !== 'MULTI' && (
+              {(listMode === 'PUBLIC' || listMode === 'MY') && (
                 <>
                   {!loading && songs.length === 0 && (
                     <div
@@ -1049,6 +1055,8 @@ export default function MainOverlay({
                   </div>
                 </>
               )}
+
+
               {/* ===== 멀티 방 리스트 화면 ===== */}
               {listMode === 'MULTI' && (
                 <div
@@ -1176,25 +1184,28 @@ export default function MainOverlay({
 
         </div>
         {/* RIGHT RANK PANEL */}
-        <div
-          style={{
-            position: 'absolute',
-            right: '8%',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: '22%',
-            height: '70%',
-            borderRadius: '14px',
-            background: 'rgba(120,0,0,0.35)',
-            boxShadow: '0 0 0 2px rgba(255,80,80,0.6), 0 20px 40px rgba(0,0,0,0.45)',
-            padding: '12px',
-          }}
-        >
-          <RankTable
-            ranking={ranking}
-            loading={rankLoading}
-          />
-        </div>
+        {isLoggedIn && (
+          <div
+            style={{
+              position: 'absolute',
+              right: '8%',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: '22%',
+              height: '70%',
+              borderRadius: '14px',
+              background: 'rgba(120,0,0,0.35)',
+              boxShadow: '0 0 0 2px rgba(255,80,80,0.6), 0 20px 40px rgba(0,0,0,0.45)',
+              padding: '12px',
+            }}
+          >
+            <RankTable
+              ranking={ranking}
+              loading={rankLoading}
+            />
+          </div>
+        )}
+
       </main >
       <Visualizer
         size="game"
