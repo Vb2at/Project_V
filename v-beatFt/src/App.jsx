@@ -39,7 +39,6 @@ function App() {
         <Route path="/game/result" element={<Result />} />
         <Route path="/nav-loading" element={<NavLoading />} />
         <Route path="/game/result-test-multi" element={<Result />} />
-        <Route path="/game/result-test-multi" element={<Result />} />
         <Route path="/" element={<LandingPage />} />
       </Routes>
     </BrowserRouter>

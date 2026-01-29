@@ -159,38 +159,13 @@ export default function SongUpload() {
                 }}
             >
                 <div style={{ display: 'flex', gap: 80 }}>
-                    {/* ===== 왼쪽: 앨범 커버 ===== */}
-                    <div
-                        onClick={() => document.getElementById('cover-input').click()}
-                        style={{
-                            width: 480,
-                            height: 480,
-                            borderRadius: 18,
-                            background: coverPreview
-                                ? `url(${coverPreview}) center / cover no-repeat`
-                                : 'linear-gradient(180deg, #2a2f38 0%, #151a22 100%)',
-                            border: '2px solid rgba(90,234,255,0.55)',
-                            boxShadow: '0 0 20px rgba(90,234,255,0.45)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#9fbfd4',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        {!coverPreview && (
-                            <span style={{ color: '#9fb0c2', letterSpacing: 2, fontWeight: 600, opacity: 0.7 }}>
-                                ALBUM
-                            </span>
-                        )}
-                    </div>
 
                     {/* ===== 오른쪽: 정보 입력 ===== */}
                     <div
                         style={{
                             width: 500,
                             height: 380,
-                            marginTop: 40,
+                            marginTop: -60,
                             padding: 20,
                             borderRadius: 18,
                             background: 'rgba(10,20,30,0.85)',

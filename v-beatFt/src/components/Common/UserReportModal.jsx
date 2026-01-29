@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 /* ===== 대분류 (UI 공통 3개) ===== */
 const MAIN_REASONS_BY_TYPE = {
@@ -91,9 +92,10 @@ export default function UserReportModal({
         onClose();
     }
 
-    return (
+    return createPortal(
         <div style={overlay}>
             <div style={modal}>
+
                 <h3 style={{ marginBottom: 8 }}>신고하기</h3>
 
                 {/* 대상 */}
@@ -108,7 +110,7 @@ export default function UserReportModal({
                                     alt={targetName || '유저'}
                                     style={avatarImg}
                                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                    
+
                                 />
                             ) : null}
                         </div>
@@ -190,7 +192,8 @@ export default function UserReportModal({
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 

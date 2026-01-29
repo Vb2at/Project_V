@@ -2,7 +2,7 @@
 import { changePasswordApi, statusApi } from '../../api/auth';
 import { getSongByToken } from '../../api/song';
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, } from 'react-router-dom';
 import { playMenuMove, playMenuConfirm, playPreview, stopPreview, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
 import { getMenuAnalyser } from '../../components/engine/SFXManager';
 import Header from '../../components/Common/Header';
@@ -711,8 +711,6 @@ export default function MainOverlay({
                         )}
                       </div>
                     )}
-
-
 
                     <UserProfileModal
                       open={profileOpen}
