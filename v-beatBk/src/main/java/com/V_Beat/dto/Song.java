@@ -21,4 +21,12 @@ public class Song {
 	private String visibility; // PRIVATE, UNLISTED, PENDING, PUBLIC, BLOCKED
 	private LocalDateTime createDate;
 	private String previewPath;
+	private String nickname;
+	private String profileImg;
+	private String shareToken;
+	//공개곡 여부 판단
+	public boolean getIsPublic() {
+		return "PUBLIC".equals(this.visibility);
+	}
 }
+

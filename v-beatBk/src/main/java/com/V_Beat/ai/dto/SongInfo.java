@@ -14,4 +14,6 @@ public class SongInfo {
 	private String duration;
 	private String diff;
 	private String coverPath;
+	private String nickname;
+	private String profileImg;
 }

@@ -15,3 +15,8 @@ export const getMysongs = (visibility) => {
 export const deleteSong = (songId) => {
     return api.delete(`/api/songs/${songId}`);
 }
+
+//토큰으로 곡 정보 조회
+export const getSongByToken = (token) => {
+    return api.get(`/api/songs/by-token/${token}`);
+}

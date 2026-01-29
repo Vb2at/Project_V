@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -52,11 +53,12 @@ public class SongController {
 
 	// 음원 조회 API
 	@GetMapping("/{songId}/audio")
-	public ResponseEntity<Resource> getAudio(@PathVariable Long songId, HttpSession session) {
+	public ResponseEntity<Resource> getAudio(@PathVariable Long songId,
+			@RequestParam(required = false) String token, HttpSession session) {
+		System.out.println("token=" + token); // null이면 fetch가 문제
 		Song song = this.songService.getSong(songId);
 
 		if (song == null) {
-			System.out.println("-> 404: song null");
 			return ResponseEntity.notFound().build();
 		}
 
@@ -65,12 +67,14 @@ public class SongController {
 		if (isAdmin == null)
 			isAdmin = false;
 
-		if (!songService.canAccess(song, loginUserId, isAdmin)) {
+		if (!songService.canAccess(song, loginUserId, isAdmin, token)) {
+			System.out.println("🚨 canAccess 실패");
+			System.out.println("songId=" + song.getId() + ", shareToken=" + song.getShareToken());
+			System.out.println("loginUserId=" + loginUserId + ", isAdmin=" + isAdmin + ", token=" + token);
 			return ResponseEntity.status(403).build();
 		}
 
 		String path = song.getFilePath();
-		System.out.println("filePath=" + path);
 
 		if (path == null || path.isBlank()) {
 			System.out.println("-> 400: filePath null/blank");
@@ -94,8 +98,17 @@ public class SongController {
 
 	// 노트 조회 API
 	@GetMapping("/{songId}/notes")
-	public ResponseEntity<SongNotesResult> getNotes(@PathVariable Long songId, HttpSession session) {
-		Song song = this.songService.getSong(songId);
+	public ResponseEntity<SongNotesResult> getNotes(@PathVariable Long songId,
+			@RequestParam(value = "token", required = false) String token, HttpSession session) {
+
+		// token이 있으면 token으로 먼저 조회
+		Song song;
+		if (token != null && !token.isBlank()) {
+			song = songService.getSongByToken(token);
+		} else {
+			song = songService.getSong(songId);
+		}
+
 		if (song == null) {
 			return ResponseEntity.notFound().build();
 		}
@@ -105,49 +118,40 @@ public class SongController {
 		if (isAdmin == null)
 			isAdmin = false;
 
-		if (!songService.canAccess(song, loginUserId, isAdmin)) {
+		return ResponseEntity.ok(this.songService.getSongNotes(song.getId()));
+	}
+
+	// 노트 저장 API
+	// 노트 저장 API (POST + PUT 둘 다 허용)
+	@RequestMapping(value = "/{songId}/notes", method = { RequestMethod.POST, RequestMethod.PUT })
+	public ResponseEntity<Void> saveNote(@PathVariable Long songId, @RequestBody List<NoteResult> notes,
+			HttpSession session) {
+		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+		if (loginUserId == null) {
+			return ResponseEntity.status(401).build();
+		}
+
+		Song song = songService.getSong(songId);
+		if (song == null) {
+			return ResponseEntity.notFound().build();
+		}
+
+		Boolean isAdmin = (Boolean) session.getAttribute("isAdmin");
+		if (isAdmin == null)
+			isAdmin = false;
+
+		if (!(isAdmin || song.getUserId() == loginUserId)) {
 			return ResponseEntity.status(403).build();
 		}
 
-		return ResponseEntity.ok(this.songService.getSongNotes(songId));
+		songService.replaceSongNotes(songId, notes);
+		return ResponseEntity.ok().build();
 	}
-	
-	// 노트 저장 API 
-	// 노트 저장 API (POST + PUT 둘 다 허용)
-	@RequestMapping(
-	    value = "/{songId}/notes",
-	    method = { RequestMethod.POST, RequestMethod.PUT }
-	)
-	public ResponseEntity<Void> saveNote(
-	    @PathVariable Long songId,
-	    @RequestBody List<NoteResult> notes,
-	    HttpSession session
-	) {
-	    Integer loginUserId = (Integer) session.getAttribute("loginUserId");
-	    if (loginUserId == null) {
-	        return ResponseEntity.status(401).build();
-	    }
-
-	    Song song = songService.getSong(songId);
-	    if (song == null) {
-	        return ResponseEntity.notFound().build();
-	    }
-
-	    Boolean isAdmin = (Boolean) session.getAttribute("isAdmin");
-	    if (isAdmin == null) isAdmin = false;
-
-	    if (!songService.canAccess(song, loginUserId, isAdmin)) {
-	        return ResponseEntity.status(403).build();
-	    }
-
-	    songService.replaceSongNotes(songId, notes);
-	    return ResponseEntity.ok().build();
-	}
-
 
 	// songId 조회
 	@GetMapping("/{songId}")
-	public ResponseEntity<Song> getSongInfo(@PathVariable Long songId, HttpSession session) {
+	public ResponseEntity<Song> getSongInfo(@PathVariable Long songId,
+			@RequestParam(value = "token", required = false) String token, HttpSession session) {
 		Song song = this.songService.getSong(songId);
 		if (song == null) {
 			return ResponseEntity.notFound().build();
@@ -158,7 +162,11 @@ public class SongController {
 		if (isAdmin == null)
 			isAdmin = false;
 
-		if (!songService.canAccess(song, loginUserId, isAdmin)) {
+		System.out.println("session loginUserId = " + loginUserId);
+		System.out.println("session isAdmin = " + isAdmin);
+		System.out.println("song.userId = " + song.getUserId());
+
+		if (!songService.canAccess(song, loginUserId, isAdmin, token)) {
 			return ResponseEntity.status(403).build();
 		}
 
@@ -167,7 +175,8 @@ public class SongController {
 
 	// 커버 이미지 관련 API
 	@GetMapping("/{songId}/cover")
-	public ResponseEntity<Resource> getCover(@PathVariable Long songId, HttpSession session) {
+	public ResponseEntity<Resource> getCover(@PathVariable Long songId,
+			@RequestParam(value = "token", required = false) String token, HttpSession session) {
 		Song song = this.songService.getSong(songId);
 		if (song == null)
 			return ResponseEntity.notFound().build();
@@ -185,6 +194,10 @@ public class SongController {
 		if (!file.exists())
 			return ResponseEntity.notFound().build();
 
+		if (!this.songService.canAccess(song, loginUserId, isAdmin, token)) {
+			return ResponseEntity.status(403).build();
+		}
+
 		String lower = path.toLowerCase();
 		MediaType type = lower.endsWith(".png") ? MediaType.IMAGE_PNG : MediaType.IMAGE_JPEG;
 
@@ -200,7 +213,8 @@ public class SongController {
 
 	// 내 곡 목록
 	@GetMapping("/my")
-	public ResponseEntity<List<MySong>> getMySongs(@RequestParam(required=false) String visibility, HttpSession session) {
+	public ResponseEntity<List<MySong>> getMySongs(@RequestParam(required = false) String visibility,
+			HttpSession session) {
 		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
 		if (loginUserId == null) {
 			return ResponseEntity.status(401).build();
@@ -220,10 +234,6 @@ public class SongController {
 		Boolean isAdmin = (Boolean) session.getAttribute("isAdmin");
 		if (isAdmin == null)
 			isAdmin = false;
-
-		if (!songService.canAccess(song, loginUserId, isAdmin)) {
-			return ResponseEntity.status(403).build();
-		}
 
 		String previewPath = song.getPreviewPath();
 		if (previewPath == null || previewPath.isBlank()) {
@@ -267,17 +277,32 @@ public class SongController {
 			return ResponseEntity.badRequest().build();
 		}
 	}
-	
-	//곡 삭제
+
+	// 곡 삭제
 	@DeleteMapping("/{songId}")
 	public ResponseEntity<?> deleteSong(@PathVariable long songId, HttpSession session) {
 		Number loginUserId = (Number) session.getAttribute("loginUserId");
-		if(loginUserId == null) {
+		if (loginUserId == null) {
 			return ResponseEntity.status(401).build();
 		}
-		
+
 		this.songService.deleteSong(songId, loginUserId.longValue());
-		
+
 		return ResponseEntity.ok().build();
+	}
+
+	// 토큰으로 곡 조회
+	@GetMapping("/by-token/{shareToken}")
+	public ResponseEntity<Song> getSongByToken(@PathVariable("shareToken") String token) {
+		if (token == null || token.isBlank()) {
+			return ResponseEntity.badRequest().build();
+		}
+
+		Song song = this.songService.getSongByToken(token);
+		if (song == null) {
+			return ResponseEntity.notFound().build();
+		}
+
+		return ResponseEntity.ok(song);
 	}
 }

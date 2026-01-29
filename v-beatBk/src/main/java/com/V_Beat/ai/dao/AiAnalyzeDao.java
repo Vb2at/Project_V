@@ -4,6 +4,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import com.V_Beat.dto.Note;
@@ -64,4 +65,20 @@ public interface AiAnalyzeDao {
         @Param("songId") Long songId,
         @Param("previewPath") String previewPath
     );
+
+    //토큰 조회
+    @Select("""
+    	    SELECT share_token
+    	    FROM song
+    	    WHERE id = #{songId}
+    	""")
+	String getShareToken(Long songId);
+
+    //토큰 생성
+    @Update("""
+            UPDATE song
+            SET share_token = #{token}
+            WHERE id = #{songId}
+        """)
+        void updateShareToken(@Param("songId") Long songId, @Param("token") String token);
 }

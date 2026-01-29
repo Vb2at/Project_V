@@ -1,6 +1,6 @@
 // pages/mainpage/MainOverlay.jsx
-import { changePasswordApi } from '../../api/auth';
-import { statusApi } from '../../api/auth';
+import { changePasswordApi, statusApi } from '../../api/auth';
+import { getSongByToken } from '../../api/song';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { playMenuMove, playMenuConfirm, playPreview, stopPreview, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
@@ -19,6 +19,18 @@ const formatDuration = (sec) => {
   const s = Math.floor(n % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
 }
+
+const handlePlay = async (token) => {
+  try {
+    const res = await getSongByToken(token);
+    const song = res.data;
+
+    //검증 성공 시 게임 실행
+    navigate(`/game/play?songId=${data.id}&diff=${String(data.diff).toLowerCase()}`);
+  } catch (err) {
+    alert('유효하지 않은 토큰입니다.');
+  }
+};
 
 const ITEM_HEIGHT = 72;
 const INPUT_LOCK_MS = 50;
@@ -49,6 +61,32 @@ export default function MainOverlay({
   const [isPrivateRoom, setIsPrivateRoom] = useState(false);
   const [roomPassword, setRoomPassword] = useState('');
   const [selectedMultiSongId, setSelectedMultiSongId] = useState(null);
+  const [statusLoaded, setStatusLoaded] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await statusApi();
+        if (!alive) return;
+
+        if (res.data?.ok) {
+          setLoginUserId(Number(res.data.loginUserId));
+          setIsBlockUser(res.data.loginUserRole === 'BLOCK');
+        } else {
+          setLoginUserId(null);
+          setIsBlockUser(false);
+        }
+      } catch (e) {
+        if (!alive) return;
+        setLoginUserId(null);
+      } finally {
+        if (alive) setStatusLoaded(true);
+      }
+    })();
+
+    return () => { alive = false; };
+  }, []);
 
   const fetchMultiRooms = useCallback(async () => {
     try {
@@ -80,7 +118,7 @@ export default function MainOverlay({
     (async () => {
       try {
         const res = await statusApi();
-        console.log('STATUS API =', res.data);
+
         if (!alive) return;
 
         if (res.data?.ok) {
@@ -98,6 +136,7 @@ export default function MainOverlay({
 
     return () => { alive = false; };
   }, []);
+
 
   useEffect(() => {
     const unlocked = localStorage.getItem('bgmUnlocked') === 'true';
@@ -164,7 +203,16 @@ export default function MainOverlay({
             previewUrl: `/api/songs/${s.id}/preview`,
             lengthSec: Number.isFinite(Number(len)) ? Number(len) : null,
             diff: (s.diff ? String(s.diff).toUpperCase() : 'NORMAL'),
-            uploaderUserId: s.uploaderUserId ?? s.userId ?? s.ownerId ?? null,  //업로드한 유저 Id
+            uploaderUserId: s.uploaderUserId != null
+              ? Number(s.uploaderUserId)
+              : s.userId != null
+                ? Number(s.userId)
+                : s.ownerId != null
+                  ? Number(s.ownerId)
+                  : null,
+            nickname: s.nickname ?? 'unknown',
+            profileImg: s.profileImg ? encodeURI(s.profileImg) : null,
+
           };
         });
 
@@ -267,7 +315,6 @@ export default function MainOverlay({
         const s = songs[selectedIndex];
         if (!s?.id) return;
 
-        console.log('선택 확정:', songs[selectedIndex]);
         playMenuConfirm();
         stopPreview();
         navigate(`/game/play?songId=${s.id}&diff=${String(s.diff).toLowerCase()}`);
@@ -604,58 +651,75 @@ export default function MainOverlay({
                         );
                       })}
                     </span>
-                    {/* More (profile / report) */}
-                    <div style={{ position: 'relative', marginLeft: 'auto' }}>
-                      <button
-                        style={moreBtn}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMoreOpen((v) => !v);
-                        }}
-                      >
-                        ⋯
-                      </button>
 
-                      {moreOpen && (
-                        <div style={moreMenu}>
-                          <div
-                            style={menuItem}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMoreOpen(false);
-                              setProfileOpen(true);
-                              // TODO: 제작자 프로필 모달 오픈
-                            }}
-                          >
-                            제작자 프로필
-                          </div>
-                          <div
-                            style={{
-                              ...menuItem,
-                              color: isMySong ? 'rgba(255,255,255,0.35)' : '#ff6b6b',
-                              cursor: isMySong ? 'not-allowed' : 'pointer',
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isMySong) {
-                                alert('본인이 업로드한 곡은 신고할 수 없습니다.');
-                                setMoreOpen(false);
-                                return;
+                    {listMode === 'PUBLIC' && (
+                      <div style={{ position: 'relative', marginLeft: 'auto' }}>
+                        <button
+                          style={{
+                            ...moreBtn,
+                            cursor: !loginUserId || isBlockUser || isMySong ? 'not-allowed' : 'pointer',
+                            opacity: !loginUserId || isBlockUser || isMySong ? 0.35 : 1,
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!loginUserId || isBlockUser || isMySong) {
+                              if (!loginUserId || isBlockUser) {
+                                alert('이용이 제한된 기능입니다.');
                               }
-                              setMoreOpen(false);
-                              setReportOpen(true);
-                            }}
-                          >
-                            신고하기
+                              return;
+                            }
+                            setMoreOpen((v) => !v);
+                          }}
+                        >
+                          ⋯
+                        </button>
+
+                        {moreOpen && !isMySong && ( // 내 곡이면 메뉴 자체 렌더링 안 함
+                          <div style={moreMenu}>
+                            {/* 제작자 프로필 */}
+                            <div
+                              style={{
+                                ...menuItem,
+                                color: '#cfd8e3',
+                                cursor: 'pointer',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMoreOpen(false);
+                                setProfileOpen(true);
+                              }}
+                            >
+                              제작자 프로필
+                            </div>
+
+                            {/* 신고하기 */}
+                            <div
+                              style={{
+                                ...menuItem,
+                                color: '#ff6b6b',
+                                cursor: 'pointer',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMoreOpen(false);
+                                setReportOpen(true);
+                              }}
+                            >
+                              신고하기
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
+
+
+
                     <UserProfileModal
                       open={profileOpen}
                       user={{
-                        id: selectedSong?.id,          // TODO: 추후 제작자 id
-                        nickname: selectedSong?.artist // 임시
+                        id: selectedSong?.uploaderUserId,          //추후 제작자 id
+                        nickname: selectedSong?.nickname, //제작자 닉네임
+                        profileImg: selectedSong?.profileImg ?? null,
                       }}
                       onClose={() => setProfileOpen(false)}
                     />
@@ -725,7 +789,7 @@ export default function MainOverlay({
                     key={v}
                     onClick={() => {
                       if (disabled) {
-                        alert('차단된 사용자는 사용할 수 없는 기능입니다.');
+                        alert('이용이 제한된 기능입니다.');
                         return;
                       }
                       setListMode(v);
@@ -736,7 +800,6 @@ export default function MainOverlay({
                       cursor: 'pointer',
                       fontSize: 13,
                       opacity: disabled ? 0.35 : 1,
-                      pointerEvents: disabled ? 'none' : 'auto',
                       color: active ? '#0ff' : '#cfd8e3',
                       border: active
                         ? '2px solid rgba(90,234,255,0.9)'
@@ -752,16 +815,21 @@ export default function MainOverlay({
               })}
 
               {/* 링크 입장 버튼 */}
-              {isLoggedIn && (
+              {statusLoaded && (
                 <div
                   onClick={() => {
+                    if (!isLoggedIn || isBlockUser) {
+                      alert('이용이 제한된 기능입니다.');
+                      return;
+                    }
                     stopPreview();
                     setListMode('LINK');
                   }}
                   style={{
                     padding: '6px 14px',
                     borderRadius: 12,
-                    cursor: 'pointer',
+                    cursor: !isLoggedIn || isBlockUser ? 'not-allowed' : 'pointer',
+                    opacity: !isLoggedIn || isBlockUser ? 0.35 : 1,
                     fontSize: 13,
                     color: linkActive ? '#0ff' : '#cfd8e3',
                     border: linkActive
@@ -776,16 +844,21 @@ export default function MainOverlay({
                 </div>
               )}
               {/* ✅ 멀티 플레이 버튼 (여기로 이동) */}
-              {isLoggedIn && (
+              {statusLoaded && (
                 <div
                   onClick={() => {
+                    if (!isLoggedIn || isBlockUser) {
+                      alert('이용이 제한된 기능입니다.');
+                      return;
+                    }
                     stopPreview();
                     setListMode('MULTI');
                   }}
                   style={{
                     padding: '6px 14px',
                     borderRadius: 12,
-                    cursor: 'pointer',
+                    cursor: !isLoggedIn || isBlockUser ? 'not-allowed' : 'pointer',
+                    opacity: !isLoggedIn || isBlockUser ? 0.35 : 1,
                     fontSize: 13,
                     color: multiActive ? '#0ff' : '#cfd8e3',
                     border: multiActive
@@ -885,12 +958,49 @@ export default function MainOverlay({
                     />
 
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         try {
-                          const url = new URL(shareLink);
-                          navigate(url.pathname + url.search);
-                        } catch {
-                          alert('올바른 링크를 입력해 주세요.');
+                          let token = shareLink.trim();
+                          if (!token) {
+                            alert('토큰을 입력해주세요.');
+                            return;
+                          }
+
+                          // 전체 URL이면 파싱
+                          let path = '/game/play';
+                          try {
+                            const url = new URL(shareLink);
+                            path = url.pathname;
+                            token = url.searchParams.get('token') || token;
+                          } catch { }
+
+                          // ✅ 토큰 유효성 검증
+                          const res = await fetch(`/api/songs/by-token/${token}`, {
+                            method: 'GET',
+                            headers: { Accept: 'application/json' },
+                            credentials: 'include',
+                          });
+
+                          if (!res.ok) {
+                            if (res.status === 404) {
+                              alert('존재하지 않는 토큰입니다.');
+                            } else {
+                              alert(`토큰 검증 중 오류 발생 (${res.status})`);
+                            }
+                            return;
+                          }
+
+                          const data = await res.json();
+                          if (!data?.id) {
+                            alert('존재하지 않는 토큰입니다.');
+                            return;
+                          }
+
+                          // 유효하면 이동
+                          navigate(`${path}?token=${token}`);
+                        } catch (e) {
+                          console.error(e);
+                          alert('입장 중 오류가 발생했습니다.');
                         }
                       }}
                       style={{

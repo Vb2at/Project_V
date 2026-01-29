@@ -46,9 +46,10 @@ function MyGames() {
                 res.data.map(s => ({
                     id: s.id,
                     title: s.title.replace('.mp3', ''),
-                    status: s.visibility,
+                    status: s.shareToken ? 'UNLISTED' : s.visibility,
                     cover: `/api/songs/${s.id}/cover`,
                     diff: s.diff.toLowerCase(),
+                    shareToken: s.shareToken,
                 }))
             );
         };
@@ -56,14 +57,17 @@ function MyGames() {
         fetchMySongs();
     }, [filter]);
 
-    const list = games.filter((g) => {
+    const list = games.filter(g => {
         const statusOk =
-            FILTER_MAP[filter] === 'ALL' || g.status === FILTER_MAP[filter];
+            FILTER_MAP[filter] === 'ALL' ||
+            (filter === '부분공개' && g.status === 'UNLISTED') ||
+            g.status === FILTER_MAP[filter];
 
         const keywordOk = g.title.toLowerCase().includes(keyword.toLowerCase());
 
         return statusOk && keywordOk;
     });
+
     return (
         <div style={wrap}>
             {/* ===== 필터 + 검색 ===== */}

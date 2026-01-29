@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { statusApi } from '../../api/auth';
 import Header from '../../components/Common/Header';
 import GameSession from '../../components/engine/GameSession';
 import Background from '../../components/Common/Background';
@@ -50,6 +51,9 @@ function GamePlay() {
   const roomId = searchParams.get('roomId');             // 멀티 방 id
   const isMulti = mode === 'multi';
 
+  // 토큰 파라미터
+  const tokenParam = searchParams.get('token');
+
   // ===== songId 결정 =====
   const baseSongId = paramSongId ?? searchParams.get('songId');
 
@@ -59,6 +63,7 @@ function GamePlay() {
 
   // 멀티: (선택) 서버가 startAt을 주면 여기 저장해서 GameSession으로 전달
   const [multiStartAt, setMultiStartAt] = useState(null);
+
 
   const [diff, setDiff] = useState('unknown');
   const [score, setScore] = useState(0);
@@ -79,12 +84,107 @@ function GamePlay() {
   const loadingStartRef = useRef(0);
   const loadingEndRef = useRef(null);
   const HEADER_HEIGHT = 25;
+  const [loginUser, setLoginUser] = useState(null);
+  const location = useLocation();
+  const DEFAULT_SETTINGS = {
+    fps: 60,
+    hitEffect: true,
+    judgeText: true,
+    comboText: true,
+    lowEffect: false,
+    visualizer: true,
+    tapNoteColor: 0x05acb5,
+    longNoteColor: 0xb50549,
+  };
 
   const navigate = useNavigate();
 
   const [tipIndex, setTipIndex] = useState(
     () => Math.floor(Math.random() * TIPS.length)
   );
+
+  const [song, setSong] = useState(null);
+
+  useEffect(() => {
+    statusApi()
+      .then(res => {
+        setLoginUser(res.data);
+      })
+      .catch(err => {
+        console.error("로그인 상태 확인 실패:", err);
+        setLoginUser(null);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (loginUser === null) return; // 로그인 상태 확인 전이면 기다림
+
+    if (!loginUser || loginUser.loginUser.status === 'BLOCKED') {
+      alert('이용이 제한된 기능입니다.');
+      navigate('/main');
+      return;
+    }
+
+    const fetchSongByToken = async (token) => {
+      try {
+        // 1️⃣ 토큰으로 곡 정보 가져오기
+        const resSong = await fetch(`/api/songs/by-token/${token}`, {
+          credentials: 'include', // 세션 쿠키 포함
+        });
+
+        if (!resSong.ok) throw new Error('토큰에 접근이 불가합니다.');
+
+        const fetchedSong = await resSong.json();
+        setSong(fetchedSong);
+        setDiff(fetchedSong.diff ?? 'unknown');
+
+        // 2️⃣ 오디오 blob 가져오기
+        const resAudio = await fetch(`/api/songs/${fetchedSong.id}/audio?token=${token}`, {
+          credentials: 'include', // 세션 쿠키 포함
+        });
+
+        if (!resAudio.ok) throw new Error('오디오 접근 불가');
+
+        const blob = await resAudio.blob();
+        const audioEl = document.getElementById('game-audio');
+        if (audioEl) {
+          audioEl.src = URL.createObjectURL(blob);
+          audioEl.load();
+        }
+      } catch (err) {
+        console.error(err);
+        alert(err.message);
+        navigate('/main');
+      }
+    };
+
+    if (tokenParam) {
+      fetchSongByToken(tokenParam);
+      return;
+    }
+
+    // 토큰 없으면 일반 songId fetch
+    const fetchSongById = async (songId) => {
+      try {
+        const res = await fetch(`/api/songs/${songId}`, {
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error('곡 접근 불가');
+        const fetchedSong = await res.json();
+        setSong(fetchedSong);
+        setDiff(fetchedSong.diff ?? 'unknown');
+      } catch (err) {
+        console.error(err);
+        alert(err.message);
+        navigate('/main');
+      }
+    };
+
+    if (resolvedSongId) {
+      fetchSongById(resolvedSongId);
+    }
+  }, [tokenParam, loginUser]);
+
 
   useEffect(() => {
     const sync = () => {
@@ -240,7 +340,7 @@ function GamePlay() {
   const paused = userPaused || !ready || countdown !== null;
 
   // ✅ 멀티인데 songId 확보 전이면 로딩을 계속 유지
-  const canStartSession = Boolean(resolvedSongId);
+  const canStartSession = tokenParam ? Boolean(song) : Boolean(resolvedSongId);
 
   return (
     <div
@@ -588,9 +688,10 @@ function GamePlay() {
           }}
         />
 
-        {resolvedSongId && (
+        {(tokenParam ? Boolean(song) : (!isMulti && resolvedSongId && song) || (isMulti && resolvedSongId)) && (
           <GameSession
-            songId={resolvedSongId}
+            songId={tokenParam ? song.id : resolvedSongId}
+            token={tokenParam}
             analyserRef={analyserRef}
             key={sessionKey}
             paused={paused}
