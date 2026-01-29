@@ -266,7 +266,7 @@ export default function MainOverlay({
     setTimeout(() => {
       wheelLockRef.current = false;
     }, INPUT_LOCK_MS);
-  }, [songs.length, selectedIndex]);
+  }, [songs.length, selectedIndex, listMode]);
 
   useEffect(() => {
     const el = wheelContainerRef.current;
@@ -506,7 +506,7 @@ export default function MainOverlay({
     return () => {
       alive = false;
     };
-  }, [selectedSong?.id, selectedSong?.diff]);
+  }, [selectedSong?.id, selectedSong?.diff, selectedSong]);
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -731,7 +731,6 @@ export default function MainOverlay({
                       targetName={selectedSong?.title}
                       onClose={() => setReportOpen(false)}
                       onSubmit={async (payload) => {
-                        console.log('REPORT payload =', payload);
                         try {
                           const desc = String(payload?.description ?? '').trim();
 
@@ -1509,8 +1508,6 @@ export default function MainOverlay({
                     isPrivate: isPrivateRoom,
                     password: isPrivateRoom ? roomPassword : null,
                   };
-
-                  console.log('CREATE ROOM payload =', payload);
 
                   try {
                     const res = await fetch('/api/multi/rooms', {

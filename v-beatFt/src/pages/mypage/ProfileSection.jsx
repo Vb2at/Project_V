@@ -49,7 +49,6 @@ export default function ProfileSection({ myInfo, status }) {
         });
 
         const imgData = await imgRes.json();
-        console.log('uploadProfile response:', imgData);
 
         if (!imgData.ok) {
           alert(imgData.message || '프로필 이미지 업로드 실패');

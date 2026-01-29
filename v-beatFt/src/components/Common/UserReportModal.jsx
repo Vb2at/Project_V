@@ -60,12 +60,9 @@ export default function UserReportModal({
     const [mainReason, setMainReason] = useState('');
     const [reason, setReason] = useState('');
     const [desc, setDesc] = useState('');
-    console.log('targetProfileImg:', targetProfileImg);
-
     if (!open) return null;
 
     function handleSubmit() {
-        console.log('SUBMIT state', { mainReason, reason, type, targetId });
 
         if (!mainReason) {
             alert('신고 사유를 선택해주세요.');
@@ -132,7 +129,6 @@ export default function UserReportModal({
                                 type="button"
                                 key={m}
                                 onClick={() => {
-                                    console.log('CLICK main:', m);
                                     setMainReason(m);
                                     setReason('');
                                 }}

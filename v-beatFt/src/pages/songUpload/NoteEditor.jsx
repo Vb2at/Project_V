@@ -31,7 +31,6 @@ export default function NoteEditor() {
     // eslint-disable-next-line no-unused-vars
     const [undoStack, setUndoStack] = useState([]);
     const [notes, setNotes] = useState([]);
-    const pendingStateRef = useRef(null);
     const [tool, setTool] = useState('tap');
     const [selectedNoteIds, setSelectedNoteIds] = useState(new Set());
     const navigate = useNavigate();
@@ -87,7 +86,6 @@ export default function NoteEditor() {
         return `${m}:${s}`;
     };
     const handleSave = async () => {
-        console.log('SAVE NOTES:', notes);
         const payload = notes.map(n => ({
             lane: n.lane,
             type: n.type,
@@ -114,13 +112,6 @@ export default function NoteEditor() {
     useEffect(() => {
         stopMenuBgm();
     }, []);
-
-    useEffect(() => {
-        console.log('[PARENT NOTES LENGTH]', notes.length);
-    }, [notes]);
-    useEffect(() => {
-        console.log('[PARENT NOTES]', notes);
-    }, [notes]);
 
     useEffect(() => {
         window.addEventListener('mouseup', handleTimelineMouseUp);

@@ -17,7 +17,9 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   overflow: hidden;
 }
 
@@ -26,6 +28,7 @@ a {
   color: #646cff;
   text-decoration: inherit;
 }
+
 a:hover {
   color: #535bf2;
 }
@@ -46,4 +49,81 @@ h1 {
 /* 모바일/크롬 탭 하이라이트 제거 (겸사) */
 button {
   -webkit-tap-highlight-color: transparent;
+}
+
+.glitch-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  animation: glitchMove 0.15s infinite;
+}
+
+.glitch-red {
+  filter: drop-shadow(-2px 0 red);
+  mix-blend-mode: screen;
+}
+
+.glitch-blue {
+  filter: drop-shadow(2px 0 cyan);
+  mix-blend-mode: screen;
+}
+
+@keyframes glitchMove {
+  0% {
+    transform: translate(0, 0);
+    clip-path: inset(0 0 80% 0);
+  }
+
+  20% {
+    transform: translate(-2px, 2px);
+    clip-path: inset(20% 0 50% 0);
+  }
+
+  40% {
+    transform: translate(2px, -2px);
+    clip-path: inset(40% 0 20% 0);
+  }
+
+  60% {
+    transform: translate(-1px, 1px);
+    clip-path: inset(10% 0 60% 0);
+  }
+
+  80% {
+    transform: translate(1px, -1px);
+    clip-path: inset(30% 0 30% 0);
+  }
+
+  100% {
+    transform: translate(0, 0);
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.neon-btn {
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #7fe9ff;
+  background: rgba(0, 20, 30, 0.65);
+  border: 2px solid rgba(80, 220, 255, 1);
+  box-shadow:
+    0 0 6px rgba(80, 220, 255, 0.6),
+    inset 0 0 6px rgba(80, 220, 255, 0.35);
+  transition: all 0.15s ease;
+}
+
+.neon-btn:hover {
+  background: rgba(0, 60, 90, 0.8);
+  box-shadow:
+    0 0 12px rgba(80, 220, 255, 0.9),
+    0 0 24px rgba(80, 220, 255, 0.6),
+    inset 0 0 10px rgba(80, 220, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.neon-btn:active {
+  transform: scale(0.96);
+  filter: brightness(0.9);
 }

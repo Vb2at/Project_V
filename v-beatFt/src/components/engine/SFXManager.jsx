@@ -270,8 +270,6 @@ export function singleBgm({
 
   menuBgmPlaying = true;
   menuBgmUserPaused = false;
-
-  console.log('[BGM]', { ctx: audioCtx?.state, analyser: !!analyserNode, source: !!sourceNode });
 }
 
 let previewAudio = null;

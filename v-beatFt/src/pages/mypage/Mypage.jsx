@@ -217,10 +217,8 @@ export default function MyPage() {
       debug: () => { },
 
       onConnect: () => {
-        console.log('[NOTIFY] STOMP connected');
 
         client.subscribe('/user/queue/notify', async (frame) => {
-          console.log('[NOTIFY] RECEIVED body:', frame.body);
 
           let payload;
           try {
@@ -236,7 +234,6 @@ export default function MyPage() {
           if (payload.type === 'ADMIN_NOTIFY' && payload.event === 'REPORT_NEW') {
             // manager 탭이면 굳이 뱃지 올리지 않음(보고 있는 중)
             if (tabRef.current === 'manager') {
-              console.log('[NOTIFY] in manager tab -> ignore badge increment');
               return;
             }
 
@@ -247,7 +244,6 @@ export default function MyPage() {
               return { ...prev, adminAlerts: next };
             });
 
-            console.log('[NOTIFY] adminAlerts++');
             return;
           }
 
@@ -259,7 +255,6 @@ export default function MyPage() {
             payload.event === 'REQUEST_NEW'
           ) {
             if (tabRef.current === 'friends') {
-              console.log('[NOTIFY] in friends tab -> ignore badge increment');
               return;
             }
 
@@ -269,14 +264,12 @@ export default function MyPage() {
               return { ...prev, pendingFriends: next };
             });
 
-            console.log('[NOTIFY] pendingFriends++');
             return;
           }
 
           if (payload.type === 'NEW_MESSAGE') {
             // ✅ messages 탭이면: 증가하지 말고 DB 기준 재동기화 + inbox 즉시 갱신
             if (tabRef.current === 'messages') {
-              console.log('[NOTIFY] in messages tab -> sync + refresh inbox');
               await syncUnread();
               setMessageRefreshKey((k) => k + 1);
               return;
@@ -290,7 +283,6 @@ export default function MyPage() {
               return { ...prev, unreadMessages: next };
             });
 
-            console.log('[NOTIFY] unreadMessages++');
           }
         });
       },
@@ -302,7 +294,6 @@ export default function MyPage() {
         
       },
       onDisconnect: () => {
-        console.log('[NOTIFY] STOMP disconnected');
       },
     });
 

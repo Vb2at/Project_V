@@ -16,7 +16,7 @@ import NoteEditor from './pages/songUpload/NoteEditor';
 import RePw from './pages/member/RePw';
 import MultiRoomList from './pages/multi/MultiRoomList';
 import RoomLobby from "./pages/multi/RoomLobby";
-
+import LandingPage from './pages/LandingPage';
 
 function App() {
   return (
@@ -29,22 +29,18 @@ function App() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/mypage" element={<MyPage />} />
         <Route path="/main" element={<MainPage />} />
-        <Route path="/multi" element={<MultiRoomList />} />
         <Route path="/multi/room/:roomId" element={<RoomLobby />} />
         <Route path="/song/upload" element={<SongUpload />} />
-
-        {/* ✅ 구체 라우트 먼저 */}
         <Route path="/song/:songId/edit" element={<SongEditor />} />
         <Route path="/song/:songId/note/edit" element={<NoteEditor />} />
-
-        {/* ✅ 일반 플레이는 마지막 */}
         <Route path="/song/:songId" element={<GamePlay />} />
-
         <Route path="/game/play" element={<GamePlay />} />
         <Route path="/game/test" element={<GamePlay />} />
         <Route path="/game/result" element={<Result />} />
         <Route path="/nav-loading" element={<NavLoading />} />
         <Route path="/game/result-test-multi" element={<Result />} />
+        <Route path="/game/result-test-multi" element={<Result />} />
+        <Route path="/" element={<LandingPage />} />
       </Routes>
     </BrowserRouter>
   );

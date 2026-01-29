@@ -17,7 +17,6 @@ export default function ReportDetailModal({ report, onClose, onAction, onRefresh
     const isPending = (report?.status ?? 'PENDING') === 'PENDING';
 
     const handleComplete = async () => {
-        console.log('[REPORT] complete click', report?.id, action, memo);
 
         const reportId = report?.id ?? report?.reportId ?? report?.report_id ?? report?.rptId;
         if (!reportId) return;

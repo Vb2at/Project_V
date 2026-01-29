@@ -84,7 +84,6 @@ export default function Friends({ onClickMessage }) {
       debug: (str) => console.log('[STOMP]', str),
 
       onConnect: () => {
-        console.log('[WS] connected (friend)');
 
         // 친구 개인 알림
         client.subscribe('/user/queue/friend', (msg) => {

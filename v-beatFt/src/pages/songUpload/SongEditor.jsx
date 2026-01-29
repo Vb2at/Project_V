@@ -8,7 +8,6 @@ import Background from '../../components/Common/Background';
 
 export default function SongEditor() {
     const { songId } = useParams();
-    console.log('SongEditor mounted, songId =', songId, window.location.pathname);
 
     const navigate = useNavigate();
     const { state } = useLocation();

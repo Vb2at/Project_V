@@ -6,8 +6,6 @@ export default function UserProfileModal({ open, user, onClose }) {
 
     if (!open || !user) return null;
 
-    console.log('USER OBJ =', user);
-
     const toImgUrl = (v) => {
         if (!v) return null;
         const s = String(v);

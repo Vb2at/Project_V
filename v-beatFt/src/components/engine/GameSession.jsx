@@ -1142,20 +1142,12 @@ export default function GameSession({
       const previewSnapshot = new Map(preview);
       const selectedIds = draggingNoteRef.current?.selectedIds;
 
-      const firstId = selectedIds && [...selectedIds][0];
-      console.log('[SELECTED firstId]', firstId);
-      console.log('[PREVIEW KEYS]', [...preview.keys()]);
-      console.log('[PREVIEW GET firstId]', preview.get(firstId));
-
       if (willCollide(notesRef.current, previewSnapshot, selectedIds)) {
         draggingPreviewRef.current.clear();
         return;
       }
 
       usedSetNotes(prev => {
-        const firstId = selectedIds && [...selectedIds][0];
-        console.log('[PREVIEW DATA]', preview.get(firstId));
-        console.log('[COMMIT FIRED]');
 
         const next = prev.map(n => {
           if (!selectedIds?.has(n.id)) return n;
