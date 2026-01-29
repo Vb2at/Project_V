@@ -318,32 +318,22 @@ export default function Header() {
           </div>
         )}
 
-        {/* 닉네임 */}
+        {/* 프로필 + 닉네임 */}
         {!statusLoading && status && (
           <div
             style={{
               position: 'absolute',
-              right: 230,
+              right: 230, // 전체 묶음 기준 위치
               top: '50%',
               transform: 'translateY(-50%)',
-              color: '#5aeaff',
-              fontSize: 25,
-              fontWeight: 600,
-            }}
-          >
-            {status.loginUserNickName}
-          </div>
-        )}
 
-        {/* 프로필 */}
-        {!statusLoading && status && (
-          <div
-            style={{
-              position: 'absolute',
-              right: 320,
-              top: '50%',
-              transform: 'translateY(-50%)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+
               zIndex: 1100,
+              maxWidth: '260px', // 닉네임 영역 포함 전체 폭 제한
+              overflow: 'hidden',
             }}
           >
             <ProfileAvatar
@@ -351,8 +341,24 @@ export default function Header() {
               userId={status.loginUserId}
               size={50}
             />
+
+            <div
+              style={{
+                color: '#5aeaff',
+                fontSize: 25,
+                fontWeight: 600,
+
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+              title={status.loginUserNickName}
+            >
+              {status.loginUserNickName}
+            </div>
           </div>
         )}
+
 
         {/* 햄버거 */}
         {isMenuPage && (

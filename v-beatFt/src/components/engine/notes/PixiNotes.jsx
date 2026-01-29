@@ -104,7 +104,7 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, 
             appRef.current = null;
             if (containerEl) containerEl.innerHTML = '';
         };
-    }, []);
+    }, [draggingPreviewRef]);
 
     return (
         <div
@@ -383,7 +383,7 @@ function createMesh(texture, type) {
     return mesh;
 }
 
-function acquireTapSprite(textures) {
+function acquireTapSprite() {
     const sprite = tapPool.pop() || createMesh(Texture.WHITE, 'tap');
     sprite.texture = Texture.WHITE;
     return sprite;
