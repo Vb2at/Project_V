@@ -43,7 +43,7 @@ export const GAME_CONFIG = {
     SCALE_MAX: 1,
   },
 
-  SPEED: 0.7,
+  SPEED: 1.2,
 
   DIFFICULTY: {
     EASY: { SPEED: 1.0 },

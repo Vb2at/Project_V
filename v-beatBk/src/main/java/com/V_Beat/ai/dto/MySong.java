@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 public class MySong {
 	private long id;
 	private String title;
+	private String artist;
 	private String visibility;
 	private String coverPath;
 	private String diff;

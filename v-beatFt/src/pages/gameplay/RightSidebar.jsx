@@ -1,4 +1,4 @@
-export default function RightSidebar({ isMulti = true }) {
+export default function RightSidebar({ isMulti }) {
   const HEADER_HEIGHT = 64;
 
   // ===== 더미 멀티 상태 =====

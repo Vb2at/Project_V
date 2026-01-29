@@ -7,23 +7,44 @@ import LeftSidebar from './LeftSidebar';
 import RightSidebar from './RightSidebar';
 import HUD from './HUD.jsx';
 import HUDFrame from './HUDFrame.jsx';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import LoadingNoteRain from './LoadingNoteRain';
 import { playCountTick, playCountStart } from '../../components/engine/SFXManager';
 import { playMenuConfirm } from '../../components/engine/SFXManager';
 import Visualizer from '../../components/visualizer/Visualizer';
 import { LOADING_TIPS as TIPS } from '../../constants/LoadingTips';
 import { useSearchParams } from 'react-router-dom';
+const DEFAULT_SETTINGS = {
+  fps: 60,
+  hitEffect: true,
+  judgeText: true,
+  comboText: true,
+  lowEffect: false,
+  visualizer: true,
+  tapNoteColor: 0x05acb5,
+  longNoteColor: 0xb50549,
+
+  bgmVolume: 100,
+  sfxVolume: 100,
+  bgmMuted: false,
+  sfxMuted: false,
+};
 
 function GamePlay() {
+
   const { songId: paramSongId } = useParams();
   const [searchParams] = useSearchParams();
 
-  // 멀티테스트용 더미 
-  const [rivalScore, setRivalScore] = useState(0);
-  const [rivalCombo, setRivalCombo] = useState(0);
-  const [rivalName] = useState('RIVAL'); // 테스트용
-
+  // ✅ settings 먼저 선언 (이게 없어서 터진 거)
+  const [settings, setSettings] = useState(() => {
+    try {
+      const v = localStorage.getItem('userSettings');
+      const parsed = v ? JSON.parse(v) : {};
+      return { ...DEFAULT_SETTINGS, ...parsed };
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  });
 
   // ===== 멀티 진입 파라미터 =====
   const mode = searchParams.get('mode');                 // 'multi' | ...
@@ -34,7 +55,6 @@ function GamePlay() {
   const tokenParam = searchParams.get('token');
 
   // ===== songId 결정 =====
-  // 싱글/기존: /song/:songId 또는 ?songId=
   const baseSongId = paramSongId ?? searchParams.get('songId');
 
   // 멀티: URL에 songId가 없을 수 있으니 room에서 받아올 songId를 따로 관리
@@ -42,7 +62,7 @@ function GamePlay() {
   const resolvedSongId = isMulti ? (multiSongId ?? baseSongId) : baseSongId;
 
   // 멀티: (선택) 서버가 startAt을 주면 여기 저장해서 GameSession으로 전달
-  const [multiStartAt, setMultiStartAt] = useState(null); // ms epoch 또는 서버 기준 값(백엔드 스펙 맞추기)
+  const [multiStartAt, setMultiStartAt] = useState(null);
 
 
   const [diff, setDiff] = useState('unknown');
@@ -56,14 +76,10 @@ function GamePlay() {
   const [songProgress, setSongProgress] = useState(0);
   const [classProgress, setClassProgress] = useState(0);
   const [userPaused, setUserPaused] = useState(false);
-  const [bgmVolume, setBgmVolume] = useState(1);
-  const [sfxVolume, setSfxVolume] = useState(1);
-  const [bgmMuted, setBgmMuted] = useState(false);
-  const [sfxMuted, setSfxMuted] = useState(false);
+  const [rivalResult, setRivalResult] = useState(null);
   const analyserRef = useRef(null);
   const [sessionKey, setSessionKey] = useState(0);
-  const effectiveBgmVolume = bgmMuted ? 0 : bgmVolume;
-  const effectiveSfxVolume = sfxMuted ? 0 : sfxVolume;
+
   const MIN_LOADING_TIME = 2500;
   const loadingStartRef = useRef(0);
   const loadingEndRef = useRef(null);
@@ -81,15 +97,6 @@ function GamePlay() {
     longNoteColor: 0xb50549,
   };
 
-  const [settings, setSettings] = useState(() => {
-    try {
-      const v = localStorage.getItem('userSettings');
-      const parsed = v ? JSON.parse(v) : {};
-      return { ...DEFAULT_SETTINGS, ...parsed };
-    } catch {
-      return DEFAULT_SETTINGS;
-    }
-  });
   const navigate = useNavigate();
 
   const [tipIndex, setTipIndex] = useState(
@@ -192,16 +199,6 @@ function GamePlay() {
     return () => window.removeEventListener('settings:changed', sync);
   }, []);
 
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      setRivalScore(s => s + Math.floor(Math.random() * 300));
-      setRivalCombo(c => (c + 1) % 50);
-    }, 800);
-
-    return () => clearInterval(t);
-  }, []);
-
   // ===== 멀티 방 정보 로드 (songId 확보용) =====
   useEffect(() => {
     if (!isMulti) return;
@@ -248,7 +245,7 @@ function GamePlay() {
     // })();
 
     // return () => { alive = false; };
-  }, [isMulti, roomId, navigate]);
+  }, [isMulti, roomId, navigate, baseSongId]);
 
   useEffect(() => {
     const tipTimer = setInterval(() => {
@@ -359,7 +356,7 @@ function GamePlay() {
       <Header />
 
       <LeftSidebar songId={resolvedSongId} diff={diff} />
-      <RightSidebar />
+      <RightSidebar isMulti={isMulti} />
       <HUDFrame>
         <HUD
           score={score}
@@ -368,12 +365,6 @@ function GamePlay() {
           classProgress={classProgress}
         />
       </HUDFrame>
-      {/* 🎵 하단 비주얼라이저 (브라우저 기준 fixed) */}
-      <Visualizer
-        size="game"
-        active={!paused}
-        analyserRef={analyserRef}
-      />
 
       {/* ===== 로딩 화면 ===== */}
       {(!ready || (isMulti && !canStartSession)) && (
@@ -512,38 +503,53 @@ function GamePlay() {
           >
             <h2 style={{ marginBottom: 24, textAlign: 'center' }}>일 시 정 지</h2>
 
-            {/*BGM */}
+            {/* BGM */}
             <div style={{ marginBottom: 20, textAlign: 'center' }}>
               <div style={{ marginBottom: 6 }}>M U S I C</div>
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
                 <button
-                  onClick={() => setBgmMuted((m) => !m)}
+                  onClick={() => {
+                    setSettings(prev => {
+                      const next = { ...prev, bgmMuted: !prev.bgmMuted };
+                      localStorage.setItem('userSettings', JSON.stringify(next));
+                      window.dispatchEvent(new Event('settings:changed'));
+                      return next;
+                    });
+                  }}
                   style={{
                     width: 72,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: bgmMuted ? '#ff4d4d' : '#3a3a3aff',
+                    background: settings.bgmMuted ? '#ff4d4d' : '#3a3a3aff',
                     color: '#fff',
                     border: 'none',
                     borderRadius: 6,
                     cursor: 'pointer',
                   }}
                 >
-                  {bgmMuted ? 'OFF' : 'ON'}
+                  {settings.bgmMuted ? 'OFF' : 'ON'}
                 </button>
 
                 <input
                   type="range"
                   min={0}
-                  max={1}
-                  step={0.01}
-                  value={bgmVolume}
-                  onChange={(e) => setBgmVolume(Number(e.target.value))}
+                  max={100}
+                  step={1}
+                  value={settings.bgmVolume}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setSettings(prev => {
+                      const next = { ...prev, bgmVolume: v };
+                      localStorage.setItem('userSettings', JSON.stringify(next));
+                      window.dispatchEvent(new Event('settings:changed'));
+                      return next;
+                    });
+                  }}
+
                   style={{ width: 220 }}
                 />
-
               </div>
             </div>
 
@@ -553,32 +559,45 @@ function GamePlay() {
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
                 <button
-                  onClick={() => setSfxMuted((m) => !m)}
+                  onClick={() => {
+                    setSettings(prev => {
+                      const next = { ...prev, sfxMuted: !prev.sfxMuted };
+                      localStorage.setItem('userSettings', JSON.stringify(next));
+                      window.dispatchEvent(new Event('settings:changed'));
+                      return next;
+                    });
+                  }}
                   style={{
                     width: 72,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: sfxMuted ? '#ff4d4d' : '#3a3a3aff',
+                    background: settings.sfxMuted ? '#ff4d4d' : '#3a3a3aff',
                     color: '#fff',
                     border: 'none',
                     borderRadius: 6,
                     cursor: 'pointer',
                   }}
                 >
-                  {sfxMuted ? 'OFF' : 'ON'}
+                  {settings.sfxMuted ? 'OFF' : 'ON'}
                 </button>
-
                 <input
                   type="range"
                   min={0}
-                  max={1}
-                  step={0.01}
-                  value={sfxVolume}
-                  onChange={(e) => setSfxVolume(Number(e.target.value))}
+                  max={100}
+                  step={1}
+                  value={settings.sfxVolume}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setSettings(prev => {
+                      const next = { ...prev, sfxVolume: v };
+                      localStorage.setItem('userSettings', JSON.stringify(next));
+                      window.dispatchEvent(new Event('settings:changed'));
+                      return next;
+                    });
+                  }}
                   style={{ width: 220 }}
                 />
-
               </div>
             </div>
 
@@ -638,7 +657,8 @@ function GamePlay() {
             </div>
           </div>
         </div>
-      )}
+      )
+      }
 
       {/* ===== 게임 영역 ===== */}
       <div
@@ -676,10 +696,18 @@ function GamePlay() {
             key={sessionKey}
             paused={paused}
             fpsLimit={settings.fps}
-            bgmVolume={effectiveBgmVolume}
-            sfxVolume={effectiveSfxVolume}
+            onRivalFinish={(rival) => {
+              // rival: { score, maxScore, maxCombo }
+              setRivalResult(rival);
+            }}
+            bgmVolume={
+              (settings.bgmMuted ? 0 : (settings.bgmVolume ?? 100)) / 100
+            }
+            sfxVolume={
+              (settings.sfxMuted ? 0 : (settings.sfxVolume ?? 100)) / 100
+            }
+
             settings={settings}
-            // ✅ 멀티 전달
             isMulti={isMulti}
             roomId={roomId}
             startAt={multiStartAt}
@@ -688,6 +716,7 @@ function GamePlay() {
               loadingEndRef.current = performance.now();
               setLoadingDone(true);
             }}
+
             onState={({ score, combo, diff, currentTime, duration, maxScore }) => {
               if (paused) return;
 
@@ -702,6 +731,7 @@ function GamePlay() {
                 maxScore > 0 ? Math.min(1, score / maxScore) : 0
               );
             }}
+
             onFinish={({ score, maxScore, maxCombo, diff: finishDiff }) => {
               if (finished) return;
               setFinished(true);
@@ -710,17 +740,48 @@ function GamePlay() {
               const isEditorTest = params.get('mode') === 'editorTest';
 
               if (isEditorTest) {
-                navigate(`/song/${resolvedSongId}/note/edit?mode=editorTest`, { replace: true });
+                navigate(
+                  `/song/${resolvedSongId}/note/edit?mode=editorTest`,
+                  { replace: true }
+                );
                 return;
               }
 
-              navigate('/game/result', {
-                state: { score, maxScore, maxCombo, diff: finishDiff ?? diff ?? 'unknown', songId: resolvedSongId },
-              });
+              if (isMulti) {
+                navigate('/game/result', {
+                  state: {
+                    mode: 'multi',
+
+                    myScore: score,
+                    myMaxScore: maxScore,
+                    myMaxCombo: maxCombo,
+
+                    rivalScore: rivalResult?.score ?? 0,
+                    rivalMaxScore: rivalResult?.maxScore ?? maxScore,
+                    rivalMaxCombo: rivalResult?.maxCombo ?? 0,
+                  },
+                });
+              } else {
+                navigate('/game/result', {
+                  state: {
+                    mode: 'single',
+
+                    score,
+                    maxScore,
+                    maxCombo,
+                    diff: finishDiff ?? diff ?? 'unknown',
+                    songId: resolvedSongId,
+                  },
+                });
+              }
             }}
           />
         )}
 
+
+        {settings.visualizer && (
+          <Visualizer active={!paused} size="game" analyserRef={analyserRef} />
+        )}
         {/* ===== 카운트다운 ===== */}
         {countdown !== null && (
           <div

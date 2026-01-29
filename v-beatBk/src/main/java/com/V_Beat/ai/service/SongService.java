@@ -48,8 +48,9 @@ public class SongService {
 
 	@Transactional(readOnly = true)
 	public SongNotesResult getSongNotes(Long songId) {
+		Song song = songDao.getSong(songId);   
 		List<NoteResult> notes = songDao.getSongNotes(songId);
-		return new SongNotesResult(songId, notes);
+		return new SongNotesResult(songId, song.getDiff(), notes);
 	}
 
 	@Transactional(readOnly = true)

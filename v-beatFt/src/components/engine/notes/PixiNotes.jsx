@@ -26,7 +26,7 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, 
     useEffect(() => {
         const app = appRef.current;
         if (!app) return;
-        app.ticker.maxFPS = fpsLimit || 60;
+        app.ticker.maxFPS = 60;
     }, [fpsLimit]);
 
     useEffect(() => {
@@ -63,7 +63,7 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, 
                 backgroundAlpha: 0,
                 antialias: true,
             });
-            app.ticker.maxFPS = fpsLimit || 60;
+            app.ticker.maxFPS = 0;
             if (!mounted) {
                 try { app.destroy(true); } catch (e) { void e; }
                 return;
@@ -79,10 +79,9 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, 
             onReadyRef.current?.();
             tickerFn = () => {
                 const nowNotes = notesRef.current || [];
-                const nowTime = timeRef.current;
+                const nowTime = timeRef.current; // audio.currentTime 기준으로 부드럽게
                 syncNotes(app.stage, textures, nowNotes, nowTime, speedRef.current, selectedRef.current, draggingPreviewRef, tapColorRef.current, longColorRef.current);
             };
-
             app.ticker.add(tickerFn);
         })();
 
@@ -149,7 +148,7 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, 
             const end = renderNote.endTime;
 
             const BASE_SEG_LEN = NOTE_HEIGHT * 0.6;
-            const STEP_TIME = BASE_SEG_LEN / SPEED;
+            const STEP_TIME = 40;
 
             const left = getLaneLeftX(renderNote.lane);
             const right = getLaneRightX(renderNote.lane);
@@ -166,7 +165,7 @@ function syncNotes(stage, textures, notes, currentTime, speed, selectedNoteIds, 
             }
 
             const fadeStartTime = longFadeStartMap.get(noteId);
-            const FADE_PX_PER_MS = SPEED * 0.02;
+            const FADE_PX_PER_MS = GAME_CONFIG.SPEED * 0.02;
             const FADE_RANGE_PX = 90;
 
             if (fadeStartTime != null) {

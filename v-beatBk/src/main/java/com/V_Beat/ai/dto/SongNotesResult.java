@@ -12,10 +12,12 @@ import lombok.NoArgsConstructor;
 public class SongNotesResult {
 	private Long songId;
 	private int noteCount;
+	private String diff;
 	private List<NoteResult> notes;
 	
-	public SongNotesResult(Long songId, List<NoteResult> notes) {
+	public SongNotesResult(Long songId, String diff, List<NoteResult> notes) {
 		this.songId = songId;
+		this.diff = diff;    
 		this.notes = notes;
 		this.noteCount = (notes == null) ? 0 : notes.size();
 	}

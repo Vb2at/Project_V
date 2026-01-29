@@ -58,13 +58,6 @@ export default function SettingsModal({
 
                 {/* ===== 성능 ===== */}
                 <Section title="성능">
-                    <Select
-                        label="FPS 제한"
-                        value={settings.fps}
-                        options={[30, 45, 60]}
-                        onChange={(v) => update({ fps: v })}
-                    />
-
                     <Toggle
                         label="저사양 모드 (이펙트/텍스트 간소화)"
                         value={settings.lowEffect}

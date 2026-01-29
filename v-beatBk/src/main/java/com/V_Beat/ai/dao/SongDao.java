@@ -117,6 +117,7 @@ public interface SongDao {
 
 	// 본인 업로드 곡 조회
 	@Select("""
+<<<<<<< HEAD
 			<script>
 			SELECT
 			    id AS id,
@@ -125,6 +126,15 @@ public interface SongDao {
 			    cover_path AS coverPath,
 			    diff AS diff,
 			    share_token AS shareToken
+=======
+			SELECT 
+			    id AS id,
+			    title AS title,
+			    artist AS artist,
+			    visibility AS visibility,
+			    cover_path AS coverPath,
+			    diff AS diff
+>>>>>>> master
 			FROM song
 			WHERE user_id = #{userId}
 			  <if test="visibility != 'ALL'">

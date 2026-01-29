@@ -165,7 +165,6 @@ export default function Manager() {
 
         try {
             const raw = await fetchReviewSongDetail(song.id);
-            console.log('detail raw =', raw);
 
             const detail = raw?.song;
 

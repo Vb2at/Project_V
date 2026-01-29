@@ -1039,7 +1039,7 @@ export default function MainOverlay({
                         : '등록된 공개 곡이 존재하지 않습니다.'}
                     </div>
                   )}
-                  {/* 난이도 기준선 */}
+                  {/* 난이도 기준선 + 고정 난이도 텍스트 */}
                   {songs.length > 0 && (
                     <div
                       style={{
@@ -1047,12 +1047,38 @@ export default function MainOverlay({
                         left: 0,
                         right: 0,
                         top: '42%',
-                        height: '1px',
-                        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
+                        height: 0,
                         pointerEvents: 'none',
                         zIndex: 3,
                       }}
-                    />
+                    >
+                      {/* 기준선 */}
+                      <div
+                        style={{
+                          height: '1px',
+                          background:
+                            'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
+                        }}
+                      />
+
+                      {/* 난이도 텍스트 (선 바로 위 중앙) */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: -25,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          fontSize: 16,
+                          fontWeight: 700,
+                          letterSpacing: '0.14em',
+                          color: '#cfd8e3',
+                          opacity: 0.85,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {selectedSong?.diff}
+                      </div>
+                    </div>
                   )}
 
                   {/* 고정 포커스 라인 */}
@@ -1094,7 +1120,9 @@ export default function MainOverlay({
                       const opacity = Math.max(0.35, 1 - a * 0.25);
 
                       if (item.type === 'header') {
-                        const isCurrent = item.diff === selectedSong?.diff;
+                        const dist = Math.abs(index - renderSelectedIndex);
+                        const hide = dist <= 1;
+
                         return (
                           <div
                             key={item.id}
@@ -1107,11 +1135,11 @@ export default function MainOverlay({
                               fontWeight: 700,
                               letterSpacing: '0.12em',
                               color: '#cfd8e3',
-                              opacity: isCurrent ? 0 : 0.7,
+                              opacity: hide ? 0 : 0.7,
                               pointerEvents: 'none',
                             }}
                           >
-                            {!isCurrent && item.diff}
+                            {!hide && item.diff}
                           </div>
                         );
                       }
