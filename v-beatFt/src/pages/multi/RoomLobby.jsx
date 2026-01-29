@@ -1,10 +1,11 @@
-// src/pages/multi/RoomLobby.jsx
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import Header from '../../components/Common/Header';
 import Visualizer from '../../components/visualizer/Visualizer';
-import { getMenuAnalyser, playMenuMove, playMenuConfirm } from '../../components/engine/SFXManager';
+import { getMenuAnalyser, playMenuConfirm } from '../../components/engine/SFXManager';
 import Background from '../../components/Common/Background';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client/dist/sockjs.min.js';
 
 function formatTime(sec) {
   if (!sec && sec !== 0) return '--:--';
@@ -18,6 +19,94 @@ export default function RoomLobby() {
   const navigate = useNavigate();
 
   const analyserRef = useRef(null);
+  const stompRef = useRef(null);
+
+  const [myUserId, setMyUserId] = useState(null);
+  const [roomInfo, setRoomInfo] = useState(null);
+  const [players, setPlayers] = useState([]);
+
+  /* =========================
+     초기 방 정보 로드 (REST)
+  ========================= */
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/multi/rooms/${roomId}`, {
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error('방 정보 로드 실패');
+
+        const data = await res.json();
+        if (!alive) return;
+
+        setRoomInfo(data.room);
+        setPlayers(data.players || []);
+        setMyUserId(data.myUserId); // ✅ 내 userId 세팅
+      } catch (e) {
+        alert('방 정보를 불러오지 못했습니다.');
+        navigate(-1);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [roomId, navigate]);
+
+  /* =========================
+     STOMP 연결
+  ========================= */
+  useEffect(() => {
+    const client = new Client({
+      webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
+      reconnectDelay: 3000,
+      debug: () => {},
+
+      onConnect: () => {
+        // 방 입장 알림
+        client.publish({
+          destination: '/app/multi/join',
+          body: JSON.stringify({ roomId }),
+        });
+
+        // 방 상태 구독
+        client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
+          let data;
+          try {
+            data = JSON.parse(msg.body);
+          } catch {
+            return;
+          }
+
+          if (data.type === 'ROOM_STATE') {
+            setPlayers(data.players || []);
+          }
+
+          if (data.type === 'START') {
+            playMenuConfirm();
+            navigate(`/game/play?mode=multi&roomId=${roomId}`);
+          }
+        });
+      },
+    });
+
+    client.activate();
+    stompRef.current = client;
+
+    return () => {
+      try {
+        client.deactivate();
+      } finally {
+        stompRef.current = null;
+      }
+    };
+  }, [roomId, navigate]);
+
+  /* =========================
+     Visualizer analyser 연결
+  ========================= */
   useEffect(() => {
     const id = setInterval(() => {
       const a = getMenuAnalyser();
@@ -29,73 +118,51 @@ export default function RoomLobby() {
     return () => clearInterval(id);
   }, []);
 
-  const [roomInfo] = useState({
-    roomName: 'music-free-458044',
-    songTitle: 'Disco Night',
-    artist: 'unknown',
-    diff: 'HARD',
-    lengthSec: 132,
-    isPrivate: false,
-    maxPlayers: 2,
-    hostUserId: 1,
-  });
+  /* =========================
+     내 정보 / 호스트 판정
+  ========================= */
+  if (!roomInfo) return null;
 
-  const [players, setPlayers] = useState([
-    { userId: 1, nickname: 'YOU', ready: false, wins: 12, loses: 8, profileUrl: null, waiting: false },
-    { userId: 2, nickname: 'WAITING...', ready: false, wins: 0, loses: 0, profileUrl: null, waiting: true },
-  ]);
+  const isHost =
+    myUserId != null && Number(myUserId) === Number(roomInfo.hostUserId);
 
-  const myUserId = 1; // 테스트용
-  const isHost = myUserId === roomInfo.hostUserId;
+  const me =
+    players.find((p) => Number(p.userId) === Number(myUserId)) || null;
 
-  const [countdown, setCountdown] = useState(null);
+  const opponent =
+    players.find((p) => Number(p.userId) !== Number(myUserId)) || null;
 
-  const me = players.find(p => p.userId === myUserId);
-  const opponent = players.find(p => p.userId !== myUserId);
-
+  /* =========================
+     Ready / Start / Leave
+  ========================= */
   const toggleReady = () => {
-    setPlayers(prev =>
-      prev.map(p => (p.userId === myUserId ? { ...p, ready: !p.ready } : p))
-    );
+    if (!stompRef.current) return;
+
+    stompRef.current.publish({
+      destination: '/app/multi/ready',
+      body: JSON.stringify({ roomId }),
+    });
   };
 
-  const simulateOpponentJoin = () => {
-    playMenuConfirm();
-    setPlayers(prev =>
-      prev.map(p =>
-        p.userId === 2
-          ? { ...p, waiting: false, nickname: 'RIVAL', wins: 5, loses: 3, ready: false }
-          : p
-      )
-    );
+  const startGame = () => {
+    if (!stompRef.current) return;
+
+    stompRef.current.publish({
+      destination: '/app/multi/start',
+      body: JSON.stringify({ roomId }),
+    });
   };
 
-  const startCountdown = () => {
-    if (!isHost) return;
-    if (opponent?.waiting) return alert('상대방이 아직 입장하지 않았습니다.');
-    if (!me?.ready) return alert('READY를 먼저 눌러주세요.');
-    if (!opponent?.ready) return alert('상대방이 READY가 아닙니다.');
-    setCountdown(3);
+  const leaveRoom = () => {
+    navigate(-1);
   };
-
-  useEffect(() => {
-    if (countdown == null) return;
-    if (countdown === 0) {
-      playMenuConfirm();
-      navigate(`/game/play?mode=multi&roomId=${roomId}`);
-      return;
-    }
-    playMenuMove();
-    const id = setTimeout(() => setCountdown(c => (typeof c === 'number' ? c - 1 : c)), 900);
-    return () => clearTimeout(id);
-  }, [countdown, navigate, roomId]);
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <Background />
       <Header />
 
-      {/* ===== 로비 UI 오버레이 ===== */}
+      {/* ===== 로비 UI ===== */}
       <div
         style={{
           position: 'absolute',
@@ -118,7 +185,6 @@ export default function RoomLobby() {
             display: 'flex',
             flexDirection: 'column',
             gap: 18,
-            position: 'relative',
           }}
         >
           {/* ===== 상단 바 ===== */}
@@ -131,38 +197,21 @@ export default function RoomLobby() {
               paddingBottom: 10,
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 600 }}>{roomInfo.roomName}</div>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>
+              {roomInfo.roomName}
+            </div>
             <div style={{ opacity: 0.7 }}>
-              {players.filter(p => !p.waiting).length} / {roomInfo.maxPlayers}
+              {players.length} / {roomInfo.maxPlayers}
             </div>
 
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
-              {isHost && opponent?.waiting && (
-                <button style={btnGhost} onClick={simulateOpponentJoin}>
-                  상대 입장(테스트)
-                </button>
-              )}
-              {isHost && opponent && !opponent.waiting && (
-                <button
-                  style={btnGhost}
-                  onClick={() =>
-                    setPlayers(prev =>
-                      prev.map(p =>
-                        p.userId === opponent.userId ? { ...p, ready: !p.ready } : p
-                      )
-                    )
-                  }
-                >
-                  상대 READY(테스트)
-                </button>
-              )}
-              <button style={btnGhost} onClick={() => navigate(-1)}>
+            <div style={{ marginLeft: 'auto' }}>
+              <button style={btnGhost} onClick={leaveRoom}>
                 나가기
               </button>
             </div>
           </div>
 
-          {/* ===== 중앙 카드 영역 ===== */}
+          {/* ===== 중앙 카드 ===== */}
           <div
             style={{
               flex: 1,
@@ -175,7 +224,6 @@ export default function RoomLobby() {
             <PlayerCard title="나" player={me} />
 
             <div style={centerCard}>
-              {/* 곡 정보, 앨범 커버 등 기존 JSX 그대로 유지 */}
               <div
                 style={{
                   width: 120,
@@ -193,9 +241,11 @@ export default function RoomLobby() {
               >
                 COVER
               </div>
+
               <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
                 {roomInfo.songTitle}
               </div>
+
               <div
                 style={{
                   fontSize: 13,
@@ -208,9 +258,11 @@ export default function RoomLobby() {
               >
                 {roomInfo.diff}
               </div>
+
               <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>
                 LENGTH {formatTime(roomInfo.lengthSec)}
               </div>
+
               <div
                 style={{
                   width: '100%',
@@ -233,39 +285,22 @@ export default function RoomLobby() {
             <PlayerCard title="상대방" player={opponent} />
           </div>
 
-          {/* ===== 하단 컨트롤 바 ===== */}
+          {/* ===== 하단 버튼 ===== */}
           <div style={{ display: 'flex', justifyContent: 'center', gap: 20 }}>
             <button style={btnPrimary} onClick={toggleReady}>
               {me?.ready ? 'READY 취소' : 'READY'}
             </button>
-            {isHost && <button style={btnPrimaryStrong} onClick={startCountdown}>START</button>}
-          </div>
 
-          {/* ===== 카운트다운 오버레이 ===== */}
-          {countdown != null && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                borderRadius: 18,
-                background: 'rgba(0,0,0,0.35)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 96,
-                fontWeight: 800,
-                color: '#e6f7ff',
-                textShadow: '0 0 20px rgba(90,234,255,0.55)',
-                pointerEvents: 'none',
-              }}
-            >
-              {countdown === 0 ? 'START' : countdown}
-            </div>
-          )}
+            {isHost && (
+              <button style={btnPrimaryStrong} onClick={startGame}>
+                START
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* ===== 비주얼라이저 유지 ===== */}
+      {/* ===== Visualizer ===== */}
       <Visualizer
         size="game"
         preset="menu"
@@ -300,7 +335,8 @@ export default function RoomLobby() {
 
 /* ===== Player Card ===== */
 function PlayerCard({ title, player }) {
-  const waiting = player?.waiting;
+  const waiting = !player;
+
   const cardStyle = {
     ...playerCard,
     transition: 'all 0.35s ease',
@@ -311,6 +347,7 @@ function PlayerCard({ title, player }) {
   return (
     <div style={cardStyle}>
       <div style={{ fontSize: 14, opacity: 0.7 }}>{title}</div>
+
       <div
         style={{
           width: 90,
@@ -327,16 +364,15 @@ function PlayerCard({ title, player }) {
       >
         {waiting ? 'WAITING' : 'PROFILE'}
       </div>
+
       <div style={{ fontSize: 16, fontWeight: 600 }}>
-        {player?.nickname ?? 'UNKNOWN'}
+        {player?.nickname ?? 'WAITING...'}
       </div>
+
       {!waiting && (
         <>
           <div style={{ marginTop: 6, fontSize: 13 }}>
             {player?.ready ? 'READY' : 'WAITING'}
-          </div>
-          <div style={{ marginTop: 8, fontSize: 12, opacity: 0.6 }}>
-            W {player?.wins ?? 0} / L {player?.loses ?? 0}
           </div>
         </>
       )}

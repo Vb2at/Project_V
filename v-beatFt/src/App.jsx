@@ -1,5 +1,7 @@
 // src/App.jsx
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+
 import Login from './pages/member/Login';
 import MainPage from './pages/mainpage/MainPage';
 import GamePlay from './pages/gameplay/GamePlay';
@@ -14,13 +16,41 @@ import SongUpload from './pages/songUpload/SongUpload';
 import SongEditor from './pages/songUpload/SongEditor';
 import NoteEditor from './pages/songUpload/NoteEditor';
 import RePw from './pages/member/RePw';
-import MultiRoomList from './pages/multi/MultiRoomList';
-import RoomLobby from "./pages/multi/RoomLobby";
+import RoomLobby from './pages/multi/RoomLobby';
 import LandingPage from './pages/LandingPage';
+import InviteModal from './components/mulit/InviteModal'; 
 
-function App() {
+/* ===============================
+   Router 안에서 모달 제어용
+=============================== */
+function AppInner() {
+  const [invite, setInvite] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handler = (e) => {
+      setInvite(e.detail);
+    };
+
+    window.addEventListener('multi:invite', handler);
+    return () => window.removeEventListener('multi:invite', handler);
+  }, []);
+
   return (
-    <BrowserRouter>
+    <>
+      {invite && (
+        <InviteModal
+          from={invite.from}
+          onAccept={() => {
+            setInvite(null);
+            navigate(`/game/play?mode=multi&roomId=${invite.roomId}`);
+          }}
+          onReject={() => {
+            setInvite(null);
+          }}
+        />
+      )}
+
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/join" element={<Join />} />
@@ -41,8 +71,14 @@ function App() {
         <Route path="/game/result-test-multi" element={<Result />} />
         <Route path="/" element={<LandingPage />} />
       </Routes>
-    </BrowserRouter>
+    </>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppInner />
+    </BrowserRouter>
+  );
+}

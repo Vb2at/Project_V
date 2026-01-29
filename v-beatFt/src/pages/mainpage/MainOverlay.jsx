@@ -1204,58 +1204,26 @@ export default function MainOverlay({
                     flex: 1,
                   }}
                 >
-                  {/*
-      TODO: 서버에서 받아올 멀티 방 목록 API 스펙 (예시)
+                  {multiRooms.length === 0 && (
+                    <div style={{ textAlign: 'center', opacity: 0.5, padding: 20 }}>
+                      생성된 방이 없습니다.
+                    </div>
+                  )}
 
-      GET /api/multi/rooms
-      Response: [
-        {
-          roomId: number | string,        // 방 ID
-          roomName: string,               // 방 이름
-          songId: number,
-          songTitle: string,              // 곡 제목
-          currentPlayers: number,         // 현재 인원
-          maxPlayers: number,             // 최대 인원
-          isPrivate: boolean,              // 비공개 여부
-          hostPing?: number                // (선택) 호스트 핑
-        }
-      ]
-
-      → 실제 적용 시:
-      multiRooms.map(r => ({
-        id: r.roomId,
-        roomName: r.roomName,
-        song: r.songTitle,
-        players: r.currentPlayers,
-        maxPlayers: r.maxPlayers,
-        locked: r.isPrivate,
-        hostPing: r.hostPing
-      }))
-    */}
-                  {/* 멀티 방프론트 예시 더미 연결시 삭제 */}
-                  {[
-                    {
-                      id: 'R1',
-                      roomName: 'music-free-458044',
-                      song: 'Disco Night',
-                      players: 1,
-                      maxPlayers: 2,
-                      locked: false,
-                    },
-                    {
-                      id: 'R2',
-                      roomName: 'night-drive',
-                      song: 'Midnight Run',
-                      players: 2,
-                      maxPlayers: 2,
-                      locked: true,
-                    },
-                  ].map((r) => (
+                  {multiRooms.map((r) => (
                     <div
-                      key={r.id}
-                      onClick={() => {
+                      key={r.roomId ?? r.id}
+                      onClick={async () => {
                         playMenuConfirm();
-                        navigate(`/multi/room/${r.id}`);
+                        const roomId = r.roomId ?? r.id;
+                        navigate(`/multi/room/${roomId}`);
+                        try {
+                          const roomId = r.roomId ?? r.id;
+
+                          navigate(`/multi/room/${roomId}`);
+                        } catch (e) {
+                          alert(e.message || '방 입장 중 오류 발생');
+                        }
                       }}
                       style={{
                         padding: 14,
@@ -1274,47 +1242,24 @@ export default function MainOverlay({
                         <div style={{ fontWeight: 600, fontSize: 15 }}>
                           {r.roomName}
                         </div>
-                        {r.locked && <span style={{ fontSize: 13, opacity: 0.7 }}>🔒</span>}
+                        {r.isPrivate && <span style={{ fontSize: 13, opacity: 0.7 }}>🔒</span>}
                       </div>
 
                       {/* 곡 정보 */}
                       <div style={{ fontSize: 12, opacity: 0.7 }}>
-                        🎵 {r.song}
+                        🎵 {r.songTitle}
                       </div>
 
-                      {/* 하단: 인원 + 버튼 */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          marginTop: 4,
-                        }}
-                      >
-                        <div style={{ display: 'flex', gap: 10, fontSize: 12, opacity: 0.75 }}>
-                          <span>{r.players}/{r.maxPlayers} 명</span>
-                          <span>핑 {r.hostPing} ms</span>
-                        </div>
-
-                        <div style={{ marginLeft: 'auto' }}>
-                          <button
-                            style={{
-                              padding: '4px 10px',
-                              borderRadius: 8,
-                              fontSize: 12,
-                              border: '1px solid rgba(90,234,255,0.6)',
-                              background: 'rgba(90,234,255,0.15)',
-                              color: '#5aeaff',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            입장
-                          </button>
-                        </div>
+                      {/* 하단: 인원 */}
+                      <div style={{ display: 'flex', gap: 10, fontSize: 12, opacity: 0.75 }}>
+                        <span>{(r.players?.length ?? 0)} / {r.maxPlayers} 명</span>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
+
+
             </div>
           </section>
 
@@ -1520,7 +1465,11 @@ export default function MainOverlay({
 
                     if (!res.ok) throw new Error(`방 생성 실패 (${res.status})`);
 
-                    await res.json().catch(() => null);
+                    const data = await res.json();
+
+                    if (!data.roomId) {
+                      throw new Error('방 ID를 받지 못했습니다.');
+                    }
 
                     // 초기화
                     setCreateRoomOpen(false);
@@ -1529,8 +1478,8 @@ export default function MainOverlay({
                     setRoomPassword('');
                     setSelectedMultiSongId(null);
 
-                    // 방 리스트 다시 로드
-                    fetchMultiRooms();
+                    // ✅ 바로 로비 이동
+                    navigate(`/multi/room/${data.roomId}`);
 
                   } catch (e) {
                     console.error(e);

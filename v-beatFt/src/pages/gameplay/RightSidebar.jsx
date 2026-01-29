@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:3000'); // Socket.io 서버 주소
-
 export default function RightSidebar({ isMulti = true }) {
   const HEADER_HEIGHT = 64;
 

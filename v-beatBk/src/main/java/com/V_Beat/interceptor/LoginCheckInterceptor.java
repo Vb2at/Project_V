@@ -38,8 +38,9 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
     private boolean isLoginRequired(String uri) {
         // 로그인 필요한 API prefix 목록
         return uri.startsWith("/api/user/")
-            || uri.startsWith("/api/friend/")
-            || uri.startsWith("/api/duel/");
+        || uri.startsWith("/api/friend/")
+            || uri.startsWith("/api/duel/")
+        || uri.startsWith("/api/multi/");
         // 로그인 기능 만들어지면 주석 해제
 //            || uri.equals("/api/scores")        // POST /api/scores
 //            || uri.startsWith("/api/scores/");  // 혹시 나중에 /api/scores/{id} 생기면 대비

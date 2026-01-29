@@ -111,7 +111,7 @@ export default function MyPage() {
 
       const c = Array.isArray(data) ? data.length : 0;
       setNotify((prev) => ({ ...prev, pendingFriends: c }));
-      
+
     } catch (e) {
       // 실패해도 무시 (UX 깨짐 방지)
     }
@@ -203,8 +203,8 @@ export default function MyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-  emitFriendAlert(notify.pendingFriends);
-}, [notify.pendingFriends]);
+    emitFriendAlert(notify.pendingFriends);
+  }, [notify.pendingFriends]);
 
   // ✅ STOMP 알림 구독: /user/queue/notify
   useEffect(() => {
@@ -244,6 +244,14 @@ export default function MyPage() {
               return { ...prev, adminAlerts: next };
             });
 
+            return;
+          }
+
+          // ✅ 멀티 초대 알림
+          if (payload.type === 'MULTI_INVITE') {
+            window.dispatchEvent(
+              new CustomEvent('multi:invite', { detail: payload })
+            );
             return;
           }
 
@@ -288,10 +296,10 @@ export default function MyPage() {
       },
 
       onStompError: () => {
-        
+
       },
       onWebSocketError: () => {
-        
+
       },
       onDisconnect: () => {
       },
@@ -387,9 +395,9 @@ export default function MyPage() {
             const isBlockedTab = isBlockUser && blockedTabs.includes(key);
 
             //관리자 탭은 관리자가 아니라면 렌더링 안 함
-            if(key === 'manager' && !isAdmin) return null;
+            if (key === 'manager' && !isAdmin) return null;
 
-            if(isBlockedTab) return null;
+            if (isBlockedTab) return null;
 
             return (
               <div
