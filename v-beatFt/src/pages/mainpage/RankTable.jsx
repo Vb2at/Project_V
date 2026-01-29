@@ -34,7 +34,7 @@ export default function RankTable({ ranking = [], loading = false }) {
                     gap: '10px',
                     fontSize: '12px',
                     color: '#ffb3b3',
-                    padding: '4px 8px',
+                    padding: '4px 12px',
                     borderBottom: '1px solid rgba(255,255,255,0.12)',
                 }}
             >

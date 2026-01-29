@@ -16,7 +16,7 @@ const S = {
   logoWidth: 640,
 
   contentShiftX: 60, // 로고 아래 요소 우측 이동
-  contentBiasY: -10,
+  contentBiasY: -30,
 
   videoWidth: 620,
   videoHeight: 360,
@@ -184,7 +184,7 @@ export default function LandingPage() {
             <div style={{ marginLeft: S.contentShiftX }}>
 
               {/* Buttons */}
-              <div style={{ display: "flex", gap: 20, marginTop: 10 }}>
+              <div style={{ display: "flex", gap: 20, marginTop: 10, marginLeft:50, }}>
                 <button
                   onClick={() => navigate("/main")}
                   className="rounded-xl bg-cyan-400 text-black font-semibold hover:bg-cyan-300 transition"
@@ -202,7 +202,7 @@ export default function LandingPage() {
               </div>
 
               {/* Tags */}
-              <div style={{ display: "flex", gap: 36, fontSize: 13, opacity: 0.6, marginTop: 8 }}>
+              <div style={{ display: "flex", gap: 36, fontSize: 13, opacity: 0.6, marginTop: 8, marginLeft: 50, }}>
                 <span>🎧 Pick Your Track</span>
                 <span>👥 Battle with Friends</span>
                 <span>🛠 Build Your Chart</span>
@@ -245,6 +245,7 @@ export default function LandingPage() {
                   justifyContent: "center",
                   letterSpacing: "0.2em",
                   color: "rgba(255,255,255,0.4)",
+                  marginRight: 30,
                 }}
               >
                 VIDEO

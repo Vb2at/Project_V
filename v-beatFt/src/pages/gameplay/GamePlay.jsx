@@ -23,7 +23,6 @@ const DEFAULT_SETTINGS = {
   visualizer: true,
   tapNoteColor: 0x05acb5,
   longNoteColor: 0xb50549,
-
   bgmVolume: 100,
   sfxVolume: 100,
   bgmMuted: false,
@@ -85,17 +84,6 @@ function GamePlay() {
   const loadingEndRef = useRef(null);
   const HEADER_HEIGHT = 25;
   const [loginUser, setLoginUser] = useState(null);
-  const location = useLocation();
-  const DEFAULT_SETTINGS = {
-    fps: 60,
-    hitEffect: true,
-    judgeText: true,
-    comboText: true,
-    lowEffect: false,
-    visualizer: true,
-    tapNoteColor: 0x05acb5,
-    longNoteColor: 0xb50549,
-  };
 
   const navigate = useNavigate();
 
