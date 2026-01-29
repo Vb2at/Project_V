@@ -17,7 +17,6 @@ export default function RoomLobby() {
   const { roomId } = useParams();
   const navigate = useNavigate();
 
-  // analyserRef 유지 (메뉴와 동일한 방식)
   const analyserRef = useRef(null);
   useEffect(() => {
     const id = setInterval(() => {
@@ -30,7 +29,6 @@ export default function RoomLobby() {
     return () => clearInterval(id);
   }, []);
 
-  // ===== 테스트용 더미 데이터 =====
   const [roomInfo] = useState({
     roomName: 'music-free-458044',
     songTitle: 'Disco Night',
@@ -43,30 +41,13 @@ export default function RoomLobby() {
   });
 
   const [players, setPlayers] = useState([
-    {
-      userId: 1,
-      nickname: 'YOU',
-      ready: false,
-      wins: 12,
-      loses: 8,
-      profileUrl: null,
-      waiting: false,
-    },
-    {
-      userId: 2,
-      nickname: 'WAITING...',
-      ready: false,
-      wins: 0,
-      loses: 0,
-      profileUrl: null,
-      waiting: true,
-    },
+    { userId: 1, nickname: 'YOU', ready: false, wins: 12, loses: 8, profileUrl: null, waiting: false },
+    { userId: 2, nickname: 'WAITING...', ready: false, wins: 0, loses: 0, profileUrl: null, waiting: true },
   ]);
 
   const myUserId = 1; // 테스트용
   const isHost = myUserId === roomInfo.hostUserId;
 
-  // 카운트다운 (null이면 미표시)
   const [countdown, setCountdown] = useState(null);
 
   const me = players.find(p => p.userId === myUserId);
@@ -74,69 +55,38 @@ export default function RoomLobby() {
 
   const toggleReady = () => {
     setPlayers(prev =>
-      prev.map(p =>
-        p.userId === myUserId ? { ...p, ready: !p.ready } : p
-      )
+      prev.map(p => (p.userId === myUserId ? { ...p, ready: !p.ready } : p))
     );
   };
 
-  // ===== 상대방 입장(테스트) =====
   const simulateOpponentJoin = () => {
-    playMenuConfirm(); // ✅ 상대 입장 사운드
+    playMenuConfirm();
     setPlayers(prev =>
       prev.map(p =>
         p.userId === 2
-          ? {
-            ...p,
-            waiting: false,
-            nickname: 'RIVAL',
-            wins: 5,
-            loses: 3,
-            ready: false,
-          }
+          ? { ...p, waiting: false, nickname: 'RIVAL', wins: 5, loses: 3, ready: false }
           : p
       )
     );
   };
 
-  // ===== START(테스트): 카운트다운 시작 =====
   const startCountdown = () => {
     if (!isHost) return;
-
-    if (opponent?.waiting) {
-      alert('상대방이 아직 입장하지 않았습니다.');
-      return;
-    }
-
-    if (!me?.ready) {
-      alert('READY를 먼저 눌러주세요.');
-      return;
-    }
-
-    if (!opponent?.ready) {
-      alert('상대방이 READY가 아닙니다.');
-      return;
-    }
-
+    if (opponent?.waiting) return alert('상대방이 아직 입장하지 않았습니다.');
+    if (!me?.ready) return alert('READY를 먼저 눌러주세요.');
+    if (!opponent?.ready) return alert('상대방이 READY가 아닙니다.');
     setCountdown(3);
   };
 
-  // ===== 카운트다운 진행 + 사운드 =====
   useEffect(() => {
     if (countdown == null) return;
-
     if (countdown === 0) {
-      playMenuConfirm(); // ✅ START 확정 사운드
+      playMenuConfirm();
       navigate(`/game/play?mode=multi&roomId=${roomId}`);
       return;
     }
-
-    playMenuMove(); // ✅ 3,2,1 비프
-
-    const id = setTimeout(() => {
-      setCountdown(c => (typeof c === 'number' ? c - 1 : c));
-    }, 900);
-
+    playMenuMove();
+    const id = setTimeout(() => setCountdown(c => (typeof c === 'number' ? c - 1 : c)), 900);
     return () => clearTimeout(id);
   }, [countdown, navigate, roomId]);
 
@@ -181,9 +131,7 @@ export default function RoomLobby() {
               paddingBottom: 10,
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 600 }}>
-              {roomInfo.roomName}
-            </div>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>{roomInfo.roomName}</div>
             <div style={{ opacity: 0.7 }}>
               {players.filter(p => !p.waiting).length} / {roomInfo.maxPlayers}
             </div>
@@ -194,16 +142,13 @@ export default function RoomLobby() {
                   상대 입장(테스트)
                 </button>
               )}
-
               {isHost && opponent && !opponent.waiting && (
                 <button
                   style={btnGhost}
                   onClick={() =>
                     setPlayers(prev =>
                       prev.map(p =>
-                        p.userId === opponent.userId
-                          ? { ...p, ready: !p.ready }
-                          : p
+                        p.userId === opponent.userId ? { ...p, ready: !p.ready } : p
                       )
                     )
                   }
@@ -211,12 +156,10 @@ export default function RoomLobby() {
                   상대 READY(테스트)
                 </button>
               )}
-
               <button style={btnGhost} onClick={() => navigate(-1)}>
                 나가기
               </button>
             </div>
-
           </div>
 
           {/* ===== 중앙 카드 영역 ===== */}
@@ -229,12 +172,10 @@ export default function RoomLobby() {
               alignItems: 'center',
             }}
           >
-            {/* ===== 나 ===== */}
             <PlayerCard title="나" player={me} />
 
-            {/* ===== 방 + 곡 정보 ===== */}
             <div style={centerCard}>
-              {/* 앨범 커버 */}
+              {/* 곡 정보, 앨범 커버 등 기존 JSX 그대로 유지 */}
               <div
                 style={{
                   width: 120,
@@ -252,13 +193,9 @@ export default function RoomLobby() {
               >
                 COVER
               </div>
-
-              {/* 곡 제목 */}
               <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
                 {roomInfo.songTitle}
               </div>
-
-              {/* 난이도 */}
               <div
                 style={{
                   fontSize: 13,
@@ -271,13 +208,9 @@ export default function RoomLobby() {
               >
                 {roomInfo.diff}
               </div>
-
-              {/* ✅ 난이도 밑에 LENGTH만 */}
               <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>
                 LENGTH {formatTime(roomInfo.lengthSec)}
               </div>
-
-              {/* 방 정보 블록 */}
               <div
                 style={{
                   width: '100%',
@@ -297,27 +230,15 @@ export default function RoomLobby() {
               </div>
             </div>
 
-            {/* ===== 상대방 ===== */}
             <PlayerCard title="상대방" player={opponent} />
           </div>
 
           {/* ===== 하단 컨트롤 바 ===== */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 20,
-            }}
-          >
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 20 }}>
             <button style={btnPrimary} onClick={toggleReady}>
               {me?.ready ? 'READY 취소' : 'READY'}
             </button>
-
-            {isHost && (
-              <button style={btnPrimaryStrong} onClick={startCountdown}>
-                START
-              </button>
-            )}
+            {isHost && <button style={btnPrimaryStrong} onClick={startCountdown}>START</button>}
           </div>
 
           {/* ===== 카운트다운 오버레이 ===== */}
@@ -378,10 +299,8 @@ export default function RoomLobby() {
 }
 
 /* ===== Player Card ===== */
-
 function PlayerCard({ title, player }) {
   const waiting = player?.waiting;
-
   const cardStyle = {
     ...playerCard,
     transition: 'all 0.35s ease',
@@ -392,7 +311,6 @@ function PlayerCard({ title, player }) {
   return (
     <div style={cardStyle}>
       <div style={{ fontSize: 14, opacity: 0.7 }}>{title}</div>
-
       <div
         style={{
           width: 90,
@@ -409,17 +327,14 @@ function PlayerCard({ title, player }) {
       >
         {waiting ? 'WAITING' : 'PROFILE'}
       </div>
-
       <div style={{ fontSize: 16, fontWeight: 600 }}>
         {player?.nickname ?? 'UNKNOWN'}
       </div>
-
       {!waiting && (
         <>
           <div style={{ marginTop: 6, fontSize: 13 }}>
             {player?.ready ? 'READY' : 'WAITING'}
           </div>
-
           <div style={{ marginTop: 8, fontSize: 12, opacity: 0.6 }}>
             W {player?.wins ?? 0} / L {player?.loses ?? 0}
           </div>
@@ -430,7 +345,6 @@ function PlayerCard({ title, player }) {
 }
 
 /* ===== Styles ===== */
-
 const playerCard = {
   height: '100%',
   borderRadius: 14,

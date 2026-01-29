@@ -1,13 +1,37 @@
-export default function RightSidebar({ isMulti }) {
+import { useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:3000'); // Socket.io 서버 주소
+
+export default function RightSidebar({ isMulti = true }) {
   const HEADER_HEIGHT = 64;
 
-  // ===== 더미 멀티 상태 =====
-  const rival = {
+  // ===== 실시간 상대 상태 =====
+  const [rival, setRival] = useState({
     nickname: 'OPPONENT',
     state: 'WAITING', // WAITING | READY | PLAYING
     score: 0,
     combo: 0,
-    profileUrl: null, // 나중에 이미지 경로
+    profileUrl: null,
+    position: { x: 50, y: 50 }, // % 기준 위치
+    notes: [], // 노트 배열
+  });
+
+  useEffect(() => {
+    // 서버에서 상대 상태 수신
+    socket.on('update-game', (data) => {
+      setRival(data);
+    });
+
+    return () => socket.off('update-game');
+  }, []);
+
+  // 화면 크기에 따라 상대 좌표 변환
+  const calcPos = (pos) => {
+    return {
+      left: `${pos.x}%`,
+      top: `${pos.y}%`,
+    };
   };
 
   return (
@@ -42,7 +66,6 @@ export default function RightSidebar({ isMulti }) {
         }}
       />
 
-      {/* ================= MULTI PANEL ================= */}
       {isMulti && (
         <>
           {/* ================== 상단: 상대 화면 ================== */}
@@ -57,9 +80,9 @@ export default function RightSidebar({ isMulti }) {
               display: 'flex',
               flexDirection: 'column',
               gap: 8,
+              position: 'relative',
             }}
           >
-            {/* TITLE */}
             <div
               style={{
                 fontSize: 12,
@@ -79,14 +102,40 @@ export default function RightSidebar({ isMulti }) {
                   'linear-gradient(135deg, rgba(40,50,70,0.95), rgba(10,15,25,0.95))',
                 border: '1px solid rgba(90,234,255,0.35)',
                 boxShadow: 'inset 0 0 14px rgba(0,0,0,0.65)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 12,
-                opacity: 0.65,
+                position: 'relative',
+                overflow: 'hidden',
               }}
             >
-              STREAM PLACEHOLDER
+              {/* ================== 상대 캐릭터 ================== */}
+              <div
+                style={{
+                  position: 'absolute',
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: 'red',
+                  ...calcPos(rival.position),
+                  transition: 'all 0.05s linear',
+                }}
+              />
+
+              {/* ================== 노트(hit) 표시 ================== */}
+              {Array.isArray(rival.notes) &&
+                rival.notes.map((note, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      position: 'absolute',
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: '#5aeaff',
+                      left: `${note.x}%`,
+                      top: `${note.y}%`,
+                      transition: 'all 0.05s linear',
+                    }}
+                  />
+                ))}
             </div>
           </div>
 
@@ -104,15 +153,8 @@ export default function RightSidebar({ isMulti }) {
               gap: 14,
             }}
           >
-            {/* ---- PROFILE + NAME ---- */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              {/* PROFILE IMAGE */}
+            {/* PROFILE + NAME */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div
                 style={{
                   width: 120,
@@ -133,49 +175,22 @@ export default function RightSidebar({ isMulti }) {
                 {!rival.profileUrl && 'PROFILE'}
               </div>
 
-              {/* NAME */}
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>
-                  {rival.nickname}
-                </div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    opacity: 0.6,
-                    marginTop: 2,
-                  }}
-                >
-                  OPPONENT
-                </div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{rival.nickname}</div>
+                <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>OPPONENT</div>
               </div>
             </div>
 
-            {/* ---- SCORE ---- */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: 13,
-              }}
-            >
+            {/* SCORE */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
               <span style={{ opacity: 0.75 }}>SCORE</span>
-              <span style={{ color: '#5aeaff', fontWeight: 700 }}>
-                {rival.score}
-              </span>
+              <span style={{ color: '#5aeaff', fontWeight: 700 }}>{rival.score}</span>
             </div>
 
-            {/* ---- COMBO ---- */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: 13,
-              }}
-            >
+            {/* COMBO */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
               <span style={{ opacity: 0.75 }}>COMBO</span>
-              <span style={{ color: '#ff8cff', fontWeight: 700 }}>
-                {rival.combo}
-              </span>
+              <span style={{ color: '#ff8cff', fontWeight: 700 }}>{rival.combo}</span>
             </div>
           </div>
         </>

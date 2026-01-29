@@ -111,7 +111,7 @@ export default function MyPage() {
 
       const c = Array.isArray(data) ? data.length : 0;
       setNotify((prev) => ({ ...prev, pendingFriends: c }));
-      emitFriendAlert(c);
+      
     } catch (e) {
       // 실패해도 무시 (UX 깨짐 방지)
     }
@@ -202,6 +202,9 @@ export default function MyPage() {
     // syncAdminAlerts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+  emitFriendAlert(notify.pendingFriends);
+}, [notify.pendingFriends]);
 
   // ✅ STOMP 알림 구독: /user/queue/notify
   useEffect(() => {
@@ -292,11 +295,11 @@ export default function MyPage() {
         });
       },
 
-      onStompError: (frame) => {
-        console.error('[NOTIFY] STOMP error:', frame?.headers, frame?.body);
+      onStompError: () => {
+        
       },
-      onWebSocketError: (e) => {
-        console.error('[NOTIFY] WS error:', e);
+      onWebSocketError: () => {
+        
       },
       onDisconnect: () => {
         console.log('[NOTIFY] STOMP disconnected');
@@ -418,23 +421,10 @@ export default function MyPage() {
                 >
                   <span>{label}</span>
                   {/* ✅ 관리자/친구/메시지 알림 있으면 느낌표 */}
-                  {key === 'manager' && notify.adminAlerts > 0 && <AlertMark />}
-                  {key === 'friends' && notify.pendingFriends > 0 && <AlertMark />}
-                  {key === 'messages' &&
-                    notify.unreadMessages > 0 && <AlertMark />}
+                  {!isBlockUser && key === 'manager' && notify.adminAlerts > 0 && <AlertMark />}
+                  {!isBlockUser && key === 'friends' && notify.pendingFriends > 0 && <AlertMark />}
+                  {!isBlockUser && key === 'messages' && notify.unreadMessages > 0 && <AlertMark />}
 
-                  {/* 차단 유저 느낌표 표시 x */}
-                  {!isBlockUser && key === 'manager' && notify.adminAlerts > 0 && (
-                    <AlertMark />
-                  )}
-
-                  {!isBlockUser && key === 'friends' && notify.pendingFriends > 0 && (
-                    <AlertMark />
-                  )}
-
-                  {!isBlockUser && key === 'messages' && notify.unreadMessages > 0 && (
-                    <AlertMark />
-                  )}
                 </div>
               </div>
             );
