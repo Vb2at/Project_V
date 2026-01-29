@@ -14,7 +14,7 @@ import SongUpload from './pages/songUpload/SongUpload';
 import SongEditor from './pages/songUpload/SongEditor';
 import NoteEditor from './pages/songUpload/NoteEditor';
 import RePw from './pages/member/RePw';
-import MultiRoomList from'./pages/multi/MultiRoomList';
+import MultiRoomList from './pages/multi/MultiRoomList';
 import RoomLobby from "./pages/multi/RoomLobby";
 
 
@@ -44,6 +44,7 @@ function App() {
         <Route path="/game/test" element={<GamePlay />} />
         <Route path="/game/result" element={<Result />} />
         <Route path="/nav-loading" element={<NavLoading />} />
+        <Route path="/game/result-test-multi" element={<Result />} />
       </Routes>
     </BrowserRouter>
   );

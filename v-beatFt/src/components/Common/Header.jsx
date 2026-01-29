@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS = {
   longNoteColor: 0xb50549,
   fps: 60,
   lowEffect: false,
+  visualizer: true, 
 };
 
 export default function Header() {

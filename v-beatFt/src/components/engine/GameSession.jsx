@@ -18,12 +18,20 @@ export default function GameSession({
   notes = null,
   setNotes = null,
   pushUndo,
-  settings = { fps: 60, hitEffect: true, judgeText: true, comboText: true, lowEffect: false, visualizer: true },
   setSelectedNoteIds,
   selectedNoteIds,
-  fpsLimit = 60,
+  settings = { hitEffect: true, judgeText: true, comboText: true, lowEffect: false, visualizer: true },
   songId: propSongId,
-  analyserRef, onState, paused = false, bgmVolume, sfxVolume, onReady, onFinish
+
+  analyserRef,
+  onState,
+  paused = false,
+  bgmVolume,
+  sfxVolume,
+  onReady,
+  onFinish,
+
+  onRivalFinish,
 }) {
 
   const isEditorTest =
@@ -37,7 +45,6 @@ export default function GameSession({
   const comboRef = useRef(0);
   const [pressedKeys, setPressedKeys] = useState(new Set());
   const [effects, setEffects] = useState([]);
-  const passedSafeZoneRef = useRef(false);
   const readyCalledRef = useRef(false);
   const notesRef = useRef(notes ?? []);
   const currentTimeRef = useRef(0);
@@ -45,6 +52,7 @@ export default function GameSession({
   const onReadyRef = useRef(onReady);
   const [internalNotes, setInternalNotes] = useState([]);
   const onFinishRef = useRef(onFinish);
+  const onRivalFinishRef = useRef(onRivalFinish);
 
   const usedNotes = useMemo(
     () => (mode === 'edit' ? (notes ?? []) : internalNotes),
@@ -68,6 +76,11 @@ export default function GameSession({
   const [, forceRender] = useState(0);
   const selectDragRef = useRef(null);
   const draggingPreviewRef = useRef(new Map()); // id -> { timing, lane, endTime }
+  const passedSafeZoneRef = useRef(false);
+  const finishedRef = useRef(false);
+
+  const [deleteBox, setDeleteBox] = useState(null);
+  const [selectBox, setSelectBox] = useState(null);
 
   const getLaneCount = () =>
     GAME_CONFIG.LANE?.COUNT ?? GAME_CONFIG.KEY?.COUNT ?? 7;
@@ -86,7 +99,20 @@ export default function GameSession({
     if (combo >= 20) return 2;
     return 1;
   };
+
   const onStateRef = useRef(onState);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const audioRef = useRef(null);
+
+  const viewRef = useRef(null);
+  const dragStartRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const dataArrayRef = useRef(null);
+  const scoreRef = useRef(0);
+
+  useEffect(() => {
+    onRivalFinishRef.current = onRivalFinish;
+  }, [onRivalFinish]);
 
   useEffect(() => {
     onStateRef.current = onState;
@@ -96,7 +122,10 @@ export default function GameSession({
     if (seekTime == null) return;
 
     currentTimeRef.current = seekTime;
-    setCurrentTime(seekTime);
+    Promise.resolve().then(() => {
+      setCurrentTime(seekTime);
+    });
+
 
     if (audioRef.current) {
       audioRef.current.currentTime = seekTime / 1000;
@@ -120,7 +149,7 @@ export default function GameSession({
           : { ...n, hit: false };
       })
     );
-  }, [seekTime, mode]);
+  }, [seekTime, mode, usedSetNotes]);
 
   useEffect(() => {
     if (mode !== 'edit') return;
@@ -163,75 +192,7 @@ export default function GameSession({
     }
   }, [mode, notes, internalNotes]);
 
-  useEffect(() => {
-    if (effectivePaused) return;
-    if (score >= SAFE_SCORE) {
-      passedSafeZoneRef.current = true;
-    }
-  }, [score, mode, effectivePaused]);
-
-  useEffect(() => {
-    if (effectivePaused) return;
-    if (
-      passedSafeZoneRef.current &&
-      score <= 0 &&
-      !finishedRef.current
-    ) {
-      finishedRef.current = true;
-      audioRef.current?.pause();
-      onFinishRef.current?.({
-        score: 0,
-        maxScore: maxScoreRef.current,
-        maxCombo: maxComboRef.current,
-        gameOver: true,
-      });
-    }
-  }, [score, mode, effectivePaused]);
-
-  useEffect(() => {
-    maxComboRef.current = Math.max(maxComboRef.current, combo);
-  }, [combo]);
-
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-
-  const [songId, setSongId] = useState(propSongId ?? null);
-
-  useEffect(() => {
-    if (propSongId) setSongId(propSongId);
-  }, [propSongId]);
-
-  const [diff, setDiff] = useState('unknown');
-  const speed =
-    (GAME_CONFIG.DIFFICULTY?.[diff?.toUpperCase()]?.SPEED) ??
-    (GAME_CONFIG.SPEED) ??
-    2;
-
-  useEffect(() => {
-    if (typeof onStateRef.current !== 'function') return;
-
-    onStateRef.current({
-      score,
-      combo,
-      diff,
-      currentTime: currentTimeRef.current,
-      duration: audioRef.current?.duration
-        ? audioRef.current.duration * 1000
-        : 0,
-      maxScore: maxScoreRef.current,
-    });
-  }, [score, combo, diff, currentTime]);
-
-  const [audioUrl, setAudioUrl] = useState('');
-  const audioRef = useRef(null);
-  const viewRef = useRef(null);
-  const dragStartRef = useRef(null);
-  const audioCtxRef = useRef(null);
-  const dataArrayRef = useRef(null);
-  const finishedRef = useRef(false);
-  const scoreRef = useRef(0);
-  const maxScoreRef = useRef(1);
-  const TARGET_FPS = fpsLimit || 60;
-
+  // ===== 점수 계산 유틸 (maxScore보다 위에 있어야 함) =====
   const getMaxJudgementScore = () => {
     const vals = Object.values(GAME_CONFIG.SCORE).filter(
       (v) => typeof v === 'number'
@@ -251,9 +212,63 @@ export default function GameSession({
     }, 0);
   }, []);
 
-  useEffect(() => {
-    maxScoreRef.current = Math.max(1, calcMaxScore(usedNotes));
+  const maxScore = useMemo(() => {
+    return Math.max(1, calcMaxScore(usedNotes));
   }, [usedNotes, calcMaxScore]);
+
+  useEffect(() => {
+    if (effectivePaused) return;
+
+    if (!passedSafeZoneRef.current && score >= SAFE_SCORE) {
+      passedSafeZoneRef.current = true;
+    }
+
+    if (passedSafeZoneRef.current && score <= 0 && !finishedRef.current) {
+      finishedRef.current = true;
+      audioRef.current?.pause();
+      onFinishRef.current?.({
+        score: 0,
+        maxScore,
+        maxCombo: maxComboRef.current,
+        gameOver: true,
+      });
+    }
+  }, [score, effectivePaused, maxScore]);
+
+  useEffect(() => {
+    maxComboRef.current = Math.max(maxComboRef.current, combo);
+  }, [combo]);
+
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
+  const songId = propSongId ?? null;
+
+  const [diff, setDiff] = useState('NORMAL');
+
+  const baseSpeed = GAME_CONFIG.SPEED;
+  const diffSpeed =
+    GAME_CONFIG.DIFFICULTY?.[String(diff).toUpperCase()]?.SPEED ?? 1;
+
+  const speed = baseSpeed * diffSpeed;
+
+  useEffect(() => {
+    console.log('[DIFF STATE]', diff);
+  }, [diff]);
+
+  useEffect(() => {
+    if (typeof onStateRef.current !== 'function') return;
+
+    onStateRef.current({
+      score,
+      combo,
+      diff,
+      currentTime: currentTimeRef.current,
+      duration: audioRef.current?.duration
+        ? audioRef.current.duration * 1000
+        : 0,
+      maxScore,
+    });
+  }, [score, combo, diff, currentTime, maxScore]);
 
   useEffect(() => {
     scoreRef.current = score;
@@ -264,7 +279,6 @@ export default function GameSession({
     if (!audio || !audioUrl) return;
 
     readyCalledRef.current = false;
-    finishedRef.current = false;
 
     const handleReady = () => {
       if (readyCalledRef.current) return;
@@ -274,18 +288,14 @@ export default function GameSession({
 
     const handleEnded = () => {
       if (finishedRef.current) return;
-      finishedRef.current = true;
       audioRef.current?.pause();
       onFinishRef.current?.({
         score: scoreRef.current,
-        maxScore: maxScoreRef.current,
+        maxScore,
         maxCombo: maxComboRef.current,
         gameOver: false,
       });
     };
-
-    audio.src = audioUrl;
-    audio.currentTime = 0;
 
     if (!audioCtxRef.current) {
       try {
@@ -310,7 +320,7 @@ export default function GameSession({
       audio.removeEventListener('canplay', handleReady);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [audioUrl, analyserRef]);
+  }, [audioUrl, analyserRef, maxScore]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -320,6 +330,8 @@ export default function GameSession({
       audio.pause();
       return;
     }
+
+    setPressedKeys(new Set());
 
     if (audioCtxRef.current?.state === 'suspended') {
       audioCtxRef.current.resume().catch(() => { });
@@ -334,12 +346,6 @@ export default function GameSession({
     }
   }, [effectivePaused, audioUrl]);
 
-  useEffect(() => {
-    if (effectivePaused) return;
-    if (!paused) {
-      setPressedKeys(new Set());
-    }
-  }, [paused, mode]);
 
   useEffect(() => {
     if (effectivePaused) return;
@@ -348,13 +354,15 @@ export default function GameSession({
       if (e.key === 'Escape') {
         deleteDragRef.current = null;
         selectDragRef.current = null;
+        setDeleteBox(null);
+        setSelectBox(null);
         forceRender(v => v + 1);
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [mode]);
+  }, [mode, effectivePaused]);
 
   const normalizeNotesFromApi = (payload) => {
     const list = Array.isArray(payload) ? payload : (payload?.notes || payload?.data || []);
@@ -403,6 +411,9 @@ export default function GameSession({
     setCurrentTime(0);
     currentTimeRef.current = 0;
 
+    passedSafeZoneRef.current = false;
+    finishedRef.current = false;
+
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -410,12 +421,26 @@ export default function GameSession({
   };
 
   const loadSongById = useCallback(async (sidRaw) => {
-    if (sidRaw == null) return false;          // ✅ null / undefined 차단
+    if (sidRaw == null) return false;
 
     const sid = String(sidRaw).trim();
     if (!sid || sid === 'undefined') return false;
 
     if (mode === 'edit') {
+      const notesRes = await fetch(`${API_BASE}/api/songs/${sid}/notes`);
+      if (notesRes.ok) {
+        const notesJson = await notesRes.json();
+
+        const raw = String(notesJson?.diff ?? 'NORMAL').trim().toUpperCase();
+        const allowed = new Set(['EASY', 'NORMAL', 'HARD', 'HELL']);
+        setDiff(allowed.has(raw) ? raw : 'NORMAL');
+
+        const mapped = normalizeNotesFromApi(notesJson);
+        if (mapped.length) {
+          usedSetNotes(mapped);
+        }
+      }
+
       setAudioUrl(`${API_BASE}/api/songs/${sid}/audio`);
       return true;
     }
@@ -424,6 +449,7 @@ export default function GameSession({
       const raw = sessionStorage.getItem('EDITOR_TEST_NOTES');
       if (raw) {
         const parsed = JSON.parse(raw);
+        if (parsed?.difficulty) setDiff(parsed.difficulty);
         resetGame();
         usedSetNotes(parsed);
         setAudioUrl(`${API_BASE}/api/songs/${sid}/audio`);
@@ -437,36 +463,41 @@ export default function GameSession({
     if (!notesRes.ok) return false;
 
     const notesJson = await notesRes.json();
+    console.log('[API diff raw]', notesJson?.diff, notesJson);
+
+    if (notesJson?.diff) {
+      const raw = String(notesJson.diff).trim().toUpperCase();
+      const allowed = new Set(['EASY', 'NORMAL', 'HARD', 'HELL']);
+      setDiff(allowed.has(raw) ? raw : 'NORMAL');
+    } else {
+      console.log('[API diff missing]');
+    }
     const mapped = normalizeNotesFromApi(notesJson);
     if (!mapped.length) return false;
 
     resetGame();
     usedSetNotes(mapped);
     return true;
-  }, [API_BASE, isEditorTest, usedSetNotes, mode]);
+  }, [API_BASE, isEditorTest, usedSetNotes, mode, setDiff]);
 
   useEffect(() => {
     if (songId == null || songId === 'undefined') return;
-    resetGame();
-    loadSongById(songId);
+
+    Promise.resolve().then(() => {
+      loadSongById(songId);
+    });
   }, [songId, loadSongById]);
 
   useEffect(() => {
     let rafId = null;
-    let lastTime = 0;
-    const FRAME_MS = 1000 / TARGET_FPS;
 
-    const loop = (t) => {
+    const loop = () => {
       if (!effectivePaused) {
-        if (t - lastTime >= FRAME_MS) {
-          lastTime = t;
-
-          const audio = audioRef.current;
-          if (audio && !audio.paused) {
-            const newTime = audio.currentTime * 1000;
-            currentTimeRef.current = newTime;
-            setCurrentTime(newTime);
-          }
+        const audio = audioRef.current;
+        if (audio && !audio.paused) {
+          const newTime = audio.currentTime * 1000;
+          currentTimeRef.current = newTime;
+          setCurrentTime(newTime); // React state는 렌더링 기준
         }
       }
       rafId = requestAnimationFrame(loop);
@@ -474,7 +505,7 @@ export default function GameSession({
 
     rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
-  }, [effectivePaused, fpsLimit]);
+  }, [effectivePaused]);
 
 
   useEffect(() => {
@@ -739,12 +770,17 @@ export default function GameSession({
       }
     }
 
-    const currentSpeed = Number(speed) > 0 ? Number(speed) : 2;
+    const currentSpeed = speed;
     const timeOffset = (HIT_Y - sy) / currentSpeed;
     const t = (currentTimeRef.current || 0) + timeOffset;
 
     return { lane, timing: t };
   };
+
+  useEffect(() => {
+    console.log('[DIFF]', diff, 'diffSpeed=', diffSpeed, 'speed=', speed);
+  }, [diff, diffSpeed, speed]);
+
 
   const getLaneLeftX = (lane) => {
     return (GAME_CONFIG.LANE_WIDTHS ?? [])
@@ -825,7 +861,7 @@ export default function GameSession({
 
     if (sx < leftScreenX || sx > rightScreenX) return -1;
 
-    const unprojectX = (screenX, y) =>
+    const unprojectX = (screenX) =>
       centerX + (screenX - centerX) / scale;
 
     const wx = unprojectX(sx, sy);
@@ -897,18 +933,46 @@ export default function GameSession({
     }
 
     // ===== DELETE DRAG MOVE =====
-    if (tool === 'delete' && deleteDragRef.current) {
+    if (tool === 'delete' && deleteDragRef.current && viewRef.current) {
       deleteDragRef.current.x2 = e.clientX;
       deleteDragRef.current.y2 = e.clientY;
-      forceRender(v => v + 1);
+
+      const rect = viewRef.current.getBoundingClientRect();
+      const { x1, y1, x2, y2 } = deleteDragRef.current;
+
+      const lx1 = (x1 - rect.left) / SCALE;
+      const ly1 = (y1 - rect.top) / SCALE;
+      const lx2 = (x2 - rect.left) / SCALE;
+      const ly2 = (y2 - rect.top) / SCALE;
+
+      setDeleteBox({
+        left: Math.min(lx1, lx2),
+        top: Math.min(ly1, ly2),
+        width: Math.abs(lx2 - lx1),
+        height: Math.abs(ly2 - ly1),
+      });
       return;
     }
 
     // ===== SELECT BOX DRAG MOVE =====
-    if (tool === 'select' && selectDragRef.current && !draggingNoteRef.current) {
+    if (tool === 'select' && selectDragRef.current && !draggingNoteRef.current && viewRef.current) {
       selectDragRef.current.x2 = e.clientX;
       selectDragRef.current.y2 = e.clientY;
-      forceRender(v => v + 1);
+
+      const rect = viewRef.current.getBoundingClientRect();
+      const { x1, y1, x2, y2 } = selectDragRef.current;
+
+      const lx1 = (x1 - rect.left) / SCALE;
+      const ly1 = (y1 - rect.top) / SCALE;
+      const lx2 = (x2 - rect.left) / SCALE;
+      const ly2 = (y2 - rect.top) / SCALE;
+
+      setSelectBox({
+        left: Math.min(lx1, lx2),
+        top: Math.min(ly1, ly2),
+        width: Math.abs(lx2 - lx1),
+        height: Math.abs(ly2 - ly1),
+      });
       return;
     }
 
@@ -1013,6 +1077,7 @@ export default function GameSession({
         // ✅ 새로 단일 선택
         selectedIds = new Set([pickedId]);
       }
+
       // ✅ 핵심: 드래그 시작 스냅샷(원본값) 저장 → 누적 이동 금지
       const baseById = new Map();
 
@@ -1138,7 +1203,9 @@ export default function GameSession({
     }
 
     // ===== DELETE DRAG END =====
-    if (mode === 'edit' && tool === 'delete' && deleteDragRef.current) {
+    if (mode === 'edit' && tool === 'delete' && deleteDragRef.current && viewRef.current) {
+      setDeleteBox(null);
+
       const { x1, y1, x2, y2 } = deleteDragRef.current;
       deleteDragRef.current = null;
 
@@ -1153,13 +1220,6 @@ export default function GameSession({
 
       usedSetNotes(prev =>
         prev.filter(n => {
-          const rect = viewRef.current.getBoundingClientRect();
-
-          const minX = Math.min(x1, x2);
-          const maxX = Math.max(x1, x2);
-          const minY = Math.min(y1, y2);
-          const maxY = Math.max(y1, y2);
-
           const xLeft = getLaneLeftX(n.lane);
           const xRight = getLaneRightX(n.lane);
 
@@ -1213,9 +1273,10 @@ export default function GameSession({
       return;
     }
 
-
     // ===== SELECT DRAG END =====
-    if (mode === 'edit' && tool === 'select' && selectDragRef.current) {
+    if (mode === 'edit' && tool === 'select' && selectDragRef.current && viewRef.current) {
+      setSelectBox(null);
+
       const { x1, y1, x2, y2 } = selectDragRef.current;
       selectDragRef.current = null;
 
@@ -1320,15 +1381,17 @@ export default function GameSession({
       onMouseDown={handleEditorMouseDown}
       onMouseUp={handleEditorMouseUp}
       onMouseMove={handleMouseMove}
-
       onMouseLeave={() => {
         dragStartRef.current = null;
         draggingNoteRef.current = null;
         dragBaseTimeRef.current = 0;
         dragOffsetMsRef.current = 0;
         dragEndOffsetMsRef.current = 0;
+        deleteDragRef.current = null;
+        selectDragRef.current = null;
+        setDeleteBox(null);
+        setSelectBox(null);
       }}
-
       onContextMenu={(e) => {
         e.preventDefault();
         if (mode !== 'edit') return;
@@ -1340,7 +1403,7 @@ export default function GameSession({
             if (n.lane !== lane) return true;
 
             const dy = Math.abs(n.timing - timing);
-            const HIT_MS = 60; // ← 줄일수록 한 개만 삭제됨 (40~80 권장)
+            const HIT_MS = 60;
 
             return dy > HIT_MS;
           });
@@ -1366,73 +1429,31 @@ export default function GameSession({
           transformOrigin: 'top left',
         }}
       >
-        {mode === 'edit' && tool === 'delete' && deleteDragRef.current && (() => {
-          const rect = viewRef.current?.getBoundingClientRect();
-          if (!rect) return null;
+        {mode === 'edit' && tool === 'delete' && deleteBox && (
+          <div
+            style={{
+              position: 'absolute',
+              ...deleteBox,
+              border: '2px dashed #ff5577',
+              background: 'rgba(255,80,120,0.15)',
+              pointerEvents: 'none',
+              zIndex: 10,
+            }}
+          />
+        )}
 
-          const { x1, y1, x2, y2 } = deleteDragRef.current;
-
-          // viewRef 기준 좌표로 변환 + SCALE 보정
-          const lx1 = (x1 - rect.left) / SCALE;
-          const ly1 = (y1 - rect.top) / SCALE;
-          const lx2 = (x2 - rect.left) / SCALE;
-          const ly2 = (y2 - rect.top) / SCALE;
-
-          const left = Math.min(lx1, lx2);
-          const top = Math.min(ly1, ly2);
-          const width = Math.abs(lx2 - lx1);
-          const height = Math.abs(ly2 - ly1);
-
-          return (
-            <div
-              style={{
-                position: 'absolute',
-                left,
-                top,
-                width,
-                height,
-                border: '2px dashed #ff5577',
-                background: 'rgba(255,80,120,0.15)',
-                pointerEvents: 'none',
-                zIndex: 10,
-              }}
-            />
-          );
-        })()}
-
-        {mode === 'edit' && tool === 'select' && selectDragRef.current && (() => {
-          const rect = viewRef.current?.getBoundingClientRect();
-          if (!rect) return null;
-
-          const { x1, y1, x2, y2 } = selectDragRef.current;
-
-          // client → viewRef 로컬 + SCALE 역보정
-          const lx1 = (x1 - rect.left) / SCALE;
-          const ly1 = (y1 - rect.top) / SCALE;
-          const lx2 = (x2 - rect.left) / SCALE;
-          const ly2 = (y2 - rect.top) / SCALE;
-
-          const left = Math.min(lx1, lx2);
-          const top = Math.min(ly1, ly2);
-          const width = Math.abs(lx2 - lx1);
-          const height = Math.abs(ly2 - ly1);
-
-          return (
-            <div
-              style={{
-                position: 'absolute',
-                left,
-                top,
-                width,
-                height,
-                border: '2px dashed #55ccff',
-                background: 'rgba(80,180,255,0.15)',
-                pointerEvents: 'none',
-                zIndex: 10,
-              }}
-            />
-          );
-        })()}
+        {mode === 'edit' && tool === 'select' && selectBox && (
+          <div
+            style={{
+              position: 'absolute',
+              ...selectBox,
+              border: '2px dashed #55ccff',
+              background: 'rgba(80,180,255,0.15)',
+              pointerEvents: 'none',
+              zIndex: 10,
+            }}
+          />
+        )}
 
         <GameCanvas
           notes={
@@ -1447,6 +1468,7 @@ export default function GameSession({
           }
           currentTime={currentTime}
           pressedKeys={pressedKeys}
+          speed={speed}
         />
 
         <PixiNotes
@@ -1455,29 +1477,29 @@ export default function GameSession({
           speed={speed}
           selectedNoteIds={selectedNoteIds}
           draggingPreviewRef={draggingPreviewRef}
-          fpsLimit={settings.fps}
-          tapNoteColor={settings?.tapNoteColor ?? 0x05acb5}   // ← 탭 기본색 (네가 쓰던 값)
-          longNoteColor={settings?.longNoteColor ?? 0xb50549} // ← 롱노트 와인색 (네가 쓰던 값)
-        />      {mode === 'play' && (
+          tapNoteColor={settings?.tapNoteColor ?? 0x05acb5}
+          longNoteColor={settings?.longNoteColor ?? 0xb50549}
+        />
+
+        {mode === 'play' && (
           <>
             {settings.hitEffect !== false && <KeyEffectLayer pressedKeys={pressedKeys} />}
-            {settings.hitEffect !== false && <PixiEffects
-              effects={effects}
-              showHitEffect={settings.hitEffect}
-              showJudgeText={settings.judgeText}
-              showComboText={settings.comboText}
-              lowEffect={settings.lowEffect}
-              fpsLimit={settings.fps}
-            />
-
-
-            }
+            {settings.hitEffect !== false && (
+              <PixiEffects
+                effects={effects}
+                showHitEffect={settings.hitEffect}
+                showJudgeText={settings.judgeText}
+                showComboText={settings.comboText}
+                lowEffect={settings.lowEffect}
+              />
+            )}
             {settings.visualizer !== false && (
               <Visualizer active={!paused} size="game" analyserRef={analyserRef} />
-            )}          </>
+            )}
+          </>
         )}
 
-        <audio ref={audioRef} />
+        {audioUrl && <audio ref={audioRef} src={audioUrl} />}
       </div>
     </div>
   );
