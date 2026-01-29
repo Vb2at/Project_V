@@ -107,7 +107,7 @@ export default function UserReportModal({
                         <div style={avatarWrap}>
                             {targetProfileImg ? (
                                 <img
-                                    src={encodeURIComponent(profileImg)}
+                                    src={encodeURIComponent(targetProfileImg)}
                                     alt={targetName || '유저'}
                                     style={avatarImg}
                                     onError={(e) => { e.currentTarget.style.display = 'none'; }}

@@ -177,4 +177,11 @@ public interface ReportDao {
 			AND target_id = #{songId}
 			""")
 	void deleteBySongId(long songId);
+
+	//사용자 role 판별
+	@Select("""
+			SELECT `role` FROM `user`
+				WHERE id = #{userId}
+			""")
+	String findUserRole(long userId);
 }

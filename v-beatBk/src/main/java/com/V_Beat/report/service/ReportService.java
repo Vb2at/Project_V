@@ -45,9 +45,20 @@ public class ReportService {
         this.adminNotifyService = adminNotifyService;
     }
 
+    //관리자 판별 메서드
+    private boolean isAdmin(long userId) {
+    	String role = this.reportDao.findUserRole(userId);
+    	return "ADMIN".equals(role);
+    }
+    
     // 신고 접수 (report + snapshot 저장)
     @Transactional
     public Long createReport(long reporterUserId, CreateReportReq req) {
+    	
+    	//관리자 신고 방지
+    	if (isAdmin(reporterUserId)) {
+    		throw new IllegalStateException("관리자는 신고 불가합니다.");
+    	}
 
         boolean exists = false;
         String type = req.getTargetType();
