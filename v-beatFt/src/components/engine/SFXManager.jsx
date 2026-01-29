@@ -3,9 +3,22 @@ const BASE_VOLUME = {
   accent: 1.0,
 };
 
+
+function getUserSettings() {
+  try {
+    const v = localStorage.getItem('userSettings');
+    return v ? JSON.parse(v) : null;
+  } catch {
+    return null;
+  }
+}
+
 function playOnce(src, volume = 1.0) {
+  const settings = getUserSettings();
+  if (settings && settings.hitSound === false) return;
   const audio = new Audio(src);
-  audio.volume = volume;
+  const sfxVol = settings ? settings.sfxVolume / 100 : 1;
+  audio.volume = volume * sfxVol;
   audio.play().catch(() => { });
 }
 
@@ -106,7 +119,11 @@ export function playMenuBgmRandom() {
   menuBgmAudio = new Audio(MENU_BGM_LIST[idx]);
   menuBgmAudio.crossOrigin = 'anonymous'; // ✅ CORS 문제 해결 (비주얼라이저 데이터 획득용)
   menuBgmAudio.loop = false;
-  menuBgmBaseVolume = 0.4;
+
+  const settings = getUserSettings();
+  const bgmVol = settings ? settings.bgmVolume / 100 : 1;
+
+  menuBgmBaseVolume = 0.4 * bgmVol;
   menuBgmAudio.volume = menuBgmBaseVolume;
 
   // ✅ [수정] Web Audio 그래프 연결 로직 추가
@@ -227,7 +244,7 @@ export function singleBgm({
     }
     return;
   }
-  
+
   const finalSrc = src ?? MENU_BGM_LIST[0];
 
   stopMenuBgm();
@@ -236,7 +253,11 @@ export function singleBgm({
   menuBgmAudio.crossOrigin = 'anonymous';
   menuBgmAudio.src = finalSrc;
   menuBgmAudio.loop = loop;
-  menuBgmBaseVolume = volume;
+
+  const settings = getUserSettings();
+  const bgmVol = settings ? settings.bgmVolume / 100 : 1;
+
+  menuBgmBaseVolume = volume * bgmVol;
   menuBgmAudio.volume = menuBgmBaseVolume;
   menuBgmAudio.setAttribute('playsinline', '');
 
@@ -292,8 +313,10 @@ export function playPreview(
 
   stopPreview();
 
+  const settings = getUserSettings();
+  const pvVol = settings ? settings.previewVolume / 100 : 1;
   previewAudio = new Audio(src);
-  previewAudio.volume = volume;
+  previewAudio.volume = volume * pvVol;
   previewAudio.currentTime = startSec;
   muteMenuBgm();
   previewAudio.play().catch(() => { });

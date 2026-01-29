@@ -140,7 +140,7 @@ export default function SongEditor() {
         try {
             await axios.delete(`/api/songs/${songId}`, { withCredentials: true });
             alert('삭제 완료');
-            navigate('/mypage/mygames');
+            navigate('/main');
         } catch (e) {
             console.error(e);
             alert('삭제 실패');

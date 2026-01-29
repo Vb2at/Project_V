@@ -14,6 +14,9 @@ import SongUpload from './pages/songUpload/SongUpload';
 import SongEditor from './pages/songUpload/SongEditor';
 import NoteEditor from './pages/songUpload/NoteEditor';
 import RePw from './pages/member/RePw';
+import MultiRoomList from'./pages/multi/MultiRoomList';
+import RoomLobby from "./pages/multi/RoomLobby";
+
 
 function App() {
   return (
@@ -26,7 +29,8 @@ function App() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/mypage" element={<MyPage />} />
         <Route path="/main" element={<MainPage />} />
-
+        <Route path="/multi" element={<MultiRoomList />} />
+        <Route path="/multi/room/:roomId" element={<RoomLobby />} />
         <Route path="/song/upload" element={<SongUpload />} />
 
         {/* ✅ 구체 라우트 먼저 */}

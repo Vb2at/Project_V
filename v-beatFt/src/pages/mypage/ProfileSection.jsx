@@ -165,7 +165,12 @@ export default function ProfileSection({ myInfo, status }) {
             <div style={title}>닉네임</div>
             <input
               value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
+              maxLength={8}
+              onChange={(e) => {
+                let v = e.target.value;
+                v = v.replace(/\s/g, '').slice(0, 8);
+                setNickname(v);
+              }}
               style={inputStyle({ maxWidth: 280, marginTop: 10 })}
             />
           </div>

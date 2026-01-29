@@ -18,8 +18,10 @@ export default function GameSession({
   notes = null,
   setNotes = null,
   pushUndo,
+  settings = { fps: 60, hitEffect: true, judgeText: true, comboText: true, lowEffect: false, visualizer: true },
   setSelectedNoteIds,
   selectedNoteIds,
+  fpsLimit = 60,
   songId: propSongId,
   analyserRef, onState, paused = false, bgmVolume, sfxVolume, onReady, onFinish
 }) {
@@ -228,6 +230,7 @@ export default function GameSession({
   const finishedRef = useRef(false);
   const scoreRef = useRef(0);
   const maxScoreRef = useRef(1);
+  const TARGET_FPS = fpsLimit || 60;
 
   const getMaxJudgementScore = () => {
     const vals = Object.values(GAME_CONFIG.SCORE).filter(
@@ -449,20 +452,30 @@ export default function GameSession({
   }, [songId, loadSongById]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      const audio = audioRef.current;
-      if (!audio) return;
+    let rafId = null;
+    let lastTime = 0;
+    const FRAME_MS = 1000 / TARGET_FPS;
 
-      if (effectivePaused) return;
-      if (audio.paused) return;
+    const loop = (t) => {
+      if (!effectivePaused) {
+        if (t - lastTime >= FRAME_MS) {
+          lastTime = t;
 
-      const newTime = audio.currentTime * 1000;
-      currentTimeRef.current = newTime;
-      setCurrentTime(newTime);
-    }, 16);
+          const audio = audioRef.current;
+          if (audio && !audio.paused) {
+            const newTime = audio.currentTime * 1000;
+            currentTimeRef.current = newTime;
+            setCurrentTime(newTime);
+          }
+        }
+      }
+      rafId = requestAnimationFrame(loop);
+    };
 
-    return () => clearInterval(interval);
-  }, [effectivePaused]);
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
+  }, [effectivePaused, fpsLimit]);
+
 
   useEffect(() => {
     if (mode === 'edit') return;
@@ -542,7 +555,7 @@ export default function GameSession({
   }, [paused, mode, isPlaying, effectivePaused]);
 
   useEffect(() => {
-    if (effectivePaused || mode === 'edit') return; 
+    if (effectivePaused || mode === 'edit') return;
     const handleKeyPress = (laneIndex) => {
       if (paused) return;
 
@@ -556,9 +569,9 @@ export default function GameSession({
       const ACCENT_LANES = new Set([1, 3, 5]);
 
       if (ACCENT_LANES.has(laneIndex)) {
-        playTapAccent(sfxVolume);
+        playTapAccent(1);
       } else {
-        playTapNormal(sfxVolume);
+        playTapNormal(1);
       }
 
       const result = NoteCalculator.judgeNote(laneIndex, currentTimeRef.current, notesRef.current);
@@ -1442,12 +1455,26 @@ export default function GameSession({
           speed={speed}
           selectedNoteIds={selectedNoteIds}
           draggingPreviewRef={draggingPreviewRef}
+          fpsLimit={settings.fps}
+          tapNoteColor={settings?.tapNoteColor ?? 0x05acb5}   // ← 탭 기본색 (네가 쓰던 값)
+          longNoteColor={settings?.longNoteColor ?? 0xb50549} // ← 롱노트 와인색 (네가 쓰던 값)
         />      {mode === 'play' && (
           <>
-            <KeyEffectLayer pressedKeys={pressedKeys} />
-            <PixiEffects effects={effects} />
-            <Visualizer active={!paused} size="game" analyserRef={analyserRef} />
-          </>
+            {settings.hitEffect !== false && <KeyEffectLayer pressedKeys={pressedKeys} />}
+            {settings.hitEffect !== false && <PixiEffects
+              effects={effects}
+              showHitEffect={settings.hitEffect}
+              showJudgeText={settings.judgeText}
+              showComboText={settings.comboText}
+              lowEffect={settings.lowEffect}
+              fpsLimit={settings.fps}
+            />
+
+
+            }
+            {settings.visualizer !== false && (
+              <Visualizer active={!paused} size="game" analyserRef={analyserRef} />
+            )}          </>
         )}
 
         <audio ref={audioRef} />

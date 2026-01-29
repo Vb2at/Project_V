@@ -38,11 +38,40 @@ export default function MainOverlay({
   const [profileOpen, setProfileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
-  const [listMode, setListMode] = useState('PUBLIC'); // PUBLIC | MY
-  const [linkOpen, setLinkOpen] = useState(false);
+  const [listMode, setListMode] = useState('PUBLIC'); // PUBLIC | MY | LINK | MULTI
   const [shareLink, setShareLink] = useState('');
   const [loginUserId, setLoginUserId] = useState(null);
   const [isBlockUser, setIsBlockUser] = useState(false);
+  const [multiRooms, setMultiRooms] = useState([]);
+  const [createRoomOpen, setCreateRoomOpen] = useState(false);
+  const [roomName, setRoomName] = useState('');
+  const [isPrivateRoom, setIsPrivateRoom] = useState(false);
+  const [roomPassword, setRoomPassword] = useState('');
+  const [selectedMultiSongId, setSelectedMultiSongId] = useState(null);
+
+  const fetchMultiRooms = useCallback(async () => {
+    try {
+      const res = await fetch('/api/multi/rooms', {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        credentials: 'include',
+      });
+
+      if (!res.ok) throw new Error(`방 목록 요청 실패 (${res.status})`);
+
+      const data = await res.json();
+      setMultiRooms(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+      setMultiRooms([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (listMode === 'MULTI') {
+      fetchMultiRooms();
+    }
+  }, [listMode, fetchMultiRooms]);
 
   useEffect(() => {
     let alive = true;
@@ -111,10 +140,9 @@ export default function MainOverlay({
         setErrorMsg('');
 
         const url =
-          listMode === 'PUBLIC'
-            ? '/api/songs'
-            : '/api/songs/my';
-
+          listMode === 'MY'
+            ? '/api/songs/my'
+            : '/api/songs'; // MULTI 포함 PUBLIC 사용
         const res = await fetch(url, {
           method: 'GET',
           headers: { Accept: 'application/json' },
@@ -184,6 +212,7 @@ export default function MainOverlay({
      Wheel: 한 번에 한 칸
   =============================== */
   const handleWheel = useCallback((e) => {
+    if (listMode === 'MULTI' || listMode === 'LINK') return;
     e.preventDefault();
     if (wheelLockRef.current) return;
     if (!songs.length) return;
@@ -223,7 +252,7 @@ export default function MainOverlay({
   =============================== */
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (linkOpen) return;
+      if (listMode === 'MULTI' || listMode === 'LINK') return;
       if (keyLockRef.current) return;
 
       // ↑ ↓ 이동
@@ -258,15 +287,14 @@ export default function MainOverlay({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIndex, songs, navigate, linkOpen]);
+  }, [selectedIndex, songs, navigate, listMode]);
 
   useEffect(() => {
-    if (!songs || songs.length === 0) {
+    if (listMode === 'MULTI' || listMode === 'LINK') {
       stopPreview();
       return;
     }
-
-    if (linkOpen) {
+    if (!songs || songs.length === 0) {
       stopPreview();
       return;
     }
@@ -281,7 +309,7 @@ export default function MainOverlay({
     playPreview(url, { durationSec: 8 });
 
     return () => stopPreview();
-  }, [selectedIndex, songs, linkOpen]);
+  }, [selectedIndex, songs, listMode]);
 
 
   const DIFF_ORDER = ['EASY', 'NORMAL', 'HARD', 'HELL'];
@@ -315,11 +343,13 @@ export default function MainOverlay({
     return renderList.findIndex((item) => item.id === id);
   })();
   const selectedSong = songs[selectedIndex];
-
-  console.log('selectedSong', selectedSong);
-
-  const isMySong = selectedSong?.uploaderUserId != null
-    && Number(loginUserId) === Number(selectedSong.uploaderUserId);
+  const isLoggedIn = !!auth?.user || loginUserId != null;
+  const linkActive = listMode === 'LINK';
+  const multiActive = listMode === 'MULTI';
+  const isMySong =
+    loginUserId != null &&
+    selectedSong?.uploaderUserId != null &&
+    Number(loginUserId) === Number(selectedSong.uploaderUserId);
 
   //백엔드 reasonCode에 맞추기 (기존 프론트 mainReason, subReason 나눠져 있었음)
   const makeReasonCode = (p) => {
@@ -391,6 +421,12 @@ export default function MainOverlay({
   };
 
   useEffect(() => {
+    if (!isLoggedIn && listMode !== 'PUBLIC') {
+      setListMode('PUBLIC');
+    }
+  }, [isLoggedIn, listMode]);
+
+  useEffect(() => {
     const s = selectedSong;
 
     if (!s?.id || !s?.diff) {
@@ -444,7 +480,7 @@ export default function MainOverlay({
         style={{
           position: 'absolute',
           top: 64,
-          left: 0,
+          left: 20,
           right: 0,
           bottom: 0,
         }}
@@ -452,13 +488,12 @@ export default function MainOverlay({
         <div
           style={{
             position: 'absolute',
-            left: '10%',
+            left: '5%',
             top: '50%',
             transform: 'translateY(-50%)',
-            width: '48%',
+            width: '57%',
             height: '62%',
             display: 'flex',
-            gap: '24px',
           }}
         >
           {/* Album + Detail Column */}
@@ -469,6 +504,8 @@ export default function MainOverlay({
               flexDirection: 'column',
               gap: '14px',
               flexShrink: 0,
+              marginLeft: '40px',
+
             }}
           >
             {/* Album Cover */}
@@ -681,7 +718,7 @@ export default function MainOverlay({
           {/* Game List */}
 
           <section
-            ref={!linkOpen ? wheelContainerRef : null}
+            ref={(listMode === 'PUBLIC' || listMode === 'MY') ? wheelContainerRef : null}
             style={{
               position: 'relative',
               flex: 1,
@@ -696,20 +733,21 @@ export default function MainOverlay({
             <div
               style={{
                 display: 'flex',
-                gap: 10,
+                gap: 15,
                 justifyContent: 'flex-end',
                 flexWrap: 'wrap',
                 paddingBottom: 10,
+                marginLeft: 'auto',
                 zIndex: 5,
+                position: 'relative',
               }}
             >
               {[
                 ['PUBLIC', '공개 곡'],
-                ['MY', '내 곡'],
+                ...(isLoggedIn ? [['MY', '내 곡']] : []),
               ].map(([v, label]) => {
                 const active = listMode === v;
-                const disabled = v === 'MY' && (!loginUserId || isBlockUser);
-
+                const disabled = v === 'MY' && isBlockUser;
                 return (
                   <div
                     key={v}
@@ -719,7 +757,6 @@ export default function MainOverlay({
                         return;
                       }
                       setListMode(v);
-                      setLinkOpen(false);
                     }}
                     style={{
                       padding: '6px 14px',
@@ -743,33 +780,53 @@ export default function MainOverlay({
               })}
 
               {/* 링크 입장 버튼 */}
-              <div
-                onClick={() => {
-                  if (!loginUserId || isBlockUser) {
-                    alert('이용이 제한된 기능입니다.');
-                    return;
-                  }
-                  stopPreview();
-                  setLinkOpen(v => !v);
-                }}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: 12,
-                  cursor: !loginUserId || isBlockUser ? 'not-allowed' : 'pointer',
-                  fontSize: 13,
-                  color: linkOpen ? '#0ff' : '#cfd8e3',
-                  border: linkOpen
-                    ? '2px solid rgba(90,234,255,0.9)'
-                    : '2px solid rgba(90,234,255,0.3)',
-                  background: linkOpen
-                    ? 'linear-gradient(180deg, rgba(90,234,255,0.25), rgba(10,20,30,0.9))'
-                    : 'linear-gradient(180deg, #0e141b, #0a0f15)',
-                  opacity: !loginUserId || isBlockUser ? 0.35 : 1,
-                  pointerEvents: !loginUserId || isBlockUser ? 'none' : 'auto',
-                }}
-              >
-                링크 입장
-              </div>
+              {isLoggedIn && (
+                <div
+                  onClick={() => {
+                    stopPreview();
+                    setListMode('LINK');
+                  }}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    color: linkActive ? '#0ff' : '#cfd8e3',
+                    border: linkActive
+                      ? '2px solid rgba(90,234,255,0.9)'
+                      : '2px solid rgba(90,234,255,0.3)',
+                    background: linkActive
+                      ? 'linear-gradient(180deg, rgba(90,234,255,0.25), rgba(10,20,30,0.9))'
+                      : 'linear-gradient(180deg, #0e141b, #0a0f15)',
+                  }}
+                >
+                  링크 입장
+                </div>
+              )}
+              {/* ✅ 멀티 플레이 버튼 (여기로 이동) */}
+              {isLoggedIn && (
+                <div
+                  onClick={() => {
+                    stopPreview();
+                    setListMode('MULTI');
+                  }}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    color: multiActive ? '#0ff' : '#cfd8e3',
+                    border: multiActive
+                      ? '2px solid rgba(90,234,255,0.9)'
+                      : '2px solid rgba(90,234,255,0.3)',
+                    background: multiActive
+                      ? 'linear-gradient(180deg, rgba(90,234,255,0.25), rgba(10,20,30,0.9))'
+                      : 'linear-gradient(180deg, #0e141b, #0a0f15)',
+                  }}
+                >
+                  멀티 플레이
+                </div>
+              )}
             </div>
 
             {/* ================= 메인 영역 ================= */}
@@ -780,8 +837,42 @@ export default function MainOverlay({
                 overflow: 'hidden',
               }}
             >
+              {/* ===== 멀티 컨트롤 바 ===== */}
+              {listMode === 'MULTI' && (
+                <div
+                  style={{
+                    padding: 12,
+                    borderRadius: 12,
+                    background: 'rgba(0,0,0,0.25)',
+                    display: 'flex',
+                    gap: 8,
+                    flexShrink: 0,
+
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button style={multiBtn}>공개방</button>
+                    <button style={multiBtn}>비공개 입장</button>
+                    <button style={multiBtn} onClick={fetchMultiRooms}>
+                      새로고침
+                    </button>
+
+                    <div style={{ marginLeft: 'auto' }}>
+                      <button
+                        style={multiBtnPrimary}
+                        onClick={() => {
+                          setSelectedMultiSongId(null);
+                          setCreateRoomOpen(true);
+                        }}
+                      >
+                        방 만들기
+                      </button>                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* ===== 링크 입장 화면 ===== */}
-              {linkOpen && (
+              {listMode === 'LINK' && (
                 <div
                   style={{
                     height: '70%',
@@ -883,7 +974,7 @@ export default function MainOverlay({
               )}
 
               {/* ===== 기존 리스트 화면 ===== */}
-              {!linkOpen && (
+              {(listMode === 'PUBLIC' || listMode === 'MY') && (
                 <>
                   {!loading && songs.length === 0 && (
                     <div
@@ -1030,30 +1121,157 @@ export default function MainOverlay({
                   </div>
                 </>
               )}
+
+
+              {/* ===== 멀티 방 리스트 화면 ===== */}
+              {listMode === 'MULTI' && (
+                <div
+                  style={{
+                    padding: 12,
+                    borderRadius: 12,
+                    overflowY: 'auto',
+                    background: 'rgba(0,0,0,0.25)',
+                    flex: 1,
+                  }}
+                >
+                  {/*
+      TODO: 서버에서 받아올 멀티 방 목록 API 스펙 (예시)
+
+      GET /api/multi/rooms
+      Response: [
+        {
+          roomId: number | string,        // 방 ID
+          roomName: string,               // 방 이름
+          songId: number,
+          songTitle: string,              // 곡 제목
+          currentPlayers: number,         // 현재 인원
+          maxPlayers: number,             // 최대 인원
+          isPrivate: boolean,              // 비공개 여부
+          hostPing?: number                // (선택) 호스트 핑
+        }
+      ]
+
+      → 실제 적용 시:
+      multiRooms.map(r => ({
+        id: r.roomId,
+        roomName: r.roomName,
+        song: r.songTitle,
+        players: r.currentPlayers,
+        maxPlayers: r.maxPlayers,
+        locked: r.isPrivate,
+        hostPing: r.hostPing
+      }))
+    */}
+                  {/* 멀티 방프론트 예시 더미 연결시 삭제 */}
+                  {[
+                    {
+                      id: 'R1',
+                      roomName: 'music-free-458044',
+                      song: 'Disco Night',
+                      players: 1,
+                      maxPlayers: 2,
+                      locked: false,
+                    },
+                    {
+                      id: 'R2',
+                      roomName: 'night-drive',
+                      song: 'Midnight Run',
+                      players: 2,
+                      maxPlayers: 2,
+                      locked: true,
+                    },
+                  ].map((r) => (
+                    <div
+                      key={r.id}
+                      onClick={() => {
+                        playMenuConfirm();
+                        navigate(`/multi/room/${r.id}`);
+                      }}
+                      style={{
+                        padding: 14,
+                        borderRadius: 12,
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        marginBottom: 10,
+                        cursor: 'pointer',
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.25))',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                      }}
+                    >
+                      {/* 상단: 방 이름 + 잠금 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}>
+                          {r.roomName}
+                        </div>
+                        {r.locked && <span style={{ fontSize: 13, opacity: 0.7 }}>🔒</span>}
+                      </div>
+
+                      {/* 곡 정보 */}
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>
+                        🎵 {r.song}
+                      </div>
+
+                      {/* 하단: 인원 + 버튼 */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginTop: 4,
+                        }}
+                      >
+                        <div style={{ display: 'flex', gap: 10, fontSize: 12, opacity: 0.75 }}>
+                          <span>{r.players}/{r.maxPlayers} 명</span>
+                          <span>핑 {r.hostPing} ms</span>
+                        </div>
+
+                        <div style={{ marginLeft: 'auto' }}>
+                          <button
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 8,
+                              fontSize: 12,
+                              border: '1px solid rgba(90,234,255,0.6)',
+                              background: 'rgba(90,234,255,0.15)',
+                              color: '#5aeaff',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            입장
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
         </div>
         {/* RIGHT RANK PANEL */}
-        <div
-          style={{
-            position: 'absolute',
-            right: '10%',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: '22%',
-            height: '70%',
-            borderRadius: '14px',
-            background: 'rgba(120,0,0,0.35)',
-            boxShadow: '0 0 0 2px rgba(255,80,80,0.6), 0 20px 40px rgba(0,0,0,0.45)',
-            padding: '12px',
-          }}
-        >
-          <RankTable
-            ranking={ranking}
-            loading={rankLoading}
-          />
-        </div>
+        {isLoggedIn && (
+          <div
+            style={{
+              position: 'absolute',
+              right: '8%',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: '22%',
+              height: '70%',
+              borderRadius: '14px',
+              background: 'rgba(120,0,0,0.35)',
+              boxShadow: '0 0 0 2px rgba(255,80,80,0.6), 0 20px 40px rgba(0,0,0,0.45)',
+              padding: '12px',
+            }}
+          >
+            <RankTable
+              ranking={ranking}
+              loading={rankLoading}
+            />
+          </div>
+        )}
+
       </main >
       <Visualizer
         size="game"
@@ -1087,9 +1305,179 @@ export default function MainOverlay({
         }}
       />
       {/* 비밀번호 변경 모달 */}
-      {showPwChangeModal && (
-        <PasswordChangeModal onClose={onClosePwChangeModal} onSubmit={handleChangePw} />
+      {
+        showPwChangeModal && (
+          <PasswordChangeModal onClose={onClosePwChangeModal} onSubmit={handleChangePw} />
+        )
+      }
+      {createRoomOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+          }}
+          onClick={() => {
+            setCreateRoomOpen(false);
+            setRoomName('');
+            setIsPrivateRoom(false);
+            setRoomPassword('');
+            setSelectedMultiSongId(null);
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 420,
+              padding: 20,
+              borderRadius: 14,
+              background: 'rgba(10,20,30,0.95)',
+              border: '2px solid rgba(90,234,255,0.6)',
+              boxShadow: '0 0 24px rgba(90,234,255,0.4)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <h3 style={{ color: '#5aeaff', textAlign: 'center' }}>방 만들기</h3>
+
+            {/* 방 이름 */}
+            <input
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              placeholder="방 이름"
+              style={modalInput}
+            />
+
+            {/* 곡 선택 (우선 현재 선택 곡 고정) */}
+            <div style={{ fontSize: 13, marginBottom: 6, color: '#5aeaff' }}>
+              🎵 곡 선택 (PUBLIC)
+            </div>
+
+            <div
+              style={{
+                maxHeight: 160,
+                overflowY: 'auto',
+                border: '1px solid rgba(90,234,255,0.4)',
+                borderRadius: 8,
+              }}
+            >
+              {songs.map((s) => {
+                const active = selectedMultiSongId === s.id;
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => setSelectedMultiSongId(s.id)}
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      background: active ? 'rgba(90,234,255,0.25)' : 'transparent',
+                    }}
+                  >
+                    {s.title}
+                  </div>
+                );
+              })}
+            </div>
+
+
+            <label style={{ display: 'flex', gap: 6, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={isPrivateRoom}
+                onChange={(e) => setIsPrivateRoom(e.target.checked)}
+              />
+              비공개 방
+            </label>
+
+            {/* 비밀번호 */}
+            {isPrivateRoom && (
+              <input
+                value={roomPassword}
+                onChange={(e) => setRoomPassword(e.target.value)}
+                placeholder="비밀번호"
+                type="password"
+                style={modalInput}
+              />
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <button
+                style={multiBtn}
+                onClick={() => setCreateRoomOpen(false)}
+              >
+                취소
+              </button>
+
+              <button
+                style={multiBtnPrimary}
+                onClick={async () => {
+                  if (!roomName.trim()) {
+                    alert('방 이름을 입력해 주세요.');
+                    return;
+                  }
+                  if (!selectedMultiSongId) {
+                    alert('곡을 선택해 주세요.');
+                    return;
+                  }
+                  if (isPrivateRoom && !roomPassword.trim()) {
+                    alert('비공개 방 비밀번호를 입력해 주세요.');
+                    return;
+                  }
+
+                  const payload = {
+                    roomName: roomName.trim(),
+                    songId: selectedMultiSongId,
+                    isPrivate: isPrivateRoom,
+                    password: isPrivateRoom ? roomPassword : null,
+                  };
+
+                  console.log('CREATE ROOM payload =', payload);
+
+                  try {
+                    const res = await fetch('/api/multi/rooms', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                      },
+                      credentials: 'include',
+                      body: JSON.stringify(payload),
+                    });
+
+                    if (!res.ok) throw new Error(`방 생성 실패 (${res.status})`);
+
+                    await res.json().catch(() => null);
+
+                    // 초기화
+                    setCreateRoomOpen(false);
+                    setRoomName('');
+                    setIsPrivateRoom(false);
+                    setRoomPassword('');
+                    setSelectedMultiSongId(null);
+
+                    // 방 리스트 다시 로드
+                    fetchMultiRooms();
+
+                  } catch (e) {
+                    console.error(e);
+                    alert(e?.message || '방 생성 중 오류가 발생했습니다.');
+                  }
+                }}
+              >
+                생성
+              </button>
+
+            </div>
+          </div>
+        </div>
       )}
+
     </div >
   );
 }
@@ -1120,4 +1508,29 @@ const menuItem = {
   fontSize: 13,
   cursor: 'pointer',
   whiteSpace: 'nowrap',
+};
+const multiBtn = {
+  padding: '6px 12px',
+  borderRadius: 8,
+  background: 'rgba(255,255,255,0.06)',
+  border: '1px solid rgba(90,234,255,0.35)',
+  color: '#cfd8e3',
+  fontSize: 12,
+  cursor: 'pointer',
+};
+
+const multiBtnPrimary = {
+  ...multiBtn,
+  background: 'rgba(90,234,255,0.18)',
+  border: '1px solid rgba(90,234,255,0.8)',
+  color: '#5aeaff',
+  fontWeight: 600,
+};
+const modalInput = {
+  padding: '10px 12px',
+  borderRadius: 8,
+  background: '#0b1118',
+  border: '1px solid rgba(90,234,255,0.4)',
+  color: '#e6f7ff',
+  fontSize: 14,
 };

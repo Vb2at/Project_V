@@ -124,6 +124,10 @@ function Card({ game, onDelete }) {
         navigate(`/game/play?songId=${game.id}&diff=${game.diff}`);
     };
 
+    const handleEdit = () => {
+        navigate(`/song/${game.id}/edit`);
+    };
+
     return (
         <div style={card}>
             <img src={game.cover} alt="" style={cover} />
@@ -138,13 +142,7 @@ function Card({ game, onDelete }) {
                 {game.status !== 'BLOCKED' && (
                     <>
                         <BtnMain onClick={handlePlay}>플레이</BtnMain>
-                        <BtnSub onClick={() => {
-                            if (!game.id) return;
-                            navigate(`/song/${game.id}/note/edit`);
-                        }}
-                        >
-                            수정
-                        </BtnSub>
+                        <BtnSub onClick={handleEdit}>수정</BtnSub>
                     </>
                 )}
                 <BtnSub onClick={() => onDelete(game.id)}>삭제</BtnSub>

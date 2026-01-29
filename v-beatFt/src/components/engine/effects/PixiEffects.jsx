@@ -67,7 +67,14 @@ function makeTapKey(effect) {
   return null;
 }
 
-export default function PixiEffects({ effects }) {
+export default function PixiEffects({
+  effects,
+  showHitEffect = true,
+  showJudgeText = true,
+  showComboText = true,
+  lowEffect = false,
+  fpsLimit = 60,
+}) {
   const containerRef = useRef(null);
   const appRef = useRef(null);
   const texturesRef = useRef(null);
@@ -87,8 +94,8 @@ export default function PixiEffects({ effects }) {
   const judgeClearedThisBatchRef = useRef(false);
   const consumedEffectIdsRef = useRef(new Set());
   const comboTextRef = useRef(null);;
-
-
+  const lastTickRef = useRef(0);
+  const lowEffectRef = useRef(lowEffect);
 
   useEffect(() => {
     effectsRef.current = effects || [];
@@ -136,9 +143,16 @@ export default function PixiEffects({ effects }) {
       judgeLayerRef.current = judgeLayer;
 
       tickerFn = () => {
+
         const now = performance.now();
+
         const currentEffects = effectsRef.current || [];
 
+        if (!showComboText && comboTextRef.current) {
+          app.stage.removeChild(comboTextRef.current.container);
+          comboTextRef.current.destroy();
+          comboTextRef.current = null;
+        }
         if (comboTextRef.current) {
           comboTextRef.current.update(now);
           if (comboTextRef.current.dead) {
@@ -230,7 +244,7 @@ export default function PixiEffects({ effects }) {
           inst.update(now);
         });
       };
-
+      app.ticker.maxFPS = fpsLimit || 60;
       app.ticker.add(tickerFn);
     })();
 
@@ -280,6 +294,10 @@ export default function PixiEffects({ effects }) {
 
       /* ================= 판정 텍스트 ================= */
       if (effect.type === 'judge') {
+        if (!showJudgeText) {
+          consumedEffectIdsRef.current.add(effect.id);
+          return;
+        }
         if (!judgeClearedThisBatchRef.current) {
           judgeTextsRef.current.forEach(old => {
             judgeLayerRef.current.removeChild(old.container);
@@ -299,7 +317,7 @@ export default function PixiEffects({ effects }) {
         judgeLayerRef.current.addChild(inst.container);
         judgeTextsRef.current.push(inst);
 
-        if (effect.combo && effect.combo > 1) {
+        if (showComboText && effect.combo && effect.combo > 1) {
           if (comboTextRef.current) {
             judgeLayerRef.current.removeChild(comboTextRef.current.container);
             comboTextRef.current.destroy();
@@ -322,6 +340,10 @@ export default function PixiEffects({ effects }) {
       const streamWidthPx = Math.abs(laneRight - laneLeft);
       /* ================= TAP ================= */
       if (effect.type === 'tap') {
+        if (!showHitEffect) {
+          consumedEffectIdsRef.current.add(effect.id);
+          return;
+        }
         const tapKey = makeTapKey(effect);
         let allowTap = true;
 
@@ -347,6 +369,10 @@ export default function PixiEffects({ effects }) {
 
       /* ================= LONG ================= */
       if (effect.type === 'long') {
+        if (!showHitEffect) {
+          consumedEffectIdsRef.current.add(effect.id);
+          return;
+        }
         const key = makeLongKey(effect);
 
         if (!aliveRef.current.has(key)) {
@@ -376,6 +402,17 @@ export default function PixiEffects({ effects }) {
       }
     });
   }, [effects]);
+
+  useEffect(() => {
+    lowEffectRef.current = lowEffect;
+  }, [lowEffect]);
+
+  useEffect(() => {
+    const app = appRef.current;
+    if (!app) return;
+    app.ticker.maxFPS = (lowEffect ? 30 : (fpsLimit || 60));
+  }, [fpsLimit, lowEffect]);
+
 
   return (
     <div

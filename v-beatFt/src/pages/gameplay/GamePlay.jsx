@@ -18,9 +18,29 @@ import { useSearchParams } from 'react-router-dom';
 function GamePlay() {
   const { songId: paramSongId } = useParams();
   const [searchParams] = useSearchParams();
-  const songId = paramSongId ?? searchParams.get('songId');
-  const diffParam = searchParams.get('diff');
-  const tokenParam = searchParams.get('token');
+
+  // 멀티테스트용 더미 
+  const [rivalScore, setRivalScore] = useState(0);
+  const [rivalCombo, setRivalCombo] = useState(0);
+  const [rivalName] = useState('RIVAL'); // 테스트용
+
+
+  // ===== 멀티 진입 파라미터 =====
+  const mode = searchParams.get('mode');                 // 'multi' | ...
+  const roomId = searchParams.get('roomId');             // 멀티 방 id
+  const isMulti = mode === 'multi';
+
+  // ===== songId 결정 =====
+  // 싱글/기존: /song/:songId 또는 ?songId=
+  const baseSongId = paramSongId ?? searchParams.get('songId');
+
+  // 멀티: URL에 songId가 없을 수 있으니 room에서 받아올 songId를 따로 관리
+  const [multiSongId, setMultiSongId] = useState(null);
+  const resolvedSongId = isMulti ? (multiSongId ?? baseSongId) : baseSongId;
+
+  // 멀티: (선택) 서버가 startAt을 주면 여기 저장해서 GameSession으로 전달
+  const [multiStartAt, setMultiStartAt] = useState(null); // ms epoch 또는 서버 기준 값(백엔드 스펙 맞추기)
+
   const [diff, setDiff] = useState('unknown');
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
@@ -46,8 +66,26 @@ function GamePlay() {
   const HEADER_HEIGHT = 25;
   const [loginUser, setLoginUser] = useState(null);
   const location = useLocation();
+  const DEFAULT_SETTINGS = {
+    fps: 60,
+    hitEffect: true,
+    judgeText: true,
+    comboText: true,
+    lowEffect: false,
+    visualizer: true,
+    tapNoteColor: 0x05acb5,
+    longNoteColor: 0xb50549,
+  };
 
-
+  const [settings, setSettings] = useState(() => {
+    try {
+      const v = localStorage.getItem('userSettings');
+      const parsed = v ? JSON.parse(v) : {};
+      return { ...DEFAULT_SETTINGS, ...parsed };
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  });
   const navigate = useNavigate();
 
   const [tipIndex, setTipIndex] = useState(
@@ -122,6 +160,77 @@ function GamePlay() {
   }, [tokenParam, songId, loginUser]);
 
   useEffect(() => {
+    const sync = () => {
+      try {
+        const v = localStorage.getItem('userSettings');
+        const parsed = v ? JSON.parse(v) : {};
+        setSettings(prev => ({ ...prev, ...DEFAULT_SETTINGS, ...parsed }));
+      } catch { /* ignore */ }
+    };
+
+    window.addEventListener('settings:changed', sync);
+    return () => window.removeEventListener('settings:changed', sync);
+  }, []);
+
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setRivalScore(s => s + Math.floor(Math.random() * 300));
+      setRivalCombo(c => (c + 1) % 50);
+    }, 800);
+
+    return () => clearInterval(t);
+  }, []);
+
+  // ===== 멀티 방 정보 로드 (songId 확보용) =====
+  useEffect(() => {
+    if (!isMulti) return;
+    // ===== 멀티 UI 테스트용 더미 =====
+    setMultiSongId(baseSongId ?? '1');
+    setDiff('HARD');
+    setMultiStartAt(null);
+    return;
+    // 더미 제거 후 하단 사용 
+    // if (!roomId) return;
+
+    // let alive = true;
+
+    // (async () => {
+    //   try {
+    //     const res = await fetch(`/api/multi/rooms/${roomId}`, {
+    //       method: 'GET',
+    //       headers: { Accept: 'application/json' },
+    //       credentials: 'include',
+    //     });
+
+    //     if (!res.ok) throw new Error(`멀티 방 정보 요청 실패 (${res.status})`);
+
+    //     const data = await res.json();
+    //     if (!alive) return;
+
+    //     // ✅ 백엔드 스펙에 맞춰서 키 이름만 조정하면 됩니다.
+    //     // - songId: number
+    //     // - diff: 'easy' | 'normal' | ...
+    //     // - startAt: 서버 기준 시작 시각(선택)
+    //     const nextSongId = data?.songId ?? data?.song?.id ?? null;
+    //     const nextDiff = data?.diff ?? data?.difficulty ?? null;
+    //     const nextStartAt = data?.startAt ?? null;
+
+    //     if (nextSongId != null) setMultiSongId(String(nextSongId));
+    //     if (nextDiff) setDiff(String(nextDiff));
+    //     if (nextStartAt != null) setMultiStartAt(nextStartAt);
+
+    //   } catch (e) {
+    //     console.error(e);
+    //     alert('멀티 방 정보를 불러오지 못했습니다.');
+    //     navigate('/main', { replace: true });
+    //   }
+    // })();
+
+    // return () => { alive = false; };
+  }, [isMulti, roomId, navigate]);
+
+  useEffect(() => {
     const tipTimer = setInterval(() => {
       setTipIndex(i => (i + 1) % TIPS.length);
     }, 2200);
@@ -181,6 +290,15 @@ function GamePlay() {
     loadingStartRef.current = performance.now();
   }, []);
 
+  useEffect(() => {
+    if (!isMulti) return;
+
+    // 멀티 모드에서는 로딩 스킵
+    setLoadingDone(true);
+    setReady(true);
+    setCountdown(3);
+  }, [isMulti]);
+
   // 카운트다운
   useEffect(() => {
     if (countdown === null) return;
@@ -204,6 +322,9 @@ function GamePlay() {
   // 로딩 or 카운트 중에는 엔진 정지
   const paused = userPaused || !ready || countdown !== null;
 
+  // ✅ 멀티인데 songId 확보 전이면 로딩을 계속 유지
+  const canStartSession = Boolean(resolvedSongId);
+
   return (
     <div
       style={{
@@ -217,7 +338,7 @@ function GamePlay() {
       <Background />
       <Header />
 
-      <LeftSidebar songId={songId} diff={diff} />
+      <LeftSidebar songId={resolvedSongId} diff={diff} />
       <RightSidebar />
       <HUDFrame>
         <HUD
@@ -235,7 +356,7 @@ function GamePlay() {
       />
 
       {/* ===== 로딩 화면 ===== */}
-      {!ready && (
+      {(!ready || (isMulti && !canStartSession)) && (
         <div
           style={{
             position: 'fixed',
@@ -486,7 +607,7 @@ function GamePlay() {
                   const isEditorTest = params.get('mode') === 'editorTest';
 
                   if (isEditorTest) {
-                    navigate(`/song/${songId}/note/edit?mode=editorTest`, { replace: true });
+                    navigate(`/song/${resolvedSongId}/note/edit?mode=editorTest`, { replace: true });
                   } else {
                     navigate('/main');
                   }
@@ -526,15 +647,22 @@ function GamePlay() {
             clipPath: 'polygon(40% 8%, 60% 8%, 100% 100%, 0% 100%)',
           }}
         />
-        {song && diff && (
+
+        {resolvedSongId && (
           <GameSession
-            songId={song.id}
-            diff={diff}
+            songId={resolvedSongId}
             analyserRef={analyserRef}
             key={sessionKey}
             paused={paused}
+            fpsLimit={settings.fps} 
             bgmVolume={effectiveBgmVolume}
             sfxVolume={effectiveSfxVolume}
+            settings={settings}
+            // ✅ 멀티 전달
+            isMulti={isMulti}
+            roomId={roomId}
+            startAt={multiStartAt}
+
             onReady={() => {
               loadingEndRef.current = performance.now();
               setLoadingDone(true);
@@ -561,17 +689,16 @@ function GamePlay() {
               const isEditorTest = params.get('mode') === 'editorTest';
 
               if (isEditorTest) {
-                navigate(`/song/${songId}/note/edit?mode=editorTest`, { replace: true });
+                navigate(`/song/${resolvedSongId}/note/edit?mode=editorTest`, { replace: true });
                 return;
               }
 
               navigate('/game/result', {
-                state: { score, maxScore, maxCombo, diff: finishDiff ?? diff ?? 'unknown', songId },
+                state: { score, maxScore, maxCombo, diff: finishDiff ?? diff ?? 'unknown', songId: resolvedSongId },
               });
             }}
           />
         )}
-
 
         {/* ===== 카운트다운 ===== */}
         {countdown !== null && (

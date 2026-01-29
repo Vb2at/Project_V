@@ -303,6 +303,7 @@ export default function JoinForm() {
                         onChange={update('nickname')}
                         onBlur={handleCheckNickname}
                         placeholder="닉네임"
+                        maxLength={8}
                     />
                 </FormRow>
 
