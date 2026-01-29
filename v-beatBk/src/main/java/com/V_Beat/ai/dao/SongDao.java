@@ -123,11 +123,12 @@ public interface SongDao {
 	//본인 업로드 곡 조회
 	@Select("""
 			SELECT 
-				id AS id,
-			  	title AS title,
-				visibility AS visibility,
-				cover_path AS coverPath,
-				diff AS diff
+			    id AS id,
+			    title AS title,
+			    artist AS artist,
+			    visibility AS visibility,
+			    cover_path AS coverPath,
+			    diff AS diff
 			FROM song
 			WHERE user_id = #{userId}
 			AND visibility = #{visibility}
@@ -138,11 +139,12 @@ public interface SongDao {
 	//유저 아이디로 업로드 곡 조회 (전체 목록)
 	@Select("""
 			SELECT 
-				id AS id,
-				title AS title,
-				visibility AS visibility,
-				cover_path AS coverPath,
-				diff AS diff
+			    id AS id,
+			    title AS title,
+			    artist AS artist,
+			    visibility AS visibility,
+			    cover_path AS coverPath,
+			    diff AS diff
 			FROM song
 			WHERE user_id = #{userId}
 			ORDER BY create_date DESC
