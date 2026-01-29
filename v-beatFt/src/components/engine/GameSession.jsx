@@ -252,7 +252,6 @@ export default function GameSession({
   const speed = baseSpeed * diffSpeed;
 
   useEffect(() => {
-    console.log('[DIFF STATE]', diff);
   }, [diff]);
 
   useEffect(() => {
@@ -330,8 +329,6 @@ export default function GameSession({
       audio.pause();
       return;
     }
-
-    setPressedKeys(new Set());
 
     if (audioCtxRef.current?.state === 'suspended') {
       audioCtxRef.current.resume().catch(() => { });
@@ -463,14 +460,11 @@ export default function GameSession({
     if (!notesRes.ok) return false;
 
     const notesJson = await notesRes.json();
-    console.log('[API diff raw]', notesJson?.diff, notesJson);
 
     if (notesJson?.diff) {
       const raw = String(notesJson.diff).trim().toUpperCase();
       const allowed = new Set(['EASY', 'NORMAL', 'HARD', 'HELL']);
       setDiff(allowed.has(raw) ? raw : 'NORMAL');
-    } else {
-      console.log('[API diff missing]');
     }
     const mapped = normalizeNotesFromApi(notesJson);
     if (!mapped.length) return false;
@@ -777,11 +771,6 @@ export default function GameSession({
     return { lane, timing: t };
   };
 
-  useEffect(() => {
-    console.log('[DIFF]', diff, 'diffSpeed=', diffSpeed, 'speed=', speed);
-  }, [diff, diffSpeed, speed]);
-
-
   const getLaneLeftX = (lane) => {
     return (GAME_CONFIG.LANE_WIDTHS ?? [])
       .slice(0, lane)
@@ -1013,7 +1002,6 @@ export default function GameSession({
 
     const { lane } = getGameCoords(e.clientX, e.clientY);
     const { timing: clickTiming } = getGameCoords(e.clientX, e.clientY);
-    console.log('[CLICK]', lane, Math.round(clickTiming));
 
     // ===== 선택(노트 잡기) =====
     if (tool === 'select' && lane >= 0 && lane < getLaneCount()) {
@@ -1033,7 +1021,6 @@ export default function GameSession({
           picked = n;
         }
       }
-      console.log('[PICKED]', picked);
       if (!picked) {
         setSelectedNoteIds?.(new Set());
         draggingNoteRef.current = null;
@@ -1113,9 +1100,7 @@ export default function GameSession({
   };
 
   const handleEditorMouseUp = (e) => {
-    console.log('[MOUSEUP]');
-    console.log('[PREVIEW SIZE]', draggingPreviewRef.current.size);
-    console.log('[SELECTED IDS]', draggingNoteRef.current?.selectedIds);
+
     if (mode === 'edit' && draggingPreviewRef.current.size > 0) {
       console.log('[DEBUG COMMIT]', {
         usedSetNotesType: typeof usedSetNotes,
