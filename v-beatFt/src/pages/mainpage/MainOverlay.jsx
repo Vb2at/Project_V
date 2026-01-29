@@ -1,5 +1,6 @@
 // pages/mainpage/MainOverlay.jsx
 import { changePasswordApi, statusApi } from '../../api/auth';
+import { getSongByToken } from '../../api/song';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { playMenuMove, playMenuConfirm, playPreview, stopPreview, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
@@ -18,6 +19,18 @@ const formatDuration = (sec) => {
   const s = Math.floor(n % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
 }
+
+const handlePlay = async (token) => {
+  try {
+    const res = await getSongByToken(token);
+    const song = res.data;
+
+    //검증 성공 시 게임 실행
+    navigate(`/game/play?songId=${data.id}&diff=${String(data.diff).toLowerCase()}`);
+  } catch (err) {
+    alert('유효하지 않은 토큰입니다.');
+  }
+};
 
 const ITEM_HEIGHT = 72;
 const INPUT_LOCK_MS = 50;
@@ -48,6 +61,32 @@ export default function MainOverlay({
   const [isPrivateRoom, setIsPrivateRoom] = useState(false);
   const [roomPassword, setRoomPassword] = useState('');
   const [selectedMultiSongId, setSelectedMultiSongId] = useState(null);
+  const [statusLoaded, setStatusLoaded] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await statusApi();
+        if (!alive) return;
+
+        if (res.data?.ok) {
+          setLoginUserId(Number(res.data.loginUserId));
+          setIsBlockUser(res.data.loginUserRole === 'BLOCK');
+        } else {
+          setLoginUserId(null);
+          setIsBlockUser(false);
+        }
+      } catch (e) {
+        if (!alive) return;
+        setLoginUserId(null);
+      } finally {
+        if (alive) setStatusLoaded(true);
+      }
+    })();
+
+    return () => { alive = false; };
+  }, []);
 
   const fetchMultiRooms = useCallback(async () => {
     try {
@@ -79,7 +118,6 @@ export default function MainOverlay({
     (async () => {
       try {
         const res = await statusApi();
-        console.log('STATUS API =', res.data);
 
         if (!alive) return;
 
@@ -177,8 +215,7 @@ export default function MainOverlay({
 
           };
         });
-        console.log('mapped songs:', mapped);
-        console.log('loginUserId:', loginUserId);
+
         if (!mounted) return;
         const DIFF_SORT = { EASY: 1, NORMAL: 2, HARD: 3, HELL: 4 };
         mapped.sort((a, b) =>
@@ -278,7 +315,6 @@ export default function MainOverlay({
         const s = songs[selectedIndex];
         if (!s?.id) return;
 
-        console.log('선택 확정:', songs[selectedIndex]);
         playMenuConfirm();
         stopPreview();
         navigate(`/game/play?songId=${s.id}&diff=${String(s.diff).toLowerCase()}`);
@@ -753,7 +789,7 @@ export default function MainOverlay({
                     key={v}
                     onClick={() => {
                       if (disabled) {
-                        alert('차단된 사용자는 사용할 수 없는 기능입니다.');
+                        alert('이용이 제한된 기능입니다.');
                         return;
                       }
                       setListMode(v);
@@ -764,7 +800,6 @@ export default function MainOverlay({
                       cursor: 'pointer',
                       fontSize: 13,
                       opacity: disabled ? 0.35 : 1,
-                      pointerEvents: disabled ? 'none' : 'auto',
                       color: active ? '#0ff' : '#cfd8e3',
                       border: active
                         ? '2px solid rgba(90,234,255,0.9)'
@@ -780,16 +815,21 @@ export default function MainOverlay({
               })}
 
               {/* 링크 입장 버튼 */}
-              {isLoggedIn && (
+              {statusLoaded && (
                 <div
                   onClick={() => {
+                    if (!isLoggedIn || isBlockUser) {
+                      alert('이용이 제한된 기능입니다.');
+                      return;
+                    }
                     stopPreview();
                     setListMode('LINK');
                   }}
                   style={{
                     padding: '6px 14px',
                     borderRadius: 12,
-                    cursor: 'pointer',
+                    cursor: !isLoggedIn || isBlockUser ? 'not-allowed' : 'pointer',
+                    opacity: !isLoggedIn || isBlockUser ? 0.35 : 1,
                     fontSize: 13,
                     color: linkActive ? '#0ff' : '#cfd8e3',
                     border: linkActive
@@ -804,16 +844,21 @@ export default function MainOverlay({
                 </div>
               )}
               {/* ✅ 멀티 플레이 버튼 (여기로 이동) */}
-              {isLoggedIn && (
+              {statusLoaded && (
                 <div
                   onClick={() => {
+                    if (!isLoggedIn || isBlockUser) {
+                      alert('이용이 제한된 기능입니다.');
+                      return;
+                    }
                     stopPreview();
                     setListMode('MULTI');
                   }}
                   style={{
                     padding: '6px 14px',
                     borderRadius: 12,
-                    cursor: 'pointer',
+                    cursor: !isLoggedIn || isBlockUser ? 'not-allowed' : 'pointer',
+                    opacity: !isLoggedIn || isBlockUser ? 0.35 : 1,
                     fontSize: 13,
                     color: multiActive ? '#0ff' : '#cfd8e3',
                     border: multiActive

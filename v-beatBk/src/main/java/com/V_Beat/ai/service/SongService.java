@@ -38,35 +38,8 @@ public class SongService {
 		this.reportDao = reportDao;
 	}
 	
-	//토근 접근제어 메서드
-	public boolean canAccess(Song song, Integer loginUserId, boolean isAdmin, String token) {
-		if (song == null) {
-			return false;
-		}
-		
-		if (isAdmin) {
-			return true;
-		}
-		
-		//소유자, 곡 공개 범위
-		boolean isOwner = loginUserId != null && song.getUserId() == loginUserId;
-		String v = song.getVisibility();
-		
-		if ("PUBLIC".equals(v)) {
-			return true;
-		}
-		
-		if ("PRIVATE".equals(v)) {
-			return isOwner;
-		}
-		
-		if ("UNLISTED".equals(v)) {
-			return isOwner || (token != null && token.equals(song.getShareToken()));
-		}
-		
-		//pending, blocked 상태는 false
-		return false;
-	}
+	//상태 상수
+	private static final List<String> VISIBILITY_ALLOWED = List.of("PRIVATE", "UNLISTED");
 
 	@Transactional(readOnly = true)
 	public Song getSong(Long songId) {
@@ -100,9 +73,8 @@ public class SongService {
 		if (song.getUserId() != loginUserId) {
 			throw new RuntimeException("no permission");
 		}
-
-		List<String> allowed = List.of("PRIVATE", "UNLISTED");
-		if (!allowed.contains(visibility)) {
+		
+		if (!VISIBILITY_ALLOWED.contains(visibility)) {
 			throw new IllegalArgumentException("invalid visibility");
 		}
 
@@ -260,7 +232,16 @@ public class SongService {
 		deleteFile(previewPath);
 		deleteFile(coverPath);
 	}
-
+	
+	//곡 제한 접근 제어
+	public boolean canAccess(Song song, Integer loginUserId, Boolean isAdmin, String token) {
+	    if (Boolean.TRUE.equals(isAdmin)) return true;  // 관리자 통과
+	    if (loginUserId != null) return true;           // 로그인 유저 통과
+	    if (token != null && token.equals(song.getShareToken())) return true; // 토큰 통과
+	    if (song.getIsPublic()) return true;            // 공개곡 통과
+	    return false;                                   // 나머지 차단
+	}
+	
 	//토큰으로 곡 조회
 	@Transactional(readOnly = true)
 	public Song getSongByToken(String token) {

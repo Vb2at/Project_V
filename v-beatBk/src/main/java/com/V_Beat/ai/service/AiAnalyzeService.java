@@ -107,7 +107,7 @@ public class AiAnalyzeService {
 		} else if ("PUBLIC".equals(v)) {
 		    saveVisibility = "PENDING";
 		} else if ("UNLISTED".equals(v)) {
-		    saveVisibility = "PRIVATE";
+		    saveVisibility = "UNLISTED";
 		    needShareToken = true;
 		} else {
 		    throw new IllegalArgumentException("visibility 값이 올바르지 않습니다.");

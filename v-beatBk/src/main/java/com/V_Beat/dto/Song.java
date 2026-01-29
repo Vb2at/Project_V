@@ -24,4 +24,9 @@ public class Song {
 	private String nickname;
 	private String profileImg;
 	private String shareToken;
+	//공개곡 여부 판단
+	public boolean getIsPublic() {
+		return "PUBLIC".equals(this.visibility);
+	}
 }
+

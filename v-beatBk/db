@@ -53,6 +53,7 @@ CREATE TABLE song (
     cover_path VARCHAR(500) NULL,
     preview_path VARCHAR(500) NULL,
     visibility ENUM('PRIVATE','UNLISTED','PENDING','PUBLIC','BLOCKED') NOT NULL DEFAULT 'PRIVATE',
+    share_token VARCHAR(50) UNIQUE NULL,
     review_reason VARCHAR(255) NULL,
     review_by INT UNSIGNED NULL,
     review_at DATETIME NULL,
