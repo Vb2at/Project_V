@@ -8,8 +8,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MultiPlayer {
-
     private Integer userId;
     private String nickname;
+    private String profileImg; // 🔥 추가
     private boolean ready;
 }

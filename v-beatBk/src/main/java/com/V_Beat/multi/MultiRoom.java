@@ -13,6 +13,7 @@ import lombok.NoArgsConstructor;
 public class MultiRoom {
 
     private String roomId;
+    private Long startAt;
 
     private Integer hostUserId;
     private String roomName;

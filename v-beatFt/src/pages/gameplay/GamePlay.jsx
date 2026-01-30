@@ -1,3 +1,4 @@
+// src/pages/multi/GamePlay.jsx
 import { useEffect, useState, useRef } from 'react';
 import { statusApi } from '../../api/auth';
 import Header from '../../components/Common/Header';
@@ -14,6 +15,9 @@ import { playMenuConfirm } from '../../components/engine/SFXManager';
 import Visualizer from '../../components/visualizer/Visualizer';
 import { LOADING_TIPS as TIPS } from '../../constants/LoadingTips';
 import { useSearchParams } from 'react-router-dom';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client/dist/sockjs.min.js';
+
 const DEFAULT_SETTINGS = {
   fps: 60,
   hitEffect: true,
@@ -30,12 +34,9 @@ const DEFAULT_SETTINGS = {
 };
 
 function GamePlay() {
-console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
-
   const { songId: paramSongId } = useParams();
   const [searchParams] = useSearchParams();
 
-  // ✅ settings 먼저 선언 (이게 없어서 터진 거)
   const [settings, setSettings] = useState(() => {
     try {
       const v = localStorage.getItem('userSettings');
@@ -47,9 +48,9 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
   });
 
   // ===== 멀티 진입 파라미터 =====
-  const mode = searchParams.get('mode');                 // 'multi' | ...
-  const roomId = searchParams.get('roomId');             // 멀티 방 id
-  const isMulti = mode === 'multi';
+  const mode = searchParams.get('mode'); // 'multi' | ...
+  const roomId = searchParams.get('roomId'); // 멀티 방 id
+  const isMulti = mode === 'multi' || Boolean(roomId);
 
   // 토큰 파라미터
   const tokenParam = searchParams.get('token');
@@ -63,9 +64,7 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
 
   // 멀티: (선택) 서버가 startAt을 주면 여기 저장해서 GameSession으로 전달
   const [multiStartAt, setMultiStartAt] = useState(null);
-
   const startAtParam = searchParams.get('startAt');
-
 
   const [diff, setDiff] = useState('unknown');
   const [score, setScore] = useState(0);
@@ -82,6 +81,9 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
   const analyserRef = useRef(null);
   const [sessionKey, setSessionKey] = useState(0);
 
+  // ✅ 오른쪽 사이드바에 들어갈 상대 상태(닉/프사/점수/콤보)
+  const [rival, setRival] = useState(null);
+
   const MIN_LOADING_TIME = 2500;
   const loadingStartRef = useRef(0);
   const loadingEndRef = useRef(null);
@@ -90,11 +92,90 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
 
   const navigate = useNavigate();
 
-  const [tipIndex, setTipIndex] = useState(
-    () => Math.floor(Math.random() * TIPS.length)
-  );
-
+  const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
   const [song, setSong] = useState(null);
+
+  // ✅ stomp single instance
+  const stompRef = useRef(null);
+  // const stompConnectedRef = useRef(false);
+
+  // ===== 멀티 STOMP 연결 + 구독 + ROOM_STATE 요청 =====
+  useEffect(() => {
+    if (!isMulti || !roomId) return;
+
+    const myId = String(loginUser?.loginUser?.id ?? '');
+
+    const client = new Client({
+      webSocketFactory: () =>
+        new SockJS('http://localhost:8080/ws', null, { withCredentials: true }),
+
+      connectHeaders: {},
+
+      reconnectDelay: 3000,
+      debug: () => { },
+
+      onConnect: () => {
+        stompRef.current = client;
+        // 1) ROOM_STATE
+        client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
+          const data = JSON.parse(msg.body);
+          if (data.type !== 'ROOM_STATE') return;
+
+          console.log('[ROOM_STATE raw]', data.players, 'myId=', myId);
+
+          if (!Array.isArray(data.players)) return;
+
+          const other = data.players.find(
+            (p) => String(p.userId) !== myId
+          );
+          if (!other) return;
+
+          setRival(prev => ({
+            ...(prev ?? {}),
+            nickname: other.nickname ?? 'OPPONENT',
+            profileUrl: other.profileImg ?? null,
+            score: prev?.score ?? 0,
+            combo: prev?.combo ?? 0,
+            maxCombo: prev?.maxCombo ?? 0,
+          }));
+        });
+
+        // 2) SCORE
+        client.subscribe(`/topic/multi/room/${roomId}/score`, (msg) => {
+          const data = JSON.parse(msg.body);
+          if (data?.type !== 'SCORE') return;
+
+          const senderId = String(data?.userId ?? data?.id);
+          if (senderId === myId) return;
+
+          // 🔥 상대 점수 왔다는 건 상대가 "확실히 존재"한다는 뜻
+          try {
+            client.publish({
+              destination: `/app/multi/room/${roomId}/state`,
+              body: JSON.stringify({ roomId }),
+            });
+          } catch { }
+
+          setRival(prev => ({
+            ...(prev ?? {}),
+            score: data.score,
+            combo: data.combo,
+            maxCombo: data.maxCombo,
+          }));
+        });
+
+        // 3) ROOM_STATE 강제 요청
+        const body = JSON.stringify({ roomId });
+        try { client.publish({ destination: `/app/multi/room/state`, body }); } catch { }
+
+      },
+    });
+
+    client.activate(); // ✅ 이 줄이 핵심
+    return () => {
+      try { client.deactivate(); } catch { }
+    };
+  }, [isMulti, roomId, loginUser]);
 
   useEffect(() => {
     if (!isMulti) return;
@@ -106,20 +187,19 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
     setMultiStartAt(v);
   }, [isMulti, startAtParam]);
 
-
   useEffect(() => {
     statusApi()
-      .then(res => {
+      .then((res) => {
         setLoginUser(res.data);
       })
-      .catch(err => {
-        console.error("로그인 상태 확인 실패:", err);
+      .catch((err) => {
+        console.error('로그인 상태 확인 실패:', err);
         setLoginUser(null);
       });
   }, []);
 
   useEffect(() => {
-    if (loginUser === null) return; // 로그인 상태 확인 전이면 기다림
+    if (loginUser === null) return;
 
     if (!loginUser || loginUser.loginUser.status === 'BLOCKED') {
       alert('이용이 제한된 기능입니다.');
@@ -129,22 +209,18 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
 
     const fetchSongByToken = async (token) => {
       try {
-        // 1️⃣ 토큰으로 곡 정보 가져오기
         const resSong = await fetch(`/api/songs/by-token/${token}`, {
-          credentials: 'include', // 세션 쿠키 포함
+          credentials: 'include',
         });
-
         if (!resSong.ok) throw new Error('토큰에 접근이 불가합니다.');
 
         const fetchedSong = await resSong.json();
         setSong(fetchedSong);
         setDiff(fetchedSong.diff ?? 'unknown');
 
-        // 2️⃣ 오디오 blob 가져오기
         const resAudio = await fetch(`/api/songs/${fetchedSong.id}/audio?token=${token}`, {
-          credentials: 'include', // 세션 쿠키 포함
+          credentials: 'include',
         });
-
         if (!resAudio.ok) throw new Error('오디오 접근 불가');
 
         const blob = await resAudio.blob();
@@ -165,13 +241,13 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
       return;
     }
 
-    // 토큰 없으면 일반 songId fetch
     const fetchSongById = async (songId) => {
       try {
         const res = await fetch(`/api/songs/${songId}`, {
           credentials: 'include',
         });
         if (!res.ok) throw new Error('곡 접근 불가');
+
         const fetchedSong = await res.json();
         setSong(fetchedSong);
         setDiff(fetchedSong.diff ?? 'unknown');
@@ -185,16 +261,15 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
     if (resolvedSongId) {
       fetchSongById(resolvedSongId);
     }
-  }, [tokenParam, loginUser]);
-
+  }, [tokenParam, loginUser]); // ✅ 원본 유지
 
   useEffect(() => {
     const sync = () => {
       try {
         const v = localStorage.getItem('userSettings');
         const parsed = v ? JSON.parse(v) : {};
-        setSettings(prev => ({ ...prev, ...DEFAULT_SETTINGS, ...parsed }));
-      } catch { /* ignore */ }
+        setSettings((prev) => ({ ...prev, ...DEFAULT_SETTINGS, ...parsed }));
+      } catch { }
     };
 
     window.addEventListener('settings:changed', sync);
@@ -203,14 +278,14 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
 
   useEffect(() => {
     const tipTimer = setInterval(() => {
-      setTipIndex(i => (i + 1) % TIPS.length);
+      setTipIndex((i) => (i + 1) % TIPS.length);
     }, 2200);
 
     return () => clearInterval(tipTimer);
   }, []);
 
   useEffect(() => {
-    if (isMulti) return; // ❗ 멀티에서는 ESC 무시
+    if (isMulti) return;
 
     const onKey = (e) => {
       if (e.code !== 'Escape') return;
@@ -232,6 +307,8 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
     if (!isMulti) return;
     if (!multiStartAt) return;
 
+    let timer = null;
+
     const tick = () => {
       const diff = Math.ceil((multiStartAt - Date.now()) / 1000);
 
@@ -240,16 +317,17 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
       } else {
         setCountdown(0);
         setTimeout(() => setCountdown(null), 300);
-        clearInterval(timer);
+        if (timer) clearInterval(timer);
       }
     };
 
-    tick(); // 즉시 1회
-    const timer = setInterval(tick, 200);
+    tick();
+    timer = setInterval(tick, 200);
 
-    return () => clearInterval(timer);
+    return () => {
+      if (timer) clearInterval(timer);
+    };
   }, [isMulti, multiStartAt]);
-
 
   useEffect(() => {
     if (!loadingDone) return;
@@ -260,11 +338,7 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
       const realEnd = loadingEndRef.current ?? Infinity;
 
       const targetEnd = Math.max(minEnd, realEnd);
-      const progress = Math.min(
-        1,
-        (now - loadingStartRef.current) /
-        (targetEnd - loadingStartRef.current)
-      );
+      const progress = Math.min(1, (now - loadingStartRef.current) / (targetEnd - loadingStartRef.current));
 
       setLoadingPercent(progress * 100);
 
@@ -292,7 +366,6 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
     setCountdown(null);
   }, [isMulti]);
 
-  // 카운트다운
   useEffect(() => {
     if (countdown === null) return;
 
@@ -312,18 +385,14 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
     return () => clearTimeout(t);
   }, [countdown]);
 
-  // 로딩 or 카운트 중에는 엔진 정지
-  const waitingForMultiStart =
-    isMulti && multiStartAt != null && Date.now() < multiStartAt;
+  const waitingForMultiStart = isMulti && multiStartAt != null && Date.now() < multiStartAt;
 
   const paused =
-    (!isMulti && userPaused) ||   // 싱글만 일시정지 허용
+    (!isMulti && userPaused) ||
     !ready ||
     countdown !== null ||
     waitingForMultiStart;
 
-
-  // ✅ 멀티인데 songId 확보 전이면 로딩을 계속 유지
   const canStartSession = tokenParam ? Boolean(song) : Boolean(resolvedSongId);
 
   return (
@@ -340,17 +409,12 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
       <Header />
 
       <LeftSidebar songId={resolvedSongId} diff={diff} />
-      <RightSidebar isMulti={isMulti} />
+      <RightSidebar isMulti={isMulti} rival={rival} />
+
       <HUDFrame>
-        <HUD
-          score={score}
-          combo={combo}
-          songProgress={songProgress}
-          classProgress={classProgress}
-        />
+        <HUD score={score} combo={combo} songProgress={songProgress} classProgress={classProgress} />
       </HUDFrame>
 
-      {/* ===== 로딩 화면 ===== */}
       {(!ready || (isMulti && !canStartSession)) && (
         <div
           style={{
@@ -372,7 +436,6 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
               overflow: 'hidden',
             }}
           >
-            {/*페이크 노트 낙하 */}
             <LoadingNoteRain count={10} />
             <div
               style={{
@@ -396,7 +459,6 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
               LOADING
             </div>
 
-            {/* ===== Loading Bar ===== */}
             <div
               style={{
                 position: 'absolute',
@@ -424,7 +486,6 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
               />
             </div>
 
-            {/* === 퍼센트 텍스트 === */}
             <div
               style={{
                 position: 'absolute',
@@ -441,11 +502,11 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
               {Math.round(loadingPercent)}%
             </div>
           </div>
-          {/* === TIP Text === */}
+
           <div
             style={{
               position: 'absolute',
-              bottom: '100px',          // 로딩바 위
+              bottom: '100px',
               left: '50%',
               transform: 'translateX(-50%)',
               fontSize: '24px',
@@ -462,7 +523,6 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
         </div>
       )}
 
-      {/* ===== Pause Modal ===== */}
       {userPaused && (
         <div
           style={{
@@ -487,14 +547,13 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
           >
             <h2 style={{ marginBottom: 24, textAlign: 'center' }}>일 시 정 지</h2>
 
-            {/* BGM */}
             <div style={{ marginBottom: 20, textAlign: 'center' }}>
               <div style={{ marginBottom: 6 }}>M U S I C</div>
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
                 <button
                   onClick={() => {
-                    setSettings(prev => {
+                    setSettings((prev) => {
                       const next = { ...prev, bgmMuted: !prev.bgmMuted };
                       localStorage.setItem('userSettings', JSON.stringify(next));
                       window.dispatchEvent(new Event('settings:changed'));
@@ -524,27 +583,25 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
                   value={settings.bgmVolume}
                   onChange={(e) => {
                     const v = Number(e.target.value);
-                    setSettings(prev => {
+                    setSettings((prev) => {
                       const next = { ...prev, bgmVolume: v };
                       localStorage.setItem('userSettings', JSON.stringify(next));
                       window.dispatchEvent(new Event('settings:changed'));
                       return next;
                     });
                   }}
-
                   style={{ width: 220 }}
                 />
               </div>
             </div>
 
-            {/* SFX */}
             <div style={{ marginBottom: 28, textAlign: 'center' }}>
               <div style={{ marginBottom: 6 }}>S F X</div>
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
                 <button
                   onClick={() => {
-                    setSettings(prev => {
+                    setSettings((prev) => {
                       const next = { ...prev, sfxMuted: !prev.sfxMuted };
                       localStorage.setItem('userSettings', JSON.stringify(next));
                       window.dispatchEvent(new Event('settings:changed'));
@@ -565,6 +622,7 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
                 >
                   {settings.sfxMuted ? 'OFF' : 'ON'}
                 </button>
+
                 <input
                   type="range"
                   min={0}
@@ -573,7 +631,7 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
                   value={settings.sfxVolume}
                   onChange={(e) => {
                     const v = Number(e.target.value);
-                    setSettings(prev => {
+                    setSettings((prev) => {
                       const next = { ...prev, sfxVolume: v };
                       localStorage.setItem('userSettings', JSON.stringify(next));
                       window.dispatchEvent(new Event('settings:changed'));
@@ -585,14 +643,7 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
               </div>
             </div>
 
-            {/* 버튼 */}
-            <div
-              style={{
-                display: 'flex',
-                gap: 16,
-                justifyContent: 'center',
-              }}
-            >
+            <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
               <button
                 style={{
                   flex: 1,
@@ -641,10 +692,8 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
             </div>
           </div>
         </div>
-      )
-      }
+      )}
 
-      {/* ===== 게임 영역 ===== */}
       <div
         style={{
           position: 'absolute',
@@ -653,7 +702,6 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
           transform: 'translate(-50%, -50%)',
         }}
       >
-        {/* 🎭 레인 마스크 (뒤 비주얼라이저 차단용) */}
         <div
           style={{
             position: 'absolute',
@@ -661,13 +709,13 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
             zIndex: -5,
             pointerEvents: 'none',
             background: `
-            linear-gradient(
-             #000000 0%,
-             #000000 60%,
-             #000000 85%,
-             #000000 100%
-            )
-          `,
+              linear-gradient(
+               #000000 0%,
+               #000000 60%,
+               #000000 85%,
+               #000000 100%
+              )
+            `,
             clipPath: 'polygon(40% 8%, 60% 8%, 100% 100%, 0% 100%)',
           }}
         />
@@ -677,30 +725,24 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
             songId={tokenParam ? song.id : resolvedSongId}
             token={tokenParam}
             analyserRef={analyserRef}
+            loginUserId={loginUser?.loginUser?.id}
             key={sessionKey}
             paused={paused}
             fpsLimit={settings.fps}
             onRivalFinish={(rival) => {
-              // rival: { score, maxScore, maxCombo }
               setRivalResult(rival);
             }}
-            bgmVolume={
-              (settings.bgmMuted ? 0 : (settings.bgmVolume ?? 100)) / 100
-            }
-            sfxVolume={
-              (settings.sfxMuted ? 0 : (settings.sfxVolume ?? 100)) / 100
-            }
-
+            bgmVolume={(settings.bgmMuted ? 0 : (settings.bgmVolume ?? 100)) / 100}
+            sfxVolume={(settings.sfxMuted ? 0 : (settings.sfxVolume ?? 100)) / 100}
             settings={settings}
             isMulti={isMulti}
             roomId={roomId}
+            stompClientRef={stompRef}
             startAt={multiStartAt}
-
             onReady={() => {
               loadingEndRef.current = performance.now();
               setLoadingDone(true);
             }}
-
             onState={({ score, combo, diff, currentTime, duration, maxScore }) => {
               if (paused) return;
 
@@ -708,14 +750,9 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
               setCombo(combo);
               if (diff) setDiff(diff);
 
-              setSongProgress(
-                duration > 0 ? Math.min(1, currentTime / duration) : 0
-              );
-              setClassProgress(
-                maxScore > 0 ? Math.min(1, score / maxScore) : 0
-              );
+              setSongProgress(duration > 0 ? Math.min(1, currentTime / duration) : 0);
+              setClassProgress(maxScore > 0 ? Math.min(1, score / maxScore) : 0);
             }}
-
             onFinish={({ score, maxScore, maxCombo, diff: finishDiff }) => {
               if (finished) return;
               setFinished(true);
@@ -724,10 +761,7 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
               const isEditorTest = params.get('mode') === 'editorTest';
 
               if (isEditorTest) {
-                navigate(
-                  `/song/${resolvedSongId}/note/edit?mode=editorTest`,
-                  { replace: true }
-                );
+                navigate(`/song/${resolvedSongId}/note/edit?mode=editorTest`, { replace: true });
                 return;
               }
 
@@ -735,11 +769,9 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
                 navigate('/game/result', {
                   state: {
                     mode: 'multi',
-
                     myScore: score,
                     myMaxScore: maxScore,
                     myMaxCombo: maxCombo,
-
                     rivalScore: rivalResult?.score ?? 0,
                     rivalMaxScore: rivalResult?.maxScore ?? maxScore,
                     rivalMaxCombo: rivalResult?.maxCombo ?? 0,
@@ -749,7 +781,6 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
                 navigate('/game/result', {
                   state: {
                     mode: 'single',
-
                     score,
                     maxScore,
                     maxCombo,
@@ -762,11 +793,8 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
           />
         )}
 
+        {settings.visualizer && <Visualizer active={!paused} size="game" analyserRef={analyserRef} />}
 
-        {settings.visualizer && (
-          <Visualizer active={!paused} size="game" analyserRef={analyserRef} />
-        )}
-        {/* ===== 카운트다운 ===== */}
         {countdown !== null && (
           <div
             style={{
@@ -802,7 +830,6 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
         )}
       </div>
 
-      {/* pulse 애니메이션 */}
       <style>
         {`
           @keyframes pulse {
@@ -812,7 +839,7 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
           }
         `}
       </style>
-    </div >
+    </div>
   );
 }
 

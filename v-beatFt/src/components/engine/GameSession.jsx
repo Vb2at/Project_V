@@ -15,6 +15,7 @@ export default function GameSession({
   mode = 'play', // 'play' | 'edit'
   seekTime,
   tool,
+  loginUserId,
   notes = null,
   setNotes = null,
   pushUndo,
@@ -30,6 +31,9 @@ export default function GameSession({
   sfxVolume,
   onReady,
   onFinish,
+  isMulti = false,
+  roomId,
+  stompClientRef,
 
   onRivalFinish,
 }) {
@@ -102,6 +106,7 @@ export default function GameSession({
 
   const onStateRef = useRef(onState);
   const [audioUrl, setAudioUrl] = useState(null);
+  const [diff, setDiff] = useState('NORMAL');
   const audioRef = useRef(null);
 
   const viewRef = useRef(null);
@@ -110,6 +115,67 @@ export default function GameSession({
   const dataArrayRef = useRef(null);
   const scoreRef = useRef(0);
 
+  // ===== 점수 계산 유틸 (maxScore보다 위에 있어야 함) =====
+  const getMaxJudgementScore = () => {
+    const vals = Object.values(GAME_CONFIG.SCORE).filter(
+      (v) => typeof v === 'number'
+    );
+    return vals.length ? Math.max(...vals) : 0;
+  };
+
+  const calcMaxScore = useCallback((list) => {
+    const maxJudge = getMaxJudgementScore();
+    return (Array.isArray(list) ? list : []).reduce((acc, n) => {
+      if (n.type === 'long') {
+        const dur = Math.max(0, (n.endTime ?? n.timing) - n.timing);
+        const ticks = Math.ceil(dur / 100);
+        return acc + (ticks * (GAME_CONFIG.SCORE.LONG_BONUS ?? 0)) + maxJudge;
+      }
+      return acc + maxJudge;
+    }, 0);
+  }, []);
+
+  const maxScore = useMemo(() => {
+    return Math.max(1, calcMaxScore(usedNotes));
+  }, [usedNotes, calcMaxScore]);
+
+  useEffect(() => {
+    if (typeof onStateRef.current !== 'function') return;
+
+    onStateRef.current({
+      score,
+      combo,
+      diff,
+      currentTime: currentTimeRef.current,
+      duration: audioRef.current?.duration
+        ? audioRef.current.duration * 1000
+        : 0,
+      maxScore,
+    });
+  }, [score, combo, diff, currentTime, maxScore]);
+
+  const lastSendRef = useRef(0);
+
+  useEffect(() => {
+    if (!isMulti) return;
+    if (!roomId || !loginUserId) return;
+
+    const client = stompClientRef.current;
+    if (!client || !client.connected) return;
+
+    client.publish({
+      destination: '/app/multi/score',
+      body: JSON.stringify({
+        type: 'SCORE',
+        roomId,
+        userId: loginUserId,
+        score,
+        combo,
+        maxCombo: maxComboRef.current,
+      }),
+    });
+  }, [score, combo, isMulti, roomId, loginUserId]);
+  
   useEffect(() => {
     onRivalFinishRef.current = onRivalFinish;
   }, [onRivalFinish]);
@@ -192,30 +258,6 @@ export default function GameSession({
     }
   }, [mode, notes, internalNotes]);
 
-  // ===== 점수 계산 유틸 (maxScore보다 위에 있어야 함) =====
-  const getMaxJudgementScore = () => {
-    const vals = Object.values(GAME_CONFIG.SCORE).filter(
-      (v) => typeof v === 'number'
-    );
-    return vals.length ? Math.max(...vals) : 0;
-  };
-
-  const calcMaxScore = useCallback((list) => {
-    const maxJudge = getMaxJudgementScore();
-    return (Array.isArray(list) ? list : []).reduce((acc, n) => {
-      if (n.type === 'long') {
-        const dur = Math.max(0, (n.endTime ?? n.timing) - n.timing);
-        const ticks = Math.ceil(dur / 100);
-        return acc + (ticks * (GAME_CONFIG.SCORE.LONG_BONUS ?? 0)) + maxJudge;
-      }
-      return acc + maxJudge;
-    }, 0);
-  }, []);
-
-  const maxScore = useMemo(() => {
-    return Math.max(1, calcMaxScore(usedNotes));
-  }, [usedNotes, calcMaxScore]);
-
   useEffect(() => {
     if (effectivePaused) return;
 
@@ -242,8 +284,6 @@ export default function GameSession({
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
   const songId = propSongId ?? null;
-
-  const [diff, setDiff] = useState('NORMAL');
 
   const baseSpeed = GAME_CONFIG.SPEED;
   const diffSpeed =

@@ -83,7 +83,7 @@ export default function RoomLobby() {
      STOMP
   ========================= */
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId || !roomInfo) return;
 
     closedHandledRef.current = false;
     leavingByButtonRef.current = false;
@@ -94,17 +94,16 @@ export default function RoomLobby() {
       debug: () => { },
 
       onConnect: () => {
-        // roomId를 서버 세션에 남기기
         client.publish({
           destination: '/app/multi/enter',
           body: JSON.stringify({ roomId }),
         });
 
-        // 방 상태 / 시작
         const subRoom = client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
           const data = JSON.parse(msg.body);
 
           if (data.type === 'ROOM_STATE') {
+            console.log('[ROOM_STATE players]', data.players);
             setPlayers(data.players || []);
             return;
           }
@@ -112,23 +111,17 @@ export default function RoomLobby() {
           if (data.type === 'START') {
             playMenuConfirm();
 
-            console.log('[START]', data); // 확인용 (테스트 끝나면 제거)
-
+            // ✅ 여기서 songId는 항상 보장됨
             navigate(
-              `/game/play?mode=multi&roomId=${roomId}&startAt=${data.startAt}`
+              `/game/play?mode=multi&roomId=${roomId}&songId=${roomInfo.songId}&startAt=${data.startAt}`
             );
-            return;
           }
         });
 
-        // ✅ 방 폭파: 여기서는 "알림(alert)"을 절대 띄우지 않고,
-        // MainOverlay(메인페이지)에서 1회만 alert 처리하도록 플래그만 남기고 이동만 한다.
-        // (방장 2번 / 상대 클릭해야 뜨는 문제 둘 다 여기서 끊는다)
         const subClosed = client.subscribe('/user/queue/room-closed', () => {
           if (closedHandledRef.current) return;
           closedHandledRef.current = true;
 
-          // MainOverlay가 즉시 읽어서 alert 1회 처리하도록만 남김
           sessionStorage.setItem('roomClosed', '1');
           sessionStorage.setItem('roomClosedRoomId', String(roomId));
           sessionStorage.setItem('roomClosedTs', String(Date.now()));
@@ -136,7 +129,6 @@ export default function RoomLobby() {
           navigate('/main', { replace: true });
         });
 
-        // cleanup에서 unsubscribe 하기 위해 저장
         client.__vbeatSubs = { subRoom, subClosed };
       },
     });
@@ -154,7 +146,8 @@ export default function RoomLobby() {
       stompRef.current = null;
       client.deactivate();
     };
-  }, [roomId, navigate]);
+  }, [roomId, roomInfo, navigate]);
+
 
   /* =========================
      Visualizer

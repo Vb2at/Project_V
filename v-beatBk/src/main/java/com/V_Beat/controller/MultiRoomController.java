@@ -51,7 +51,14 @@ public class MultiRoomController {
         req.setLengthSec(parseDurationToSec(song.getDuration()));
         req.setCoverPath("/api/songs/" + song.getId() + "/cover");
 
-        MultiPlayer host = new MultiPlayer(userId, nick, false);
+        String profileImg = (String) session.getAttribute("loginUserProfileImg");
+
+        MultiPlayer host = new MultiPlayer(
+            userId,
+            nick,
+            profileImg,
+            false
+        );
         MultiRoom room = roomManager.createRoom(req, host);
 
         res.put("ok", true);
@@ -108,7 +115,14 @@ public class MultiRoomController {
             return res;
         }
 
-        MultiPlayer p = new MultiPlayer(userId, nick, false);
+        String profileImg = (String) session.getAttribute("loginUserProfileImg");
+
+        MultiPlayer p = new MultiPlayer(
+            userId,
+            nick,
+            profileImg,
+            false
+        );
         boolean ok = roomManager.joinRoom(roomId, p);
 
         res.put("ok", ok);

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Controller;
 
 import com.V_Beat.multi.MultiRoom;
 import com.V_Beat.multi.MultiRoomManager;
+import com.V_Beat.dto.MultiScoreMessage;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,133 +20,184 @@ import lombok.extern.slf4j.Slf4j;
 @Controller
 public class MultiSocketController {
 
-    private final MultiRoomManager roomManager;
-    private final SimpMessagingTemplate messagingTemplate;
+	private final MultiRoomManager roomManager;
+	private final SimpMessagingTemplate messagingTemplate;
 
-    public MultiSocketController(MultiRoomManager roomManager,
-                                 SimpMessagingTemplate messagingTemplate) {
-        this.roomManager = roomManager;
-        this.messagingTemplate = messagingTemplate;
-    }
+	public MultiSocketController(MultiRoomManager roomManager, SimpMessagingTemplate messagingTemplate) {
+		this.roomManager = roomManager;
+		this.messagingTemplate = messagingTemplate;
+	}
 
-    /* ================================
-       ENTER
-       /app/multi/enter
-    ================================= */
-    @MessageMapping("/multi/enter")
-    public void enter(@Payload Map<String, Object> payload,
-                      StompHeaderAccessor accessor) {
+	/*
+	 * ================================ ENTER /app/multi/enter
+	 * =================================
+	 */
+	@MessageMapping("/multi/enter")
+	public void enter(@Payload Map<String, Object> payload, StompHeaderAccessor accessor) {
 
-        String roomId = (String) payload.get("roomId");
-        if (roomId == null) return;
+	    String roomId = (String) payload.get("roomId");
+	    if (roomId == null) return;
 
-        // 세션에 roomId 저장 (disconnect / leave 처리용)
-        accessor.getSessionAttributes().put("roomId", roomId);
+	    accessor.getSessionAttributes().put("roomId", roomId);
 
-        log.info("[MULTI ENTER] roomId={}", roomId);
-    }
+	    MultiRoom room = roomManager.getRoom(roomId);
+	    if (room == null) return;
 
-    /* ================================
-       READY TOGGLE
-       /app/multi/ready
-    ================================= */
-    @MessageMapping("/multi/ready")
-    public void ready(@Payload Map<String, Object> payload, Principal principal) {
+	    // ✅ START 전송 (기존)
+	    if (room.getStartAt() != null) {
+	        messagingTemplate.convertAndSend(
+	            "/topic/multi/room/" + roomId,
+	            Map.of("type", "START", "startAt", room.getStartAt())
+	        );
+	    }
 
-        if (principal == null) return;
+	    // ✅ 이 줄이 핵심 (누락돼 있었음)
+	    Map<String, Object> msg = new HashMap<>();
+	    msg.put("type", "ROOM_STATE");
+	    msg.put("players", room.getPlayers());
 
-        String roomId = (String) payload.get("roomId");
-        if (roomId == null) return;
+	    messagingTemplate.convertAndSend(
+	        "/topic/multi/room/" + roomId,
+	        msg
+	    );
 
-        Integer userId = parseUserId(principal);
-        if (userId == null) return;
+	    log.info("[MULTI ENTER] roomId={}", roomId);
+	}
 
-        MultiRoom room = roomManager.getRoom(roomId);
-        if (room == null) return;
+	/*
+	 * ================================ READY TOGGLE /app/multi/ready
+	 * =================================
+	 */
+	@MessageMapping("/multi/ready")
+	public void ready(@Payload Map<String, Object> payload, Principal principal) {
 
-        room.toggleReady(userId);
+		if (principal == null)
+			return;
 
-        broadcastRoom(room);
+		String roomId = (String) payload.get("roomId");
+		if (roomId == null)
+			return;
 
-        log.info("[MULTI READY] roomId={} userId={}", roomId, userId);
-    }
+		Integer userId = parseUserId(principal);
+		if (userId == null)
+			return;
 
-    /* ================================
-       START GAME
-       /app/multi/start
-    ================================= */
-    @MessageMapping("/multi/start")
-    public void start(@Payload Map<String, Object> payload, Principal principal) {
+		MultiRoom room = roomManager.getRoom(roomId);
+		if (room == null)
+			return;
 
-        if (principal == null) return;
+		room.toggleReady(userId);
 
-        String roomId = (String) payload.get("roomId");
-        if (roomId == null) return;
+		broadcastRoom(room);
 
-        Integer userId = parseUserId(principal);
-        if (userId == null) return;
+		log.info("[MULTI READY] roomId={} userId={}", roomId, userId);
+	}
 
-        MultiRoom room = roomManager.getRoom(roomId);
-        if (room == null) return;
+	/*
+	 * ================================ START GAME /app/multi/start
+	 * =================================
+	 */
+	@MessageMapping("/multi/start")
+	public void start(@Payload Map<String, Object> payload, Principal principal) {
 
-        // 방장만 시작 가능
-        if (!userId.equals(room.getHostUserId())) return;
+		if (principal == null)
+			return;
 
-        long startAt = System.currentTimeMillis() + 3000;
+		String roomId = (String) payload.get("roomId");
+		if (roomId == null)
+			return;
 
-        messagingTemplate.convertAndSend(
-            "/topic/multi/room/" + roomId,
-            Map.of(
-                "type", "START",
-                "startAt", startAt
-            )
-        );
+		Integer userId = parseUserId(principal);
+		if (userId == null)
+			return;
 
-        log.info("[MULTI START] roomId={} startAt={}", roomId, startAt);
-    }
+		MultiRoom room = roomManager.getRoom(roomId);
+		if (room == null)
+			return;
 
-    /* ================================
-       LEAVE ROOM
-       /app/multi/leave
-    ================================= */
-    @MessageMapping("/multi/leave")
-    public void leave(@Payload Map<String, Object> payload, Principal principal) {
+		// 방장만 시작 가능
+		if (!userId.equals(room.getHostUserId()))
+			return;
 
-        if (principal == null) return;
+		long startAt = System.currentTimeMillis() + 3000;
+		room.setStartAt(startAt);
 
-        String roomId = (String) payload.get("roomId");
-        if (roomId == null) return;
+		messagingTemplate.convertAndSend("/topic/multi/room/" + roomId, Map.of("type", "START", "startAt", startAt));
 
-        Integer userId = parseUserId(principal);
-        if (userId == null) return;
+		log.info("[MULTI START] roomId={} startAt={}", roomId, startAt);
+	}
 
-        roomManager.leaveRoom(roomId, userId);
+	/*
+	 * ================================ LEAVE ROOM /app/multi/leave
+	 * =================================
+	 */
+	@MessageMapping("/multi/leave")
+	public void leave(@Payload Map<String, Object> payload, Principal principal) {
 
-        log.info("[MULTI LEAVE] roomId={} userId={}", roomId, userId);
-        // ROOM_STATE / ROOM_CLOSED 브로드캐스트는
-        // roomManager.leaveRoom 내부에서 처리
-    }
+		if (principal == null)
+			return;
 
-    /* ================================
-       BROADCAST ROOM STATE
-    ================================= */
-    private void broadcastRoom(MultiRoom room) {
+		String roomId = (String) payload.get("roomId");
+		if (roomId == null)
+			return;
 
-        Map<String, Object> msg = new HashMap<>();
-        msg.put("type", "ROOM_STATE");
-        msg.put("players", room.getPlayers());
+		Integer userId = parseUserId(principal);
+		if (userId == null)
+			return;
 
-        messagingTemplate.convertAndSend(
-            "/topic/multi/room/" + room.getRoomId(),
-            msg
-        );
-    }
+		roomManager.leaveRoom(roomId, userId);
 
-    private Integer parseUserId(Principal principal) {
-        try {
-            return Integer.parseInt(principal.getName());
-        } catch (Exception e) {
-            return null;
-        }
-    }
+		log.info("[MULTI LEAVE] roomId={} userId={}", roomId, userId);
+		// ROOM_STATE / ROOM_CLOSED 브로드캐스트는
+		// roomManager.leaveRoom 내부에서 처리
+	}
+
+	/*
+	 * ================================ BROADCAST ROOM STATE
+	 * =================================
+	 */
+	private void broadcastRoom(MultiRoom room) {
+
+		Map<String, Object> msg = new HashMap<>();
+		msg.put("type", "ROOM_STATE");
+		msg.put("players", room.getPlayers());
+
+		messagingTemplate.convertAndSend("/topic/multi/room/" + room.getRoomId(), msg);
+	}
+
+	private Integer parseUserId(Principal principal) {
+		try {
+			return Integer.parseInt(principal.getName());
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	/*
+	 * ================================ SCORE SYNC /app/multi/score
+	 * =================================
+	 */
+	@MessageMapping("/multi/score")
+	public void score(@Payload MultiScoreMessage payload, Principal principal) {
+	    if (principal == null || payload == null) return;
+
+	    String roomId = payload.getRoomId();
+	    if (roomId == null) return;
+
+	    Integer userId = parseUserId(principal);
+	    if (userId == null) return;
+
+	    messagingTemplate.convertAndSend(
+	        "/topic/multi/room/" + roomId + "/score",
+	        Map.of(
+	            "type", "SCORE",
+	            "userId", userId,
+	            "score", payload.getScore(),
+	            "combo", payload.getCombo(),
+	            "maxCombo", payload.getMaxCombo()
+	        )
+	    );
+	}
+
+
 }

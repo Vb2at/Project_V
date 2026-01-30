@@ -103,10 +103,13 @@ public class MultiRoomManager {
         // 방장이 나가면 무조건 방 폭파
         if (isHostLeaving) {
             for (Integer uid : targets) {
-                messagingTemplate.convertAndSend(
-                    "/user/" + uid + "/queue/room-closed",
-                    Map.of("type", "ROOM_CLOSED")
-                );
+            	Map<String, Object> closedMsg = new HashMap<>();
+            	closedMsg.put("type", "ROOM_CLOSED");
+
+            	messagingTemplate.convertAndSend(
+            	    "/user/" + uid + "/queue/room-closed",
+            	    closedMsg
+            	);
             }
 
             rooms.remove(roomId);
@@ -135,10 +138,23 @@ public class MultiRoomManager {
 
     /* ===== 브로드캐스트 ===== */
     public void broadcastRoom(MultiRoom room) {
+    	
+        System.out.println("[DEBUG ROOM_STATE players] " + room.getPlayers());
+
         Map<String, Object> msg = new HashMap<>();
         msg.put("type", "ROOM_STATE");
-        msg.put("room", room);
-        msg.put("players", room.getPlayers());
+        msg.put("players",
+        	    room.getPlayers().stream().map(p -> {
+        	        Map<String, Object> m = new HashMap<>();
+        	        m.put("userId", p.getUserId());
+        	        m.put("nickname", p.getNickname());
+        	        m.put("profileImg", p.getProfileImg()); // ← null 허용
+        	        m.put("score", 0);
+        	        m.put("combo", 0);
+        	        m.put("maxCombo", 0);
+        	        return m;
+        	    }).toList()
+        	);
 
         messagingTemplate.convertAndSend(
             "/topic/multi/room/" + room.getRoomId(),
@@ -166,4 +182,6 @@ public class MultiRoomManager {
 
         messagingTemplate.convertAndSend("/topic/multi/rooms", payload);
     }
+    
+    
 }
