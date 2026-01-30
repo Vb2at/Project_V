@@ -230,12 +230,10 @@ export default function Header() {
         >
           <img
             src="/images/logo.png"
-            onClick={() => navigate('/main')}
             alt="V-BEAT"
             style={{
               height: '130px',
               objectFit: 'contain',
-              cursor: 'pointer',
             }}
           />
         </div>

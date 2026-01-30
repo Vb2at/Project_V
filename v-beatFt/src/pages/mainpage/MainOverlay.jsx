@@ -1,6 +1,5 @@
 // pages/mainpage/MainOverlay.jsx
 import { changePasswordApi, statusApi } from '../../api/auth';
-import { getSongByToken } from '../../api/song';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate, } from 'react-router-dom';
 import { playMenuMove, playMenuConfirm, playPreview, stopPreview, playMenuBgmRandom, isMenuBgmPlaying } from '../../components/engine/SFXManager';
@@ -19,18 +18,6 @@ const formatDuration = (sec) => {
   const s = Math.floor(n % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
 }
-
-const handlePlay = async (token) => {
-  try {
-    const res = await getSongByToken(token);
-    const song = res.data;
-
-    //검증 성공 시 게임 실행
-    navigate(`/game/play?songId=${data.id}&diff=${String(data.diff).toLowerCase()}`);
-  } catch (err) {
-    alert('유효하지 않은 토큰입니다.');
-  }
-};
 
 const ITEM_HEIGHT = 72;
 const INPUT_LOCK_MS = 50;
@@ -62,6 +49,14 @@ export default function MainOverlay({
   const [roomPassword, setRoomPassword] = useState('');
   const [selectedMultiSongId, setSelectedMultiSongId] = useState(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
+
+  useEffect(() => {
+    const flag = sessionStorage.getItem('roomClosed');
+    if (flag === '1') {
+      sessionStorage.removeItem('roomClosed');
+      alert('방이 종료되었습니다.');
+    }
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -99,7 +94,7 @@ export default function MainOverlay({
       if (!res.ok) throw new Error(`방 목록 요청 실패 (${res.status})`);
 
       const data = await res.json();
-      setMultiRooms(Array.isArray(data) ? data : []);
+      setMultiRooms(Array.isArray(data.rooms) ? data.rooms : []);
     } catch (e) {
       console.error(e);
       setMultiRooms([]);

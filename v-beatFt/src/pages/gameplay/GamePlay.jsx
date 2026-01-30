@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS = {
 };
 
 function GamePlay() {
+console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
 
   const { songId: paramSongId } = useParams();
   const [searchParams] = useSearchParams();
@@ -63,6 +64,8 @@ function GamePlay() {
   // 멀티: (선택) 서버가 startAt을 주면 여기 저장해서 GameSession으로 전달
   const [multiStartAt, setMultiStartAt] = useState(null);
 
+  const startAtParam = searchParams.get('startAt');
+
 
   const [diff, setDiff] = useState('unknown');
   const [score, setScore] = useState(0);
@@ -92,6 +95,17 @@ function GamePlay() {
   );
 
   const [song, setSong] = useState(null);
+
+  useEffect(() => {
+    if (!isMulti) return;
+    if (!startAtParam) return;
+
+    const v = Number(startAtParam);
+    if (!Number.isFinite(v)) return;
+
+    setMultiStartAt(v);
+  }, [isMulti, startAtParam]);
+
 
   useEffect(() => {
     statusApi()
@@ -187,54 +201,6 @@ function GamePlay() {
     return () => window.removeEventListener('settings:changed', sync);
   }, []);
 
-  // ===== 멀티 방 정보 로드 (songId 확보용) =====
-  useEffect(() => {
-    if (!isMulti) return;
-    // ===== 멀티 UI 테스트용 더미 =====
-    setMultiSongId(baseSongId ?? '1');
-    setDiff('HARD');
-    setMultiStartAt(null);
-    return;
-    // 더미 제거 후 하단 사용 
-    // if (!roomId) return;
-
-    // let alive = true;
-
-    // (async () => {
-    //   try {
-    //     const res = await fetch(`/api/multi/rooms/${roomId}`, {
-    //       method: 'GET',
-    //       headers: { Accept: 'application/json' },
-    //       credentials: 'include',
-    //     });
-
-    //     if (!res.ok) throw new Error(`멀티 방 정보 요청 실패 (${res.status})`);
-
-    //     const data = await res.json();
-    //     if (!alive) return;
-
-    //     // ✅ 백엔드 스펙에 맞춰서 키 이름만 조정하면 됩니다.
-    //     // - songId: number
-    //     // - diff: 'easy' | 'normal' | ...
-    //     // - startAt: 서버 기준 시작 시각(선택)
-    //     const nextSongId = data?.songId ?? data?.song?.id ?? null;
-    //     const nextDiff = data?.diff ?? data?.difficulty ?? null;
-    //     const nextStartAt = data?.startAt ?? null;
-
-    //     if (nextSongId != null) setMultiSongId(String(nextSongId));
-    //     if (nextDiff) setDiff(String(nextDiff));
-    //     if (nextStartAt != null) setMultiStartAt(nextStartAt);
-
-    //   } catch (e) {
-    //     console.error(e);
-    //     alert('멀티 방 정보를 불러오지 못했습니다.');
-    //     navigate('/main', { replace: true });
-    //   }
-    // })();
-
-    // return () => { alive = false; };
-  }, [isMulti, roomId, navigate, baseSongId]);
-
   useEffect(() => {
     const tipTimer = setInterval(() => {
       setTipIndex(i => (i + 1) % TIPS.length);
@@ -244,24 +210,46 @@ function GamePlay() {
   }, []);
 
   useEffect(() => {
+    if (isMulti) return; // ❗ 멀티에서는 ESC 무시
+
     const onKey = (e) => {
       if (e.code !== 'Escape') return;
 
       setUserPaused((p) => {
         const next = !p;
-
-        // ▶ Pause → Resume 전환 시 카운트다운 재시작
         if (p === true && next === false) {
           setCountdown(3);
         }
-
         return next;
       });
     };
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [isMulti]);
+
+  useEffect(() => {
+    if (!isMulti) return;
+    if (!multiStartAt) return;
+
+    const tick = () => {
+      const diff = Math.ceil((multiStartAt - Date.now()) / 1000);
+
+      if (diff > 0) {
+        setCountdown(diff);
+      } else {
+        setCountdown(0);
+        setTimeout(() => setCountdown(null), 300);
+        clearInterval(timer);
+      }
+    };
+
+    tick(); // 즉시 1회
+    const timer = setInterval(tick, 200);
+
+    return () => clearInterval(timer);
+  }, [isMulti, multiStartAt]);
+
 
   useEffect(() => {
     if (!loadingDone) return;
@@ -301,7 +289,7 @@ function GamePlay() {
     // 멀티 모드에서는 로딩 스킵
     setLoadingDone(true);
     setReady(true);
-    setCountdown(3);
+    setCountdown(null);
   }, [isMulti]);
 
   // 카운트다운
@@ -325,7 +313,15 @@ function GamePlay() {
   }, [countdown]);
 
   // 로딩 or 카운트 중에는 엔진 정지
-  const paused = userPaused || !ready || countdown !== null;
+  const waitingForMultiStart =
+    isMulti && multiStartAt != null && Date.now() < multiStartAt;
+
+  const paused =
+    (!isMulti && userPaused) ||   // 싱글만 일시정지 허용
+    !ready ||
+    countdown !== null ||
+    waitingForMultiStart;
+
 
   // ✅ 멀티인데 songId 확보 전이면 로딩을 계속 유지
   const canStartSession = tokenParam ? Boolean(song) : Boolean(resolvedSongId);

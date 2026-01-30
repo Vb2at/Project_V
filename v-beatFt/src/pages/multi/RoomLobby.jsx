@@ -1,5 +1,6 @@
+// src/pages/multi/RoomLobby.jsx
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Header from '../../components/Common/Header';
 import Visualizer from '../../components/visualizer/Visualizer';
 import { getMenuAnalyser, playMenuConfirm } from '../../components/engine/SFXManager';
@@ -8,10 +9,15 @@ import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client/dist/sockjs.min.js';
 
 function formatTime(sec) {
-  if (!sec && sec !== 0) return '--:--';
+  if (sec == null || isNaN(sec)) return '--:--';
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function sanitizeTitle(t) {
+  if (!t) return '';
+  return String(t).replace(/\.mp3$/i, '');
 }
 
 export default function RoomLobby() {
@@ -21,18 +27,37 @@ export default function RoomLobby() {
   const analyserRef = useRef(null);
   const stompRef = useRef(null);
 
+  // ✅ 중복/지연 문제 방지용
+  const closedHandledRef = useRef(false);      // ROOM_CLOSED 한 번만 처리
+  const leavingByButtonRef = useRef(false);    // 나가기 버튼으로 나가는 중(호스트 포함)
+
   const [myUserId, setMyUserId] = useState(null);
   const [roomInfo, setRoomInfo] = useState(null);
   const [players, setPlayers] = useState([]);
 
+  const isHost = useMemo(() => {
+    if (!roomInfo || myUserId == null) return false;
+    return Number(myUserId) === Number(roomInfo.hostUserId);
+  }, [roomInfo, myUserId]);
+  const lengthSec =
+    roomInfo?.length ??
+    roomInfo?.duration ??
+    roomInfo?.lengthSec ??
+    null;
   /* =========================
-     초기 방 정보 로드 (REST)
+     초기 방 입장 + 정보 로드
   ========================= */
   useEffect(() => {
     let alive = true;
 
     (async () => {
       try {
+        const joinRes = await fetch(`/api/multi/rooms/${roomId}/join`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (!joinRes.ok) throw new Error('방 입장 실패');
+
         const res = await fetch(`/api/multi/rooms/${roomId}`, {
           credentials: 'include',
         });
@@ -40,55 +65,79 @@ export default function RoomLobby() {
 
         const data = await res.json();
         if (!alive) return;
+        if (!data?.ok) throw new Error(data?.message || '방 정보 로드 실패');
 
         setRoomInfo(data.room);
         setPlayers(data.players || []);
-        setMyUserId(data.myUserId); // ✅ 내 userId 세팅
-      } catch (e) {
+        setMyUserId(data.myUserId);
+      } catch {
         alert('방 정보를 불러오지 못했습니다.');
-        navigate(-1);
+        navigate('/main');
       }
     })();
 
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [roomId, navigate]);
 
   /* =========================
-     STOMP 연결
+     STOMP
   ========================= */
   useEffect(() => {
+    if (!roomId) return;
+
+    closedHandledRef.current = false;
+    leavingByButtonRef.current = false;
+
     const client = new Client({
       webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
       reconnectDelay: 3000,
-      debug: () => {},
+      debug: () => { },
 
       onConnect: () => {
-        // 방 입장 알림
+        // roomId를 서버 세션에 남기기
         client.publish({
-          destination: '/app/multi/join',
+          destination: '/app/multi/enter',
           body: JSON.stringify({ roomId }),
         });
 
-        // 방 상태 구독
-        client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
-          let data;
-          try {
-            data = JSON.parse(msg.body);
-          } catch {
-            return;
-          }
+        // 방 상태 / 시작
+        const subRoom = client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
+          const data = JSON.parse(msg.body);
 
           if (data.type === 'ROOM_STATE') {
             setPlayers(data.players || []);
+            return;
           }
 
           if (data.type === 'START') {
             playMenuConfirm();
-            navigate(`/game/play?mode=multi&roomId=${roomId}`);
+
+            console.log('[START]', data); // 확인용 (테스트 끝나면 제거)
+
+            navigate(
+              `/game/play?mode=multi&roomId=${roomId}&startAt=${data.startAt}`
+            );
+            return;
           }
         });
+
+        // ✅ 방 폭파: 여기서는 "알림(alert)"을 절대 띄우지 않고,
+        // MainOverlay(메인페이지)에서 1회만 alert 처리하도록 플래그만 남기고 이동만 한다.
+        // (방장 2번 / 상대 클릭해야 뜨는 문제 둘 다 여기서 끊는다)
+        const subClosed = client.subscribe('/user/queue/room-closed', () => {
+          if (closedHandledRef.current) return;
+          closedHandledRef.current = true;
+
+          // MainOverlay가 즉시 읽어서 alert 1회 처리하도록만 남김
+          sessionStorage.setItem('roomClosed', '1');
+          sessionStorage.setItem('roomClosedRoomId', String(roomId));
+          sessionStorage.setItem('roomClosedTs', String(Date.now()));
+
+          navigate('/main', { replace: true });
+        });
+
+        // cleanup에서 unsubscribe 하기 위해 저장
+        client.__vbeatSubs = { subRoom, subClosed };
       },
     });
 
@@ -97,15 +146,18 @@ export default function RoomLobby() {
 
     return () => {
       try {
-        client.deactivate();
-      } finally {
-        stompRef.current = null;
-      }
+        const subs = client.__vbeatSubs;
+        subs?.subRoom?.unsubscribe?.();
+        subs?.subClosed?.unsubscribe?.();
+      } catch { }
+
+      stompRef.current = null;
+      client.deactivate();
     };
   }, [roomId, navigate]);
 
   /* =========================
-     Visualizer analyser 연결
+     Visualizer
   ========================= */
   useEffect(() => {
     const id = setInterval(() => {
@@ -118,316 +170,234 @@ export default function RoomLobby() {
     return () => clearInterval(id);
   }, []);
 
-  /* =========================
-     내 정보 / 호스트 판정
-  ========================= */
   if (!roomInfo) return null;
 
-  const isHost =
-    myUserId != null && Number(myUserId) === Number(roomInfo.hostUserId);
-
   const me =
-    players.find((p) => Number(p.userId) === Number(myUserId)) || null;
+    myUserId != null
+      ? players.find(p => Number(p.userId) === Number(myUserId)) || null
+      : null;
 
   const opponent =
-    players.find((p) => Number(p.userId) !== Number(myUserId)) || null;
+    myUserId != null
+      ? players.find(p => Number(p.userId) !== Number(myUserId)) || null
+      : null;
 
-  /* =========================
-     Ready / Start / Leave
-  ========================= */
   const toggleReady = () => {
-    if (!stompRef.current) return;
-
-    stompRef.current.publish({
+    stompRef.current?.publish({
       destination: '/app/multi/ready',
       body: JSON.stringify({ roomId }),
     });
   };
 
   const startGame = () => {
-    if (!stompRef.current) return;
-
-    stompRef.current.publish({
+    stompRef.current?.publish({
       destination: '/app/multi/start',
       body: JSON.stringify({ roomId }),
     });
   };
 
   const leaveRoom = () => {
-    navigate(-1);
+    leavingByButtonRef.current = true;
+
+    // ✅ 방장/상대 모두 leave는 서버에 전송
+    stompRef.current?.publish({
+      destination: '/app/multi/leave',
+      body: JSON.stringify({ roomId }),
+    });
+
+    // ✅ 상대: 그냥 즉시 메인으로 나가기
+    if (!isHost) {
+      navigate('/main');
+      return;
+    }
+
+    // ✅ 방장: 방을 폭파시키는 주체이므로,
+    // '방 종료' 플래그를 여기서 먼저 찍고 메인으로 이동
+    // (ROOM_CLOSED 메시지를 기다리면 MainOverlay/RoomLobby 중복 처리로 2번 뜰 수 있음)
+    if (!closedHandledRef.current) {
+      closedHandledRef.current = true;
+      sessionStorage.setItem('roomClosed', '1');
+      sessionStorage.setItem('roomClosedRoomId', String(roomId));
+      sessionStorage.setItem('roomClosedTs', String(Date.now()));
+    }
+
+    navigate('/main', { replace: true });
   };
+
+  const coverSrc = roomInfo.coverPath || '';
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <Background />
       <Header />
 
-      {/* ===== 로비 UI ===== */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          top: 64,
+      <div style={{ position: 'absolute', inset: 0, top: 64, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{
+          width: '75%',
+          height: '65%',
+          background: 'rgba(10,20,30,0.75)',
+          border: '2px solid rgba(90,234,255,0.6)',
+          borderRadius: 18,
+          padding: 24,
           display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          pointerEvents: 'auto',
-        }}
-      >
-        <div
-          style={{
-            width: '75%',
-            height: '65%',
-            background: 'rgba(10,20,30,0.75)',
-            border: '2px solid rgba(90,234,255,0.6)',
-            borderRadius: 18,
-            padding: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 18,
-          }}
-        >
-          {/* ===== 상단 바 ===== */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 14,
-              borderBottom: '1px solid rgba(255,255,255,0.15)',
-              paddingBottom: 10,
-            }}
-          >
-            <div style={{ fontSize: 18, fontWeight: 600 }}>
-              {roomInfo.roomName}
-            </div>
-            <div style={{ opacity: 0.7 }}>
-              {players.length} / {roomInfo.maxPlayers}
-            </div>
-
+          flexDirection: 'column',
+          gap: 18,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>{roomInfo.roomName}</div>
+            <div style={{ opacity: 0.7 }}>{players.length} / {roomInfo.maxPlayers}</div>
             <div style={{ marginLeft: 'auto' }}>
-              <button style={btnGhost} onClick={leaveRoom}>
-                나가기
-              </button>
+              <button style={btnGhost} onClick={leaveRoom}>나가기</button>
             </div>
           </div>
 
-          {/* ===== 중앙 카드 ===== */}
-          <div
-            style={{
-              flex: 1,
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
-              gap: 18,
-              alignItems: 'center',
-            }}
-          >
-            <PlayerCard title="나" player={me} />
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18 }}>
+            <PlayerCard title="나" player={me} hostUserId={roomInfo.hostUserId} />
 
-            <div style={centerCard}>
-              <div
-                style={{
-                  width: 120,
-                  height: 120,
-                  borderRadius: 12,
-                  background: 'linear-gradient(135deg, #2a2f3a, #111)',
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: 14,
-                  fontSize: 12,
-                  opacity: 0.6,
-                }}
-              >
-                COVER
+            <div style={ghostCenter}>
+              <div style={ghostCover}>
+                {coverSrc
+                  ? <img src={coverSrc} alt="" style={ghostCoverImg} />
+                  : <div style={ghostPlaceholder}>COVER</div>
+                }
               </div>
 
-              <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
-                {roomInfo.songTitle}
+              <div style={ghostSongTitle}>
+                {sanitizeTitle(roomInfo.songTitle)}
               </div>
 
               <div
                 style={{
-                  fontSize: 13,
-                  padding: '4px 10px',
-                  borderRadius: 20,
-                  background: 'rgba(90,234,255,0.15)',
-                  border: '1px solid rgba(90,234,255,0.5)',
-                  marginBottom: 6,
+                  ...ghostDiff,
+                  fontWeight: 800,
+                  letterSpacing: '0.15em',
+                  color:
+                    DIFF_COLOR_MAP[String(roomInfo.diff).toUpperCase()] || '#ccc',
                 }}
               >
-                {roomInfo.diff}
+                {String(roomInfo.diff).toUpperCase()}
               </div>
 
-              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>
-                LENGTH {formatTime(roomInfo.lengthSec)}
+              <div style={ghostMeta}>
+                LENGTH {formatTime(lengthSec)}
               </div>
-
-              <div
-                style={{
-                  width: '100%',
-                  marginTop: 6,
-                  paddingTop: 10,
-                  borderTop: '1px solid rgba(255,255,255,0.15)',
-                  fontSize: 12,
-                  opacity: 0.75,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 4,
-                  alignItems: 'center',
-                }}
-              >
-                <div>{roomInfo.isPrivate ? '비공개 방' : '공개 방'}</div>
-                <div>Room ID: {roomId}</div>
-              </div>
+              <div style={ghostRoomId}>Room ID: {roomId}</div>
             </div>
 
-            <PlayerCard title="상대방" player={opponent} />
+            <PlayerCard title="상대방" player={opponent} hostUserId={roomInfo.hostUserId} />
+
           </div>
 
-          {/* ===== 하단 버튼 ===== */}
           <div style={{ display: 'flex', justifyContent: 'center', gap: 20 }}>
-            <button style={btnPrimary} onClick={toggleReady}>
-              {me?.ready ? 'READY 취소' : 'READY'}
+            <button style={btnPrimary} onClick={toggleReady} disabled={!me}>
+              {me?.ready ? 'NOT READY' : 'READY'}
             </button>
-
-            {isHost && (
-              <button style={btnPrimaryStrong} onClick={startGame}>
-                START
-              </button>
+            {isHost && me?.ready && opponent?.ready && (
+              <button style={btnPrimaryStrong} onClick={startGame}>START</button>
             )}
           </div>
         </div>
       </div>
 
-      {/* ===== Visualizer ===== */}
-      <Visualizer
-        size="game"
-        preset="menu"
-        analyserRef={analyserRef}
-        active={true}
-        style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: '28vh',
-          zIndex: -2,
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Blur Overlay */}
-      <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          background: 'rgba(255,255,255,0.02)',
-          zIndex: -1,
-          pointerEvents: 'none',
-        }}
-      />
+      <Visualizer size="game" preset="menu" analyserRef={analyserRef} active />
     </div>
   );
 }
 
 /* ===== Player Card ===== */
-function PlayerCard({ title, player }) {
+function PlayerCard({ title, player, hostUserId }) {
   const waiting = !player;
 
-  const cardStyle = {
-    ...playerCard,
-    transition: 'all 0.35s ease',
-    opacity: waiting ? 0.5 : 1,
-    transform: waiting ? 'translateY(12px)' : 'translateY(0)',
-  };
-
   return (
-    <div style={cardStyle}>
-      <div style={{ fontSize: 14, opacity: 0.7 }}>{title}</div>
+    <div style={ghostCard}>
+      <div style={ghostTitle}>{title}</div>
+
+      <div style={ghostProfile}>
+        {player?.profileImg
+          ? <img src={player.profileImg} alt="" style={ghostImg} />
+          : <div style={ghostPlaceholder}>PROFILE</div>
+        }
+      </div>
+
+      <div style={ghostName}>
+        {waiting
+          ? 'WAITING'
+          : (
+            <>
+              {Number(player.userId) === Number(hostUserId) && '👑 '}
+              {player.nickname}
+            </>
+          )
+        }
+      </div>
+
+      {!waiting && <div style={ghostRecord}>12W · 8L</div>}
 
       <div
         style={{
-          width: 90,
-          height: 90,
-          borderRadius: 12,
-          background: 'rgba(255,255,255,0.08)',
-          margin: '10px 0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 12,
-          opacity: 0.6,
+          ...ghostStatus,
+          color: waiting || !player?.ready ? '#ff5a5a' : '#5aeaff',
+          fontWeight: waiting || !player?.ready ? 700 : 600,
         }}
       >
-        {waiting ? 'WAITING' : 'PROFILE'}
+        {waiting ? 'NOT READY' : player.ready ? 'READY' : 'NOT READY'}
       </div>
-
-      <div style={{ fontSize: 16, fontWeight: 600 }}>
-        {player?.nickname ?? 'WAITING...'}
-      </div>
-
-      {!waiting && (
-        <>
-          <div style={{ marginTop: 6, fontSize: 13 }}>
-            {player?.ready ? 'READY' : 'WAITING'}
-          </div>
-        </>
-      )}
     </div>
   );
 }
 
 /* ===== Styles ===== */
-const playerCard = {
-  height: '100%',
+const ghostCard = {
+  borderRadius: 14,
+  border: '1px solid rgba(90,234,255,0.25)',
+  padding: '30px 30px',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 30,
+  background: 'rgba(0,0,0,0.15)',
+};
+
+const ghostTitle = { fontSize: 20, opacity: 0.4 };
+const ghostProfile = {
+  width: 72, height: 72, borderRadius: 12,
+  background: 'rgba(255,255,255,0.05)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
+const ghostImg = { width: '100%', height: '100%', objectFit: 'cover', borderRadius: 12 };
+const ghostPlaceholder = { fontSize: 10, opacity: 0.3 };
+const ghostName = { fontSize: 20, fontWeight: 500 };
+const ghostRecord = { fontSize: 20, opacity: 0.35 };
+const ghostStatus = { marginTop: 6, fontSize: 15, letterSpacing: '0.2em' };
+
+const ghostCenter = {
   borderRadius: 14,
   border: '1px solid rgba(90,234,255,0.35)',
-  background: 'rgba(0,0,0,0.25)',
-  padding: 16,
+  padding: '26px 18px',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  justifyContent: 'center',
+  gap: 10,
+  background: 'rgba(0,0,0,0.18)',
 };
 
-const centerCard = {
-  height: '100%',
-  borderRadius: 14,
-  border: '1px solid rgba(90,234,255,0.5)',
-  background: 'rgba(10,20,30,0.6)',
-  padding: 18,
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  textAlign: 'center',
+const ghostCover = {
+  width: 200, height: 200, borderRadius: 10,
+  overflow: 'hidden', background: 'rgba(255,255,255,0.06)',
 };
+const ghostCoverImg = { width: '100%', height: '100%', objectFit: 'cover' };
+const ghostSongTitle = { fontSize: 30, fontWeight: 600 };
+const ghostDiff = { fontSize: 30 };
+const ghostMeta = { fontSize: 11, opacity: 0.8 };
+const ghostRoomId = { fontSize: 10, opacity: 0.8 };
 
-const btnGhost = {
-  padding: '6px 14px',
-  borderRadius: 8,
-  background: 'transparent',
-  border: '1px solid rgba(255,255,255,0.3)',
-  color: '#cfd8e3',
-  cursor: 'pointer',
-};
+const btnGhost = { padding: '6px 14px' };
+const btnPrimary = { padding: '10px 28px' };
+const btnPrimaryStrong = { ...btnPrimary, fontWeight: 700 };
 
-const btnPrimary = {
-  padding: '10px 28px',
-  borderRadius: 10,
-  background: 'rgba(90,234,255,0.18)',
-  border: '1px solid rgba(90,234,255,0.7)',
-  color: '#5aeaff',
-  fontSize: 14,
-  cursor: 'pointer',
-};
-
-const btnPrimaryStrong = {
-  ...btnPrimary,
-  background: 'rgba(90,234,255,0.35)',
-  border: '1px solid rgba(90,234,255,1)',
-  fontWeight: 700,
+const DIFF_COLOR_MAP = {
+  EASY: '#5aeaff',
+  NORMAL: '#6cff5a',
+  HARD: '#ffb85a',
+  HELL: '#ff5a5a',
 };

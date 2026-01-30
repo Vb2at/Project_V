@@ -1,3 +1,4 @@
+// src/main/java/com/V_Beat/controller/MultiRoomController.java
 package com.V_Beat.controller;
 
 import java.util.HashMap;
@@ -36,83 +37,91 @@ public class MultiRoomController {
 
         if (userId == null) {
             res.put("ok", false);
-            res.put("message", "로그인 필요");
-            return res;
-        }
-
-        if (req.getSongId() == null) {
-            res.put("ok", false);
-            res.put("message", "곡 정보 없음");
             return res;
         }
 
         Song song = songService.getSong(req.getSongId().longValue());
         if (song == null) {
             res.put("ok", false);
-            res.put("message", "곡을 찾을 수 없습니다");
             return res;
         }
 
-        // ⭐ 곡 정보 채우기
-        req.setSongTitle(song.getTitle());
+        req.setSongTitle(song.getTitle().replaceAll("(?i)\\.mp3$", ""));
         req.setDiff(song.getDiff());
         req.setLengthSec(parseDurationToSec(song.getDuration()));
-        req.setCoverPath(song.getCoverPath());
-        req.setHostUserId(userId);
+        req.setCoverPath("/api/songs/" + song.getId() + "/cover");
 
         MultiPlayer host = new MultiPlayer(userId, nick, false);
         MultiRoom room = roomManager.createRoom(req, host);
 
         res.put("ok", true);
-        res.put("roomId", room.getRoomId());
         res.put("room", room);
+        res.put("roomId", room.getRoomId());
         return res;
     }
 
-    /* ===== 방 정보 조회 ===== */
+    /* ===== 방 단건 조회 ===== */
     @GetMapping("/rooms/{roomId}")
-    public Map<String, Object> getRoom(@PathVariable String roomId) {
+    public Map<String, Object> getRoom(@PathVariable String roomId, HttpSession session) {
 
         Map<String, Object> res = new HashMap<>();
 
         MultiRoom room = roomManager.getRoom(roomId);
         if (room == null) {
             res.put("ok", false);
-            res.put("message", "방 없음");
             return res;
         }
 
         res.put("ok", true);
         res.put("room", room);
         res.put("players", room.getPlayers());
+        res.put("myUserId", session.getAttribute("loginUserId"));
         return res;
     }
 
-    /* ===== 방 목록 조회 ===== */
+    /* ===== 방 목록 조회 (❗ 누락돼 있었음) ===== */
     @GetMapping("/rooms")
     public Map<String, Object> getRooms() {
 
         Map<String, Object> res = new HashMap<>();
-
         res.put("ok", true);
-        res.put("rooms", roomManager.getAllRooms());
-
+        res.put(
+            "rooms",
+            roomManager.getAllRooms().stream()
+                .filter(r -> !r.isPrivate())
+                .toList()
+        );
         return res;
     }
 
-    
+    /* ===== 방 입장 ===== */
+    @PostMapping("/rooms/{roomId}/join")
+    public Map<String, Object> joinRoom(@PathVariable String roomId, HttpSession session) {
+
+        Map<String, Object> res = new HashMap<>();
+
+        Integer userId = (Integer) session.getAttribute("loginUserId");
+        String nick = (String) session.getAttribute("loginUserNickName");
+
+        if (userId == null) {
+            res.put("ok", false);
+            return res;
+        }
+
+        MultiPlayer p = new MultiPlayer(userId, nick, false);
+        boolean ok = roomManager.joinRoom(roomId, p);
+
+        res.put("ok", ok);
+        return res;
+    }
+
     /* ===== duration → sec ===== */
     private int parseDurationToSec(String duration) {
-        if (duration == null || !duration.contains(":")) return 0;
-
         try {
-            String[] parts = duration.split(":");
-            int m = Integer.parseInt(parts[0]);
-            int s = Integer.parseInt(parts[1]);
-            return m * 60 + s;
+            String[] p = duration.split(":");
+            return Integer.parseInt(p[0]) * 60 + Integer.parseInt(p[1]);
         } catch (Exception e) {
             return 0;
         }
     }
-    
 }

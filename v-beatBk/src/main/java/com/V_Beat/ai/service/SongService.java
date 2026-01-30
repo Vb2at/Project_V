@@ -37,8 +37,8 @@ public class SongService {
 		this.scoreDao = scoreDao;
 		this.reportDao = reportDao;
 	}
-	
-	//상태 상수
+
+	// 상태 상수
 	private static final List<String> VISIBILITY_ALLOWED = List.of("PRIVATE", "UNLISTED");
 
 	@Transactional(readOnly = true)
@@ -48,7 +48,7 @@ public class SongService {
 
 	@Transactional(readOnly = true)
 	public SongNotesResult getSongNotes(Long songId) {
-		Song song = songDao.getSong(songId);   
+		Song song = songDao.getSong(songId);
 		List<NoteResult> notes = songDao.getSongNotes(songId);
 		return new SongNotesResult(songId, song.getDiff(), notes);
 	}
@@ -74,7 +74,7 @@ public class SongService {
 		if (song.getUserId() != loginUserId) {
 			throw new RuntimeException("no permission");
 		}
-		
+
 		if (!VISIBILITY_ALLOWED.contains(visibility)) {
 			throw new IllegalArgumentException("invalid visibility");
 		}
@@ -97,25 +97,25 @@ public class SongService {
 			}
 		}
 
-		//제목 아티스트 커버만 수정
+		// 제목 아티스트 커버만 수정
 		if (coverPath != null) {
 			songDao.updateSongWithCover(songId, title, artist, coverPath);
 		} else {
 			songDao.updateSong(songId, title, artist);
 		}
-		
-		//공개범위 토큰 수정
+
+		// 공개범위 토큰 수정
 		String shareToken = song.getShareToken();
-		
+
 		if ("UNLISTED".equals(visibility)) {
-		    if (shareToken == null) {
-		        shareToken = UUID.randomUUID().toString().replace("-", "");
-		    }
+			if (shareToken == null) {
+				shareToken = UUID.randomUUID().toString().replace("-", "");
+			}
 		} else {
-		    // PRIVATE
-		    shareToken = null;
+			// PRIVATE
+			shareToken = null;
 		}
-		
+
 		this.songDao.updateVisibilityAndToken(songId, visibility, shareToken);
 	}
 
@@ -148,102 +148,116 @@ public class SongService {
 		songDao.updateVisibility(songId, result);
 	}
 
-	//본인 업록드 곡 조회
+	// 본인 업록드 곡 조회
 	@Transactional(readOnly = true)
 	public List<MySong> getMySongs(int userId, String visibility) {
-		if(visibility != null) {
+		if (visibility != null) {
 			visibility = visibility.toUpperCase();
 		}
-		
-		if(visibility == null || "ALL".equals(visibility)) {
+
+		if (visibility == null || "ALL".equals(visibility)) {
 			return this.songDao.findByUserId(userId);
 		}
-		
+
 		return this.songDao.getMySongs(userId, visibility);
 	}
-	
+
 	@Transactional
 	public void replaceSongNotes(Long songId, List<NoteResult> notes) {
 
-	    // 1. 기존 노트 전부 삭제
-	    songDao.deleteSongNotes(songId);
+		// 1. 기존 노트 전부 삭제
+		songDao.deleteSongNotes(songId);
 
-	    // 2. 새 노트 전부 삽입
-	    for (NoteResult n : notes) {
-	        songDao.insertSongNote(
-	            songId,
-	            n.getLane(),
-	            n.getType(),
-	            n.getTime(),
-	            n.getEndTime()
-	        );
-	    }
+		// 2. 새 노트 전부 삽입
+		for (NoteResult n : notes) {
+			songDao.insertSongNote(songId, n.getLane(), n.getType(), n.getTime(), n.getEndTime());
+		}
 	}
 
-	//파일 삭제 메서드
+	// 파일 삭제 메서드
 	private void deleteFile(String path) {
-		if(path == null || path.isBlank()) {
+		if (path == null || path.isBlank()) {
 			return;
 		}
-		
+
 		try {
 			Path filePath = Paths.get(path);
 			Files.deleteIfExists(filePath);
-		} catch(IOException e) {
-			//파일 삭제 실패는 서비스 실패가 아님
+		} catch (IOException e) {
+			// 파일 삭제 실패는 서비스 실패가 아님
 			e.printStackTrace();
 		}
 	}
-	
-	//곡 삭제
+
+	// 곡 삭제
 	@Transactional
 	public void deleteSong(long songId, long loginUserId) {
-		//노래 조회
+		// 노래 조회
 		Song song = this.songDao.getSong(songId);
-		
-		//노래 검증
-		if(song == null) {
+
+		// 노래 검증
+		if (song == null) {
 			throw new ResponseStatusException(NOT_FOUND);
 		}
-		
-		//노래 업로드 유저 로그인 유저 같은지 검증
-		if(song.getUserId() != loginUserId) {
+
+		// 노래 업로드 유저 로그인 유저 같은지 검증
+		if (song.getUserId() != loginUserId) {
 			throw new ResponseStatusException(FORBIDDEN);
 		}
-		
-		//해당 곡 관련 파일
+
+		// 해당 곡 관련 파일
 		String audioPath = song.getFilePath();
 		String previewPath = song.getPreviewPath();
 		String coverPath = song.getCoverPath();
 
-		//score 삭제
+		// score 삭제
 		this.scoreDao.deleteBySongId(songId);
-		
-		//note 삭제
+
+		// note 삭제
 		this.songDao.deleteSongNotes(songId);
-		
-		//report에 관련 기록 삭제
+
+		// report에 관련 기록 삭제
 		this.reportDao.deleteBySongId(songId);
-		
-		//song 삭제
+
+		// song 삭제
 		this.songDao.deleteSong(songId);
-		
-		//해당 곡 관련 파일들 삭제
+
+		// 해당 곡 관련 파일들 삭제
 		deleteFile(audioPath);
 		deleteFile(previewPath);
 		deleteFile(coverPath);
 	}
-	
-	//곡 제한 접근 제어
-	public boolean canAccess(Song song, Integer loginUserId, Boolean isAdmin, String token) {
-	    if (Boolean.TRUE.equals(isAdmin)) return true;  // 관리자 통과
-	    if (loginUserId != null) return true;           // 로그인 유저 통과
-	    if (token != null && token.equals(song.getShareToken())) return true; // 토큰 통과
-	    if (song.getIsPublic()) return true;            // 공개곡 통과
-	    return false;                                   // 나머지 차단
+
+	@Transactional(readOnly = true)
+	public Integer getSongLengthSec(Long songId) {
+	    Song song = songDao.getSong(songId);
+	    if (song == null) return null;
+
+	    // Song에는 duration(String)만 존재
+	    String duration = song.getDuration();
+	    if (duration == null || duration.isBlank()) return null;
+
+	    try {
+	        return Integer.parseInt(duration);
+	    } catch (NumberFormatException e) {
+	        return null;
+	    }
 	}
-	
-	//토큰으로 곡 조회
+
+	// 곡 제한 접근 제어
+	public boolean canAccess(Song song, Integer loginUserId, Boolean isAdmin, String token) {
+		if (Boolean.TRUE.equals(isAdmin))
+			return true; // 관리자 통과
+		if (loginUserId != null)
+			return true; // 로그인 유저 통과
+		if (token != null && token.equals(song.getShareToken()))
+			return true; // 토큰 통과
+		if (song.getIsPublic())
+			return true; // 공개곡 통과
+		return false; // 나머지 차단
+	}
+
+	// 토큰으로 곡 조회
 	@Transactional(readOnly = true)
 	public Song getSongByToken(String token) {
 		if (token == null || token.isBlank()) {
