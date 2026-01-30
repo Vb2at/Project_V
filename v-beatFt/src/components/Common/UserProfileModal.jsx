@@ -7,25 +7,25 @@ export default function UserProfileModal({ open, user, onClose }) {
 
     if (!open || !user) return null;
 
-  const toImgUrl = (v) => {
-    if (!v) return null;
-    let s = String(v).trim();
+    const toImgUrl = (v) => {
+        if (!v) return null;
+        let s = String(v).trim();
 
-    // 이미 절대 URL이면 그대로
-    if (s.startsWith('http://') || s.startsWith('https://')) return s;
+        // 이미 절대 URL이면 그대로
+        if (s.startsWith('http://') || s.startsWith('https://')) return s;
 
-    // 절대 경로(/upload/...)이면 그대로 백엔드 붙임
-    if (s.startsWith('/')) return `http://localhost:8080${s}`;
+        // 절대 경로(/upload/...)이면 그대로 백엔드 붙임
+        if (s.startsWith('/')) return `http://localhost:8080${s}`;
 
-    // profileImg/UUID.jpg 혹은 그냥 UUID.jpg 처리
-    if (s.startsWith('profileImg/')) {
-        s = s.replace(/^profileImg\//, '');
-    } else if (s.includes('upload/profileImg/')) {
-        // 이미 upload/profileImg/ 포함되어 있으면 그대로 사용
-        return `http://localhost:8080/${s}`;
-    }
-    return `http://localhost:8080/upload/profileImg/${encodeURIComponent(s)}`;
-};
+        // profileImg/UUID.jpg 혹은 그냥 UUID.jpg 처리
+        if (s.startsWith('profileImg/')) {
+            s = s.replace(/^profileImg\//, '');
+        } else if (s.includes('upload/profileImg/')) {
+            // 이미 upload/profileImg/ 포함되어 있으면 그대로 사용
+            return `http://localhost:8080/${s}`;
+        }
+        return `http://localhost:8080/upload/profileImg/${encodeURIComponent(s)}`;
+    };
 
 
     const targetProfileImg = user?.profileImg || user?.otherProfileImg || null;
@@ -75,7 +75,9 @@ export default function UserProfileModal({ open, user, onClose }) {
                         )}
                     </div>
 
-                    <div style={name}>{user?.nickname}</div>
+                    <div style={name}>
+                        {user?.otherNickName ?? 'Unknown'}
+                    </div>
                 </div>
 
                 <div style={btnRow}>
