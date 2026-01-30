@@ -472,7 +472,7 @@ export default function MainOverlay({
       try {
         setRankLoading(true);
 
-        const diffParam = String(s.diff).toLowerCase();
+        const diffParam = String(s.diff).toUpperCase();
 
         const res = await fetch(`/api/ranking/${s.id}/${diffParam}`, {
           method: 'GET',
@@ -953,6 +953,13 @@ export default function MainOverlay({
                       onClick={async () => {
                         try {
                           let token = shareLink.trim();
+                          // 토큰 디코딩
+                          try {
+                            const url = new URL(shareLink);
+                            token = url.searchParams.get('token') || token;
+                          } catch { }
+                          token = decodeURIComponent(token); // URL 디코딩
+                          
                           if (!token) {
                             alert('토큰을 입력해주세요.');
                             return;
@@ -966,8 +973,8 @@ export default function MainOverlay({
                             token = url.searchParams.get('token') || token;
                           } catch { }
 
-                          // ✅ 토큰 유효성 검증
-                          const res = await fetch(`/api/songs/by-token/${token}`, {
+                          // 토큰 유효성 검증
+                          const res = await fetch(`/api/songs/info?token=${token}`, {
                             method: 'GET',
                             headers: { Accept: 'application/json' },
                             credentials: 'include',
@@ -989,7 +996,7 @@ export default function MainOverlay({
                           }
 
                           // 유효하면 이동
-                          navigate(`${path}?token=${token}`);
+                          navigate(`/game/play?token=${token}`);
                         } catch (e) {
                           console.error(e);
                           alert('입장 중 오류가 발생했습니다.');

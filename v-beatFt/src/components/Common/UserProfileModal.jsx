@@ -3,19 +3,32 @@ import UserReportModal from './UserReportModal';
 
 export default function UserProfileModal({ open, user, onClose }) {
     const [reportOpen, setReportOpen] = useState(false);
+    console.log("현재 모달에 전달된 user 데이터:", user);
 
     if (!open || !user) return null;
 
     const toImgUrl = (v) => {
         if (!v) return null;
-        const s = String(v);
+        let s = String(v).trim();
 
+        // 이미 절대 URL이면 그대로
         if (s.startsWith('http://') || s.startsWith('https://')) return s;
+
+        // 절대 경로(/upload/...)이면 그대로 백엔드 붙임
         if (s.startsWith('/')) return `http://localhost:8080${s}`;
-        return `http://localhost:8080/${s}`;
+
+        // profileImg/UUID.jpg 혹은 그냥 UUID.jpg 처리
+        if (s.startsWith('profileImg/')) {
+            s = s.replace(/^profileImg\//, '');
+        } else if (s.includes('upload/profileImg/')) {
+            // 이미 upload/profileImg/ 포함되어 있으면 그대로 사용
+            return `http://localhost:8080/${s}`;
+        }
+        return `http://localhost:8080/upload/profileImg/${encodeURIComponent(s)}`;
     };
 
-    const targetProfileImg = user?.profileImg ?? null;
+
+    const targetProfileImg = user?.profileImg || user?.otherProfileImg || null;
 
     const submitUserReport = async (payload) => {
         const body = {
@@ -62,7 +75,9 @@ export default function UserProfileModal({ open, user, onClose }) {
                         )}
                     </div>
 
-                    <div style={name}>{user?.nickname}</div>
+                    <div style={name}>
+                        {user?.otherNickName ?? 'Unknown'}
+                    </div>
                 </div>
 
                 <div style={btnRow}>
@@ -86,7 +101,7 @@ export default function UserProfileModal({ open, user, onClose }) {
                 type="USER"
                 targetId={user?.otherUserId ?? user?.id}
                 targetName={user?.otherNickName ?? user?.nickname ?? user?.nickName}
-                targetProfileImg={user?.profileImg || '/default/profile.png'}    //신고 모달에 상대 프로필 이미지 URL 전달
+                targetProfileImg={toImgUrl(targetProfileImg)}    //신고 모달에 상대 프로필 이미지 URL 전달
                 onClose={() => setReportOpen(false)}
                 onSubmit={async (payload) => {
                     try {

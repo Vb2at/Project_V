@@ -22,7 +22,7 @@ export default function RankTable({ ranking = [], loading = false }) {
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Header */}
-            <div style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontWeight: 700, letterSpacing: '0.08em' }}>
+            <div style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontWeight: 700, fontSize: '19px', letterSpacing: '0.08em' }}>
                 랭킹
             </div>
 

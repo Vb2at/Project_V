@@ -17,6 +17,9 @@ export const deleteSong = (songId) => {
 }
 
 //토큰으로 곡 정보 조회
-export const getSongByToken = (token) => {
-    return api.get(`/api/songs/by-token/${token}`);
+export const getSongInfo = (songId, token) => {
+    if (token) {
+        return api.get('/api/songs/info', {params: { token }});
+    }
+    return api.get(`/api/songs/${songId}`);
 }

@@ -209,8 +209,9 @@ function GamePlay() {
 
     const fetchSongByToken = async (token) => {
       try {
-        const resSong = await fetch(`/api/songs/by-token/${token}`, {
-          credentials: 'include',
+        // 토큰으로 곡 정보 가져오기
+        const resSong = await fetch(`/api/songs/info?token=${token}`, {
+          credentials: 'include', // 세션 쿠키 포함
         });
         if (!resSong.ok) throw new Error('토큰에 접근이 불가합니다.');
 
@@ -218,8 +219,9 @@ function GamePlay() {
         setSong(fetchedSong);
         setDiff(fetchedSong.diff ?? 'unknown');
 
-        const resAudio = await fetch(`/api/songs/${fetchedSong.id}/audio?token=${token}`, {
-          credentials: 'include',
+        // 오디오 blob 가져오기
+        const resAudio = await fetch(`/api/songs/audio?token=${token}`, {
+          credentials: 'include', // 세션 쿠키 포함
         });
         if (!resAudio.ok) throw new Error('오디오 접근 불가');
 
@@ -408,9 +410,8 @@ function GamePlay() {
       <Background />
       <Header />
 
-      <LeftSidebar songId={resolvedSongId} diff={diff} />
-      <RightSidebar isMulti={isMulti} rival={rival} />
-
+      <LeftSidebar songId={tokenParam ? song?.id : resolvedSongId} diff={diff} />
+      <RightSidebar isMulti={isMulti} />
       <HUDFrame>
         <HUD score={score} combo={combo} songProgress={songProgress} classProgress={classProgress} />
       </HUDFrame>

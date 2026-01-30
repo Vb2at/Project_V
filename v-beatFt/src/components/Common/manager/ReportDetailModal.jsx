@@ -8,7 +8,28 @@ const ACTIONS = [
     { key: 'IGNORE', label: '반려' },
 ];
 
+function UserTargetView({ report }) {
+    return (
+        <>
+            <div>닉네임: {report.targetName}</div>
+            <div>타입: 사용자 신고</div>
+        </>
+    );
+}
 
+function SongTargetView({ report }) {
+    let extra = {};
+    try {
+        extra = JSON.parse(report.targetExtra ?? '{}');
+    } catch { }
+
+    return (
+        <>
+            <div>업로드 사용자: {extra.songOwnerNick ?? '-'}</div>
+            <div>타입: 노래 신고</div>
+        </>
+    );
+}
 
 export default function ReportDetailModal({ report, onClose, onAction, onRefresh, onLocalMove }) {
     const [action, setAction] = useState('');
@@ -50,8 +71,14 @@ export default function ReportDetailModal({ report, onClose, onAction, onRefresh
                 {/* 대상 정보 */}
                 <section style={section}>
                     <span style={sectionTitle}>신고 대상</span>
-                    <div>닉네임: {report.targetName}</div>
-                    <div>타입: {report.reasonCode}</div>
+
+                    {report.targetType === 'USER' && (
+                        <UserTargetView report={report} />
+                    )}
+
+                    {report.targetType === 'SONG' && (
+                        <SongTargetView report={report} />
+                    )}
                 </section>
 
                 {/* 신고 내용 */}
@@ -59,11 +86,11 @@ export default function ReportDetailModal({ report, onClose, onAction, onRefresh
                     <span style={sectionTitle}>신고 내용</span>
                     <div>일시: {report.regDate?.replace('T', ' ')}</div>
                     <div>사유: {report.description}</div>
-                    <textarea
+                    {/* <textarea
                         readOnly
                         value={report.description}
                         style={textarea}
-                    />
+                    /> */}
                 </section>
 
                 {/* 조치 */}

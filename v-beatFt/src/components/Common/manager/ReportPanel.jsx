@@ -4,7 +4,7 @@ import ReportDetailModal from './ReportDetailModal';
 const STATUS_TABS = [
   { key: 'PENDING', label: '대기' },
   { key: 'RESOLVED', label: '처리완료' },
-  { key: 'REJECTED', label: '반려/무시' },
+  { key: 'REJECTED', label: '반려' },
 ];
 
 export default function ReportPanel({ onAction }) {
@@ -106,10 +106,10 @@ export default function ReportPanel({ onAction }) {
           >
             <div>
               <div style={{ fontWeight: 600 }}>
-                [{r.targetType}] {r.targetName ?? `#${r.targetId}`}
+                [{r.targetType}] {r.targetName ?? `${r.targetId}`}
               </div>
               <div style={{ fontSize: 12, opacity: 0.65 }}>
-                {r.reasonCode}
+                {r.targetType === 'USER' ? '사용자 신고' : r.targetType === 'SONG' ? '노래 신고' : r.reasonCode}
               </div>
             </div>
 

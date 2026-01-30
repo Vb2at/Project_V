@@ -28,7 +28,7 @@ public class ReportService {
     private final ReportSnapshotDao reportSnapshotDao;
     private final ReportActionDao reportActionDao;
 
-    // ✅ 관리자 알림(WS)
+    //관리자 알림(WS)
     private final AdminNotifyService adminNotifyService;
 
     private final ObjectMapper om = new ObjectMapper();
@@ -54,15 +54,20 @@ public class ReportService {
     // 신고 접수 (report + snapshot 저장)
     @Transactional
     public Long createReport(long reporterUserId, CreateReportReq req) {
+    	String type = req.getTargetType();
+    	long targetId = req.getTargetId();
     	
-    	//관리자 신고 방지
+    	//관리자가 신고 방지
     	if (isAdmin(reporterUserId)) {
     		throw new IllegalStateException("관리자는 신고 불가합니다.");
     	}
+    	
+    	//사용자가 관리자 신고 방지
+    	 if ("USER".equals(type) && isAdmin(targetId)) {
+    	        throw new IllegalStateException("관리자는 신고할 수 없습니다.");
+    	    }
 
         boolean exists = false;
-        String type = req.getTargetType();
-        long targetId = req.getTargetId();
 
         if ("USER".equals(type)) {
             exists = this.reportDao.existsUser(targetId) > 0;
@@ -112,12 +117,22 @@ public class ReportService {
         // snapshot insert
         ReportTargetSnapshot snap = new ReportTargetSnapshot();
         snap.setReportId(report.getId());
-        snap.setTargetName(req.getTargetType() + "#" + req.getTargetId());
-
+        
         Map<String, Object> extra = new HashMap<>();
         extra.put("targetType", req.getTargetType());
         extra.put("targetId", req.getTargetId());
         extra.put("reasonCode", req.getReasonCode());
+
+        if ("SONG".equals(req.getTargetType())) {
+            Map<String, Object> songInfo = reportDao.findSong(req.getTargetId());
+
+            snap.setTargetName((String) songInfo.get("songTitle"));
+            extra.put("songOwnerNick", songInfo.get("ownerNick"));
+        } else if ("USER".equals(req.getTargetType())) {
+            snap.setTargetName("USER#" + req.getTargetId());
+        } else {
+            snap.setTargetName(req.getTargetType() + "#" + req.getTargetId());
+        }
 
         try {
             snap.setTargetExtra(om.writeValueAsString(extra));
@@ -172,8 +187,32 @@ public class ReportService {
 
         this.reportActionDao.insert(action);
 
-        // 신고 상태 변경
+        //신고 상태 변경
         String nextStatus = "IGNORE".equals(actionType) ? "REJECTED" : "RESOLVED";
         this.reportDao.updateStatus(reportId, nextStatus);
+        
+        //관리자가 차단하면 사용자 차단 처리
+        if ("BLOCK".equalsIgnoreCase(actionType)) {
+            if ("USER".equals(report.getTargetType())) {
+                // 유저 차단 처리
+                this.reportDao.updateUserRole(report.getTargetId(), "BLOCK");
+            } else if ("SONG".equals(report.getTargetType())) {
+                // 노래 차단 처리
+                this.reportDao.updateSongStatus(report.getTargetId(), "BLOCKED");
+            }
+        }
+        
+        //관리자 처리 후 삭제 처리
+        if("DELETE_CONTENT".equalsIgnoreCase(actionType)) {
+        	if("SONG".equals(report.getTargetType())) {
+        		Long songId = report.getTargetId();
+        		
+        		//곡 관련 기록 먼저 삭제 (종속)
+        		this.reportDao.deleteBySongId(songId);
+        		this.reportDao.deleteSongScore(songId);
+        		//그 후 곡 삭제 
+        		this.reportDao.deleteSong(songId);
+        	}
+        }
     }
 }

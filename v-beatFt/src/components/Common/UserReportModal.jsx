@@ -57,6 +57,7 @@ export default function UserReportModal({
     targetProfileImg,
     onClose,
     onSubmit,
+    isAdminUser,
 }) {
     const [mainReason, setMainReason] = useState('');
     const [reason, setReason] = useState('');
@@ -65,8 +66,18 @@ export default function UserReportModal({
 
     function handleSubmit() {
 
+        if (isAdminUser) {
+            alert('관리자는 신고할 수 없습니다');
+            return;
+        }
+
         if (!mainReason) {
             alert('신고 사유를 선택해주세요.');
+            return;
+        }
+
+        if (!desc.trim()) {
+            alert('상세 사유를 입력해주세요.');
             return;
         }
 
@@ -98,25 +109,18 @@ export default function UserReportModal({
 
                 <h3 style={{ marginBottom: 8 }}>신고하기</h3>
 
+                {isAdminUser && (
+                    <div style={{ color: '#f55', marginBottom: 12 }}>
+                        관리자는 신고할 수 없습니다.
+                    </div>
+                )}
+
                 {/* 대상 */}
                 <section style={section}>
                     <span style={sectionTitle}>신고 대상</span>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={avatarWrap}>
-                            {targetProfileImg ? (
-                                <img
-                                    src={encodeURIComponent(targetProfileImg)}
-                                    alt={targetName || '유저'}
-                                    style={avatarImg}
-                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
-
-                                />
-                            ) : null}
-                        </div>
-
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <div>{type}</div>
                             <div>{targetName}</div>
                         </div>
                     </div>
@@ -168,7 +172,7 @@ export default function UserReportModal({
 
                 {/* 설명 */}
                 <section style={section}>
-                    <span style={sectionTitle}>상세 설명 (선택)</span>
+                    <span style={sectionTitle}>상세 사유</span>
                     <textarea
                         value={desc}
                         onChange={(e) => setDesc(e.target.value)}
@@ -187,7 +191,14 @@ export default function UserReportModal({
                     <button type="button" style={footerBtn} onClick={onClose}>
                         취소
                     </button>
-                    <button type="button" style={footerBtnMain} onClick={handleSubmit}>
+                    <button
+                        type="button"
+                        style={{
+                            ...footerBtnMain,
+                            cursor: isAdminUser ? 'not-allowed' : 'pointer',
+                            opacity: isAdminUser ? 0.35 : 1,
+                        }}
+                        onClick={handleSubmit}>
                         신고
                     </button>
                 </div>
