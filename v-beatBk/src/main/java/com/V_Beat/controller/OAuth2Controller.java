@@ -14,6 +14,7 @@ import com.V_Beat.service.AuthService;
 import com.V_Beat.service.GoogleOAuthService;
 import com.V_Beat.service.KakaoOAuthService;
 import com.V_Beat.service.UserService;
+import com.V_Beat.util.ImageDownloader;
 
 import jakarta.servlet.http.HttpSession;
 
@@ -144,18 +145,31 @@ public class OAuth2Controller {
             
             User user = authService.findBySocialId(socialId, 2);
 
+            //신규 가입이면 서버에 이미지 다운로드
             if(user == null) {
+            	String localProfileImg = null;
+            	
+            	if (profileImg != null & profileImg.startsWith("https://")) {
+            		try {
+            			String uploadDir = "upload/profileImg";
+            			String savedFilename = ImageDownloader.downloadProfileImg(profileImg, uploadDir);
+            			localProfileImg = "profileImg/" + savedFilename;
+            		} catch(Exception e) {
+            			e.printStackTrace();
+            		}
+            	}
+            	
                 User newMember = new User();
                 newMember.setEmail(email);
                 newMember.setNickName(nickname);
                 newMember.setLoginType(2);
                 newMember.setSocialId(socialId);
                 newMember.setLoginPw(null);
-                newMember.setProfileImg(profileImg);
+                newMember.setProfileImg(localProfileImg);
                 newMember.setRole("USER");
 
-                authService.joinSocial(newMember);
-                user = authService.findBySocialId(socialId, 2);
+                this.authService.joinSocial(newMember);
+                user = this.authService.findBySocialId(socialId, 2);
             }
 
             return onLoginSuccess(user, session);

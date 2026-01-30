@@ -11,4 +11,5 @@ public class ReportTargetSnapshot {
 	private Long reportId;
 	private String targetName;
 	private String targetExtra;	//JSON 문자열
+	private String targetType; 
 }

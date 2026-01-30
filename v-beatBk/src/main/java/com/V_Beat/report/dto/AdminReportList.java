@@ -28,6 +28,7 @@ public class AdminReportList {
 	private Long snapshotId;
 	private String targetName;	//신고당한 유저 닉네임
 	private String targetExtra; //JSON 문자열
+	private String songOwnerNick;
 	
 	private String actionType;
 	private String actionReason;

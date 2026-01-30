@@ -3,6 +3,7 @@
 package com.V_Beat.report.dao;
 
 import java.util.List;
+import java.util.Map;
 
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
@@ -14,6 +15,7 @@ import org.apache.ibatis.annotations.Update;
 
 import com.V_Beat.report.dto.AdminReportList;
 import com.V_Beat.report.dto.Report;
+import com.V_Beat.report.dto.ReportTargetSnapshot;
 
 @Mapper
 public interface ReportDao {
@@ -170,18 +172,61 @@ public interface ReportDao {
             """)
     Integer findSongOwnerId(@Param("targetId") long targetId);
 
-    //해당 곡 관련 기록 삭제(노래 삭제)
-	@Delete("""
-			DELETE FROM report
-			WHERE target_type = 'SONG'
-			AND target_id = #{songId}
-			""")
-	void deleteBySongId(long songId);
-
 	//사용자 role 판별
 	@Select("""
 			SELECT `role` FROM `user`
 				WHERE id = #{userId}
 			""")
 	String findUserRole(long userId);
+	
+	//사용자 role 변경
+	@Update("""
+			UPDATE `user`
+				SET role = #{role}
+			WHERE id = #{targetId}
+			""")
+	void updateUserRole(@Param("targetId") Long targetId, @Param("role") String role);
+
+	//노래 상태 변경
+	@Update("""
+			UPDATE song
+				SET visibility = #{status}
+			WHERE id = #{targetId}
+			""")
+	void updateSongStatus(@Param("targetId") Long targetId, @Param("status") String status);
+	
+	//해당 곡 관련 기록 삭제(노래 삭제)
+	@Delete("""
+			DELETE FROM report
+			WHERE target_type = 'SONG'
+			AND target_id = #{songId}
+			""")
+	void deleteBySongId(long songId);
+	
+	//관리자 처리 후 해당 곡 삭제
+	@Delete("""
+			DELETE FROM song
+			WHERE id = #{songId}
+			""")
+	void deleteSong(Long songId);
+
+	//관리자 처리 후 해당 곡 기록 삭제
+	@Delete("""
+			DELETE FROM score
+			WHERE song_id = #{songId}
+			""")
+	void deleteSongScore(Long songId);
+
+	//관리자 신고 상세 목록 조회(노래)
+	@Select("""
+		    SELECT
+		        s.id        AS songId,
+		        s.title     AS songTitle,
+		        u.id        AS ownerId,
+		        u.nickname  AS ownerNick
+		    FROM song s
+		    JOIN user u ON s.user_id = u.id
+		    WHERE s.id = #{targetId}
+		""")
+	Map<String, Object> findSong(Long targetId);
 }

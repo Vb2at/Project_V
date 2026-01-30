@@ -257,12 +257,7 @@ public class SongService {
 		return false; // 나머지 차단
 	}
 
-	// 토큰으로 곡 조회
-	@Transactional(readOnly = true)
 	public Song getSongByToken(String token) {
-		if (token == null || token.isBlank()) {
-			return null;
-		}
 		return this.songDao.getSongByToken(token);
 	}
 }

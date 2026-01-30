@@ -117,16 +117,6 @@ public interface SongDao {
 
 	// 본인 업로드 곡 조회
 	@Select("""
-<<<<<<< HEAD
-			<script>
-			SELECT
-			    id AS id,
-			    title AS title,
-			    visibility AS visibility,
-			    cover_path AS coverPath,
-			    diff AS diff,
-			    share_token AS shareToken
-=======
 			SELECT 
 			    id AS id,
 			    title AS title,
@@ -134,13 +124,12 @@ public interface SongDao {
 			    visibility AS visibility,
 			    cover_path AS coverPath,
 			    diff AS diff
->>>>>>> master
 			FROM song
 			WHERE user_id = #{userId}
 			  <if test="visibility != 'ALL'">
 			    AND (
 			        visibility = #{visibility}
-			        <if test="visibility == 'UNLISTED'">
+			        <if test="visibility == 'UNLISTED'>
 			            OR (visibility = 'PRIVATE' AND share_token IS NOT NULL)
 			        </if>
 			    )

@@ -129,8 +129,8 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
 
     const fetchSongByToken = async (token) => {
       try {
-        // 1️⃣ 토큰으로 곡 정보 가져오기
-        const resSong = await fetch(`/api/songs/by-token/${token}`, {
+        // 토큰으로 곡 정보 가져오기
+        const resSong = await fetch(`/api/songs/info?token=${token}`, {
           credentials: 'include', // 세션 쿠키 포함
         });
 
@@ -140,8 +140,8 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
         setSong(fetchedSong);
         setDiff(fetchedSong.diff ?? 'unknown');
 
-        // 2️⃣ 오디오 blob 가져오기
-        const resAudio = await fetch(`/api/songs/${fetchedSong.id}/audio?token=${token}`, {
+        // 오디오 blob 가져오기
+        const resAudio = await fetch(`/api/songs/audio?token=${token}`, {
           credentials: 'include', // 세션 쿠키 포함
         });
 
@@ -339,7 +339,7 @@ console.log('[GAMEPLAY MOUNT]', location.pathname, location.search);
       <Background />
       <Header />
 
-      <LeftSidebar songId={resolvedSongId} diff={diff} />
+      <LeftSidebar songId={tokenParam ? song?.id : resolvedSongId} diff={diff} />
       <RightSidebar isMulti={isMulti} />
       <HUDFrame>
         <HUD
