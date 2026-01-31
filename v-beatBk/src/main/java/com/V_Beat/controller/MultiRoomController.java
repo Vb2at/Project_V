@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.V_Beat.ai.service.SongService;
 import com.V_Beat.dto.Song;
+import com.V_Beat.dto.User;
 import com.V_Beat.multi.MultiPlayer;
 import com.V_Beat.multi.MultiRoom;
 import com.V_Beat.multi.MultiRoomManager;
@@ -29,13 +30,10 @@ public class MultiRoomController {
     /* ===== 방 생성 ===== */
     @PostMapping("/rooms")
     public Map<String, Object> createRoom(@RequestBody MultiRoom req, HttpSession session) {
-
         Map<String, Object> res = new HashMap<>();
 
-        Integer userId = (Integer) session.getAttribute("loginUserId");
-        String nick = (String) session.getAttribute("loginUserNickName");
-
-        if (userId == null) {
+        User user = (User) session.getAttribute("loginUser");
+        if (user == null) {
             res.put("ok", false);
             return res;
         }
@@ -51,14 +49,13 @@ public class MultiRoomController {
         req.setLengthSec(parseDurationToSec(song.getDuration()));
         req.setCoverPath("/api/songs/" + song.getId() + "/cover");
 
-        String profileImg = (String) session.getAttribute("loginUserProfileImg");
-
         MultiPlayer host = new MultiPlayer(
-            userId,
-            nick,
-            profileImg,
+            user.getId(),
+            user.getNickName(),
+            user.getProfileImg(),
             false
         );
+
         MultiRoom room = roomManager.createRoom(req, host);
 
         res.put("ok", true);
@@ -70,7 +67,6 @@ public class MultiRoomController {
     /* ===== 방 단건 조회 ===== */
     @GetMapping("/rooms/{roomId}")
     public Map<String, Object> getRoom(@PathVariable String roomId, HttpSession session) {
-
         Map<String, Object> res = new HashMap<>();
 
         MultiRoom room = roomManager.getRoom(roomId);
@@ -79,17 +75,18 @@ public class MultiRoomController {
             return res;
         }
 
+        User user = (User) session.getAttribute("loginUser");
+
         res.put("ok", true);
         res.put("room", room);
         res.put("players", room.getPlayers());
-        res.put("myUserId", session.getAttribute("loginUserId"));
+        res.put("myUserId", user != null ? user.getId() : null);
         return res;
     }
 
-    /* ===== 방 목록 조회 (❗ 누락돼 있었음) ===== */
+    /* ===== 방 목록 조회 ===== */
     @GetMapping("/rooms")
     public Map<String, Object> getRooms() {
-
         Map<String, Object> res = new HashMap<>();
         res.put("ok", true);
         res.put(
@@ -104,27 +101,22 @@ public class MultiRoomController {
     /* ===== 방 입장 ===== */
     @PostMapping("/rooms/{roomId}/join")
     public Map<String, Object> joinRoom(@PathVariable String roomId, HttpSession session) {
-
         Map<String, Object> res = new HashMap<>();
 
-        Integer userId = (Integer) session.getAttribute("loginUserId");
-        String nick = (String) session.getAttribute("loginUserNickName");
-
-        if (userId == null) {
+        User user = (User) session.getAttribute("loginUser");
+        if (user == null) {
             res.put("ok", false);
             return res;
         }
 
-        String profileImg = (String) session.getAttribute("loginUserProfileImg");
-
         MultiPlayer p = new MultiPlayer(
-            userId,
-            nick,
-            profileImg,
+            user.getId(),
+            user.getNickName(),
+            user.getProfileImg(),
             false
         );
-        boolean ok = roomManager.joinRoom(roomId, p);
 
+        boolean ok = roomManager.joinRoom(roomId, p);
         res.put("ok", ok);
         return res;
     }

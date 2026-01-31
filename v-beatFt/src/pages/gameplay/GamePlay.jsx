@@ -8,7 +8,7 @@ import LeftSidebar from './LeftSidebar';
 import RightSidebar from './RightSidebar';
 import HUD from './HUD.jsx';
 import HUDFrame from './HUDFrame.jsx';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import LoadingNoteRain from './LoadingNoteRain';
 import { playCountTick, playCountStart } from '../../components/engine/SFXManager';
 import { playMenuConfirm } from '../../components/engine/SFXManager';
@@ -36,6 +36,8 @@ const DEFAULT_SETTINGS = {
 function GamePlay() {
   const { songId: paramSongId } = useParams();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const lobbyRival = location.state?.rival ?? null;
 
   const [settings, setSettings] = useState(() => {
     try {
@@ -80,102 +82,171 @@ function GamePlay() {
   const [rivalResult, setRivalResult] = useState(null);
   const analyserRef = useRef(null);
   const [sessionKey, setSessionKey] = useState(0);
+  const frameRafRef = useRef(0);
+  const rivalFrameRef = useRef(null);
+  const frameImgRef = useRef(null);
 
   // ✅ 오른쪽 사이드바에 들어갈 상대 상태(닉/프사/점수/콤보)
-  const [rival, setRival] = useState(null);
-
+  const [rival, setRival] = useState(() => ({
+    userId: lobbyRival?.userId ?? null,
+    nickname: lobbyRival?.nickname ?? null,
+    profileUrl: lobbyRival?.profileUrl ?? null,
+    score: 0,
+    combo: 0,
+    frame: null,
+  }));
+  const [rivalUserId, setRivalUserId] = useState(null);
   const MIN_LOADING_TIME = 2500;
   const loadingStartRef = useRef(0);
   const loadingEndRef = useRef(null);
   const HEADER_HEIGHT = 25;
-  const [loginUser, setLoginUser] = useState(null);
-
+  const [loginUser, setLoginUser] = useState(undefined);
+  const enteredRef = useRef(false);
+  const pendingRivalScoreRef = useRef(null);
   const navigate = useNavigate();
-
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
   const [song, setSong] = useState(null);
+  const [myId, setMyId] = useState(null);
 
+  const myIdRef = useRef(null);
   // ✅ stomp single instance
   const stompRef = useRef(null);
-  // const stompConnectedRef = useRef(false);
 
   // ===== 멀티 STOMP 연결 + 구독 + ROOM_STATE 요청 =====
+
+
+
   useEffect(() => {
     if (!isMulti || !roomId) return;
+    if (!myId) return;
 
-    const myId = String(loginUser?.loginUser?.id ?? '');
+    if (!loginUser && !isMulti) return;
 
     const client = new Client({
       webSocketFactory: () =>
         new SockJS('http://localhost:8080/ws', null, { withCredentials: true }),
-
-      connectHeaders: {},
-
       reconnectDelay: 3000,
       debug: () => { },
-
       onConnect: () => {
         stompRef.current = client;
-        // 1) ROOM_STATE
+
+        // ROOM_STATE
         client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
           const data = JSON.parse(msg.body);
-          if (data.type !== 'ROOM_STATE') return;
-
-          console.log('[ROOM_STATE raw]', data.players, 'myId=', myId);
+          console.log('[ROOM_STATE RAW]', data); // ✅ 여기
 
           if (!Array.isArray(data.players)) return;
 
-          const other = data.players.find(
-            (p) => String(p.userId) !== myId
-          );
+          console.log('[ROOM_STATE COUNT]', data.players.length); // ✅ 여기
+
+          if (data.players.length < 2) {
+            console.log('[ROOM_STATE WAIT]', data.players);
+            return;
+          }
+
+          const other = data.players.find((p) => String(p.userId) !== String(myId));
           if (!other) return;
 
+          setRivalUserId(other.userId);
+
           setRival(prev => ({
-            ...(prev ?? {}),
-            nickname: other.nickname ?? 'OPPONENT',
-            profileUrl: other.profileImg ?? null,
-            score: prev?.score ?? 0,
-            combo: prev?.combo ?? 0,
-            maxCombo: prev?.maxCombo ?? 0,
+            ...prev,
+            userId: other.userId,
+            nickname: other.nickname ?? prev.nickname ?? null,
+            profileUrl: other.profileImg ?? prev.profileUrl ?? null,
           }));
         });
 
-        // 2) SCORE
+        // SCORE
         client.subscribe(`/topic/multi/room/${roomId}/score`, (msg) => {
           const data = JSON.parse(msg.body);
-          if (data?.type !== 'SCORE') return;
+          console.log('[SCORE]', data);
+          if (String(data.userId) === myId) return;
 
-          const senderId = String(data?.userId ?? data?.id);
-          if (senderId === myId) return;
-
-          // 🔥 상대 점수 왔다는 건 상대가 "확실히 존재"한다는 뜻
-          try {
-            client.publish({
-              destination: `/app/multi/room/${roomId}/state`,
-              body: JSON.stringify({ roomId }),
-            });
-          } catch { }
-
-          setRival(prev => ({
-            ...(prev ?? {}),
+          // rival 생성 전이면 캐시
+          pendingRivalScoreRef.current = {
             score: data.score,
             combo: data.combo,
             maxCombo: data.maxCombo,
-          }));
+          };
+
+          setRival((prev) => {
+            // ✅ ROOM_STATE로 rival userId 확정 전이면 UI 반영 금지
+            if (!prev?.userId) return prev;
+            // ✅ 다른 유저 점수만 반영
+            if (String(prev.userId) !== String(data.userId)) return prev;
+            return {
+              ...prev,
+              score: data.score,
+              combo: data.combo,
+              maxCombo: data.maxCombo,
+            };
+          });
         });
 
-        // 3) ROOM_STATE 강제 요청
-        const body = JSON.stringify({ roomId });
-        try { client.publish({ destination: `/app/multi/room/state`, body }); } catch { }
+        client.subscribe(`/topic/multi/room/${roomId}/frame`, (msg) => {
+          console.log('[FRAME SUBSCRIBED]');
+          const data = JSON.parse(msg.body);
+          console.log('[FRAME DATA]', data);
 
+          if (!data?.frame) return;
+
+          if (data.userId != null && String(data.userId) === String(myIdRef.current)) return;
+
+          if (frameImgRef.current) {
+            frameImgRef.current.src = data.frame;
+
+            console.log('[FRAME]', data.frame.slice(0, 40));
+          }
+        });
+
+        if (!enteredRef.current) {
+          client.publish({
+            destination: `/app/multi/enter`,
+            body: JSON.stringify({ roomId }),
+          });
+          enteredRef.current = true;
+        }
       },
     });
 
-    client.activate(); // ✅ 이 줄이 핵심
+    client.activate();
     return () => {
-      try { client.deactivate(); } catch { }
+      enteredRef.current = false;
+
+      if (frameRafRef.current) {
+        cancelAnimationFrame(frameRafRef.current);
+        frameRafRef.current = 0;
+      }
+
+      rivalFrameRef.current = null;
+      client.deactivate();
     };
-  }, [isMulti, roomId, loginUser]);
+
+  }, [isMulti, roomId, myId]);
+
+  useEffect(() => {
+    if (!rivalUserId) return;
+
+    fetch(`/api/user/info?userId=${rivalUserId}`, {
+      credentials: 'include',
+    })
+      .then(res => res.json())
+      .then(data => {
+
+        const u = data?.user ?? data ?? {};
+        setRival(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            nickname: prev.nickname ?? u.nickName ?? u.nickname ?? null,
+            profileUrl: prev.profileUrl ?? u.profileImg ?? u.profileUrl ?? null,
+          };
+        });
+      })
+      .catch(console.error);
+  }, [rivalUserId]);
+
 
   useEffect(() => {
     if (!isMulti) return;
@@ -191,6 +262,10 @@ function GamePlay() {
     statusApi()
       .then((res) => {
         setLoginUser(res.data);
+
+        const id = String(res.data.loginUser.id);
+        setMyId(id);
+        myIdRef.current = id;
       })
       .catch((err) => {
         console.error('로그인 상태 확인 실패:', err);
@@ -199,9 +274,9 @@ function GamePlay() {
   }, []);
 
   useEffect(() => {
-    if (loginUser === null) return;
+    if (loginUser === undefined) return;
 
-    if (!loginUser || loginUser.loginUser.status === 'BLOCKED') {
+    if (!isMulti && (!loginUser || loginUser.loginUser.status === 'BLOCKED')) {
       alert('이용이 제한된 기능입니다.');
       navigate('/main');
       return;
@@ -411,7 +486,11 @@ function GamePlay() {
       <Header />
 
       <LeftSidebar songId={tokenParam ? song?.id : resolvedSongId} diff={diff} />
-      <RightSidebar isMulti={isMulti} />
+      <RightSidebar
+        isMulti={isMulti}
+        rival={rival}
+        frameImgRef={frameImgRef}
+      />
       <HUDFrame>
         <HUD score={score} combo={combo} songProgress={songProgress} classProgress={classProgress} />
       </HUDFrame>
@@ -739,13 +818,14 @@ function GamePlay() {
             isMulti={isMulti}
             roomId={roomId}
             stompClientRef={stompRef}
+            stompConnected={true}
             startAt={multiStartAt}
             onReady={() => {
               loadingEndRef.current = performance.now();
               setLoadingDone(true);
             }}
             onState={({ score, combo, diff, currentTime, duration, maxScore }) => {
-              if (paused) return;
+              if (finished) return;
 
               setScore(score);
               setCombo(combo);
@@ -791,6 +871,9 @@ function GamePlay() {
                 });
               }
             }}
+
+            onStreamReady={() => { }}
+
           />
         )}
 

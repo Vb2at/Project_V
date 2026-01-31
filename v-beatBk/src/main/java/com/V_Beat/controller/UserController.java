@@ -21,198 +21,224 @@ import jakarta.servlet.http.HttpSession;
 @RequestMapping("/api/user")
 public class UserController {
 
-    private final UserService userService;
+	private final UserService userService;
 
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
+	public UserController(UserService userService) {
+		this.userService = userService;
+	}
 
-    // 닉네임 변경
-    @PostMapping("/change-nickname")
-    public Map<String, Object> changeNickName(@RequestBody CheckReq req, HttpSession session) {
-        Map<String, Object> res = new HashMap<>();
+	// 닉네임 변경
+	@PostMapping("/change-nickname")
+	public Map<String, Object> changeNickName(@RequestBody CheckReq req, HttpSession session) {
+		Map<String, Object> res = new HashMap<>();
 
-        Integer loginUserId = (Integer) session.getAttribute("loginUserId");
-        if (loginUserId == null) {
-            res.put("ok", false);
-            res.put("message", "로그인이 필요한 기능입니다.");
-            return res;
-        }
+		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+		if (loginUserId == null) {
+			res.put("ok", false);
+			res.put("message", "로그인이 필요한 기능입니다.");
+			return res;
+		}
 
-        String nickName = (req.getNickName() == null) ? "" : req.getNickName().trim();
-        if (nickName.isEmpty()) {
-            res.put("ok", false);
-            res.put("message", "닉네임을 입력하세요.");
-            return res;
-        }
+		String nickName = (req.getNickName() == null) ? "" : req.getNickName().trim();
+		if (nickName.isEmpty()) {
+			res.put("ok", false);
+			res.put("message", "닉네임을 입력하세요.");
+			return res;
+		}
 
-        String result = this.userService.changeNickName(loginUserId, nickName);
-        if ("success".equals(result)) {
-            // ✅ 세션 값도 최신화
-            session.setAttribute("loginUserNickName", nickName);
+		String result = this.userService.changeNickName(loginUserId, nickName);
+		if ("success".equals(result)) {
+			// ✅ 세션 값도 최신화
+			session.setAttribute("loginUserNickName", nickName);
 
-            // ✅ 추가: loginUser 객체도 갱신(세션 일관성)
-            Object obj = session.getAttribute("loginUser");
-            if (obj instanceof User u) {
-                u.setNickName(nickName);
-                session.setAttribute("loginUser", u);
-            }
+			// ✅ 추가: loginUser 객체도 갱신(세션 일관성)
+			Object obj = session.getAttribute("loginUser");
+			if (obj instanceof User u) {
+				u.setNickName(nickName);
+				session.setAttribute("loginUser", u);
+			}
 
-            res.put("ok", true);
-            res.put("message", "닉네임이 변경되었습니다.");
-            return res;
-        }
+			res.put("ok", true);
+			res.put("message", "닉네임이 변경되었습니다.");
+			return res;
+		}
 
-        res.put("ok", false);
-        res.put("message", result);
-        return res;
-    }
+		res.put("ok", false);
+		res.put("message", result);
+		return res;
+	}
 
-    //비밀번호 강화 메서드
-    private boolean isValidPassword(String pw) {
-    	if(pw.length() < 8 || pw.length() > 16) {
-    		return false;
-    	}
-    	
-    	boolean letter = pw.chars().anyMatch(Character::isLetter);
-    	boolean digit = pw.chars().anyMatch(Character::isDigit);
-    	return letter && digit;
-    }
-    
-    // 비밀번호 변경
-    @PostMapping("/change-pw")
-    public Map<String, Object> changePw(@RequestBody CheckReq req, HttpSession session) {
-        Map<String, Object> res = new HashMap<>();
+	// 비밀번호 강화 메서드
+	private boolean isValidPassword(String pw) {
+		if (pw.length() < 8 || pw.length() > 16) {
+			return false;
+		}
 
-        Integer loginUserId = (Integer) session.getAttribute("loginUserId");
-        if (loginUserId == null) {
-            res.put("ok", false);
-            res.put("message", "로그인이 필요한 기능입니다.");
-            return res;
-        }
+		boolean letter = pw.chars().anyMatch(Character::isLetter);
+		boolean digit = pw.chars().anyMatch(Character::isDigit);
+		return letter && digit;
+	}
 
-        //소셜 로그인자 비밀번호 변경 불가
-        if(req.getLoginType() != 0) {
-        	res.put("ok", false);
-        	res.put("message", "소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다.");
-        	return res;
-        }
-        
-        String currentPw = (req.getCurrentPw() == null) ? "" : req.getCurrentPw().trim();
-        String newPw = (req.getLoginPw() == null) ? "" : req.getLoginPw().trim();
+	// 비밀번호 변경
+	@PostMapping("/change-pw")
+	public Map<String, Object> changePw(@RequestBody CheckReq req, HttpSession session) {
+		Map<String, Object> res = new HashMap<>();
 
-        if (newPw.isEmpty()) {
-            res.put("ok", false);
-            res.put("message", "비밀번호를 입력하세요");
-            return res;
-        }
-        
-        //비밀번호 규칙 강화 
-        if (!isValidPassword(newPw.trim())) {
-        	res.put("ok", false);
-        	res.put("message",  "비밀번호는 8~16자리, 영문+숫자를 포함해야 합니다.");
-        	return res;
-        }
-        
-        //currentPw가 존재한다면 changePw로 (평상시)
-        if (!currentPw.isEmpty()) {
-        	String result = this.userService.changePw(loginUserId, currentPw, newPw);
-        	
-        	if ("success".equals(result)) {
-        		res.put("ok", true);
-        		res.put("message", "비밀번호가 변경되었습니다.");
-        		return res;
-        	}
-        	//존재하지 않는다면 changePwEmptyCurrent로 진행 (임시비번 발급 후)
-        } else {
-        	this.userService.changePwEmptyCurrent(loginUserId, newPw);
-	        	res.put("ok", true);
-	        	res.put("message", "비밀번호가 변경되었습니다.");
-        }
+		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+		if (loginUserId == null) {
+			res.put("ok", false);
+			res.put("message", "로그인이 필요한 기능입니다.");
+			return res;
+		}
 
-        return res;
-    }
+		// 소셜 로그인자 비밀번호 변경 불가
+		if (req.getLoginType() != 0) {
+			res.put("ok", false);
+			res.put("message", "소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다.");
+			return res;
+		}
 
-    // 프로필 이미지 업로드
-    @PostMapping(value = "/uploadProfile", consumes = "multipart/form-data")
-    public Map<String, Object> uploadProfile(@RequestParam("profileImg") MultipartFile profileImg,
-                                             HttpSession session) {
-        Map<String, Object> res = new HashMap<>();
+		String currentPw = (req.getCurrentPw() == null) ? "" : req.getCurrentPw().trim();
+		String newPw = (req.getLoginPw() == null) ? "" : req.getLoginPw().trim();
 
-        Integer loginUserId = (Integer) session.getAttribute("loginUserId");
-        if (loginUserId == null) {
-            res.put("ok", false);
-            res.put("message", "로그인이 필요한 기능입니다.");
-            return res;
-        }
+		if (newPw.isEmpty()) {
+			res.put("ok", false);
+			res.put("message", "비밀번호를 입력하세요");
+			return res;
+		}
 
-        if (profileImg == null || profileImg.isEmpty()) {
-            res.put("ok", false);
-            res.put("message", "업로드할 파일을 선택하세요.");
-            return res;
-        }
+		// 비밀번호 규칙 강화
+		if (!isValidPassword(newPw.trim())) {
+			res.put("ok", false);
+			res.put("message", "비밀번호는 8~16자리, 영문+숫자를 포함해야 합니다.");
+			return res;
+		}
 
-        String result = userService.uploadProfile(loginUserId, profileImg);
+		// currentPw가 존재한다면 changePw로 (평상시)
+		if (!currentPw.isEmpty()) {
+			String result = this.userService.changePw(loginUserId, currentPw, newPw);
 
-        if (result == null || !result.startsWith("profileImg/")) {
-            res.put("ok", false);
-            res.put("message", result == null ? "프로필 이미지 업로드에 실패했습니다." : result);
-            return res;
-        }
+			if ("success".equals(result)) {
+				res.put("ok", true);
+				res.put("message", "비밀번호가 변경되었습니다.");
+				return res;
+			}
+			// 존재하지 않는다면 changePwEmptyCurrent로 진행 (임시비번 발급 후)
+		} else {
+			this.userService.changePwEmptyCurrent(loginUserId, newPw);
+			res.put("ok", true);
+			res.put("message", "비밀번호가 변경되었습니다.");
+		}
 
-        res.put("ok", true);
-        res.put("message", "프로필 이미지가 업로드 되었습니다.");
-        res.put("fileName", result);
-        return res;
-    }
+		return res;
+	}
 
-    // 회원탈퇴
-    @PostMapping("/deleteAccount")
-    public Map<String, Object> deleteAccount(HttpSession session) {
-        Map<String, Object> res = new HashMap<>();
+	// 프로필 이미지 업로드
+	@PostMapping(value = "/uploadProfile", consumes = "multipart/form-data")
+	public Map<String, Object> uploadProfile(@RequestParam("profileImg") MultipartFile profileImg,
+			HttpSession session) {
+		Map<String, Object> res = new HashMap<>();
 
-        Integer loginUserId = (Integer) session.getAttribute("loginUserId");
-        if (loginUserId == null) {
-            res.put("ok", false);
-            res.put("message", "로그인이 필요한 기능입니다.");
-            return res;
-        }
+		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+		if (loginUserId == null) {
+			res.put("ok", false);
+			res.put("message", "로그인이 필요한 기능입니다.");
+			return res;
+		}
 
-        String result = this.userService.deleteAccount(loginUserId);
-        if ("success".equals(result)) {
-            session.invalidate();
-            res.put("ok", true);
-            res.put("message", "회원탈퇴가 정상적으로 되었습니다.");
-            return res;
-        } else {
-            res.put("ok", false);
-            res.put("message", result);
-        }
+		if (profileImg == null || profileImg.isEmpty()) {
+			res.put("ok", false);
+			res.put("message", "업로드할 파일을 선택하세요.");
+			return res;
+		}
 
-        return res;
-    }
+		String result = userService.uploadProfile(loginUserId, profileImg);
 
-    // 유저 정보 조회
-    @GetMapping("/myInfo")
-    public Map<String, Object> selectInfo(HttpSession session) {
-        Map<String, Object> res = new HashMap<>();
+		session.setAttribute("loginUserProfileImg", result);
 
-        Integer loginUserId = (Integer) session.getAttribute("loginUserId");
-        if (loginUserId == null) {
-            res.put("ok", false);
-            res.put("message", "로그인이 필요한 기능입니다.");
-            return res;
-        }
+		// (선택) loginUser 객체도 같이 갱신
+		Object obj = session.getAttribute("loginUser");
+		if (obj instanceof User u) {
+			u.setProfileImg(result);
+			session.setAttribute("loginUser", u);
+		}
 
-        User user = this.userService.selectById(loginUserId);
-        if (user == null) {
-            res.put("ok", false);
-            res.put("message", "조회되는 정보가 없습니다.");
-            return res;
-        }
+		if (result == null || !result.startsWith("profileImg/")) {
+			res.put("ok", false);
+			res.put("message", result == null ? "프로필 이미지 업로드에 실패했습니다." : result);
+			return res;
+		}
 
-        res.put("ok", true);
-        res.put("user", user);
-        return res;
-    }
+		res.put("ok", true);
+		res.put("message", "프로필 이미지가 업로드 되었습니다.");
+		res.put("fileName", result);
+		return res;
+	}
+
+	// 회원탈퇴
+	@PostMapping("/deleteAccount")
+	public Map<String, Object> deleteAccount(HttpSession session) {
+		Map<String, Object> res = new HashMap<>();
+
+		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+		if (loginUserId == null) {
+			res.put("ok", false);
+			res.put("message", "로그인이 필요한 기능입니다.");
+			return res;
+		}
+
+		String result = this.userService.deleteAccount(loginUserId);
+		if ("success".equals(result)) {
+			session.invalidate();
+			res.put("ok", true);
+			res.put("message", "회원탈퇴가 정상적으로 되었습니다.");
+			return res;
+		} else {
+			res.put("ok", false);
+			res.put("message", result);
+		}
+
+		return res;
+	}
+
+	// 유저 정보 조회
+	@GetMapping("/myInfo")
+	public Map<String, Object> selectInfo(HttpSession session) {
+		Map<String, Object> res = new HashMap<>();
+
+		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+		if (loginUserId == null) {
+			res.put("ok", false);
+			res.put("message", "로그인이 필요한 기능입니다.");
+			return res;
+		}
+
+		User user = this.userService.selectById(loginUserId);
+		if (user == null) {
+			res.put("ok", false);
+			res.put("message", "조회되는 정보가 없습니다.");
+			return res;
+		}
+
+		res.put("ok", true);
+		res.put("user", user);
+		return res;
+	}
+
+	// 상대 유저 정보 조회 (멀티용)
+	@GetMapping("/info")
+	public Map<String, Object> getUserInfo(@RequestParam Integer userId) {
+		Map<String, Object> res = new HashMap<>();
+
+		User user = userService.selectById(userId);
+		if (user == null) {
+			res.put("ok", false);
+			return res;
+		}
+
+		res.put("ok", true);
+		res.put("user", user);
+		return res;
+	}
+
 }

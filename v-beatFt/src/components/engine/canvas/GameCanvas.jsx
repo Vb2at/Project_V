@@ -4,10 +4,23 @@ import { GAME_CONFIG } from "../../../constants/GameConfig";
 const KEY_LABELS = ['A', 'S', 'D', 'SPACE', 'J', 'K', 'L'];
 
 // 게임 캔버스 컴포넌트
-export default function GameCanvas({ currentTime, pressedKeys = new Set() }) {
+export default function GameCanvas({
+  currentTime,
+  pressedKeys = new Set(),
+  onCanvasReady,   // ✅ 추가
+}) {
   const canvasRef = useRef(null);
   const pressedKeysRef = useRef(pressedKeys);
   const timeRef = useRef(currentTime);
+
+  // ✅ canvas DOM 준비되면 1회 전달
+
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    onCanvasReady?.(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     pressedKeysRef.current = pressedKeys;
@@ -64,7 +77,7 @@ function drawKeyIndicators(ctx, pressedKeys) {
     const bl = applyPerspective(left, y);
     const br = applyPerspective(right, y);
 
-    const WIDTH_RATIO = 0.98;  
+    const WIDTH_RATIO = 0.98;
     const width = (br.x - bl.x) * WIDTH_RATIO;
     const offsetX = (br.x - bl.x - width) / 2;
     const height = 50;

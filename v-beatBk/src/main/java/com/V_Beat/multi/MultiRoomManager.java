@@ -80,9 +80,12 @@ public class MultiRoomManager {
 
         if (!exists) {
             room.getPlayers().add(player);
-            broadcastRoom(room);
-            broadcastRoomList();
         }
+
+        // ✅ 이미 들어와 있어도 무조건 ROOM_STATE 재전송
+        broadcastRoom(room);
+        broadcastRoomList();
+
         return true;
     }
 

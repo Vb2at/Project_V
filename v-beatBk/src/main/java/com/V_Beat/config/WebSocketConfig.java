@@ -35,8 +35,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 	private final OnlineUserService onlineUserService;
 	private final BattleSessionService battleSessionService;
 
-	public WebSocketConfig(OnlineUserService onlineUserService,
-	                       BattleSessionService battleSessionService) {
+	public WebSocketConfig(
+			OnlineUserService onlineUserService,
+			BattleSessionService battleSessionService
+	) {
 		this.onlineUserService = onlineUserService;
 		this.battleSessionService = battleSessionService;
 	}
@@ -52,107 +54,117 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 	public void registerStompEndpoints(StompEndpointRegistry registry) {
 
 		registry.addEndpoint("/ws")
-				.addInterceptors(
-						new HttpSessionHandshakeInterceptor(),
-						new HandshakeInterceptor() {
-							@Override
-							public boolean beforeHandshake(ServerHttpRequest request,
-							                               ServerHttpResponse response,
-							                               WebSocketHandler wsHandler,
-							                               Map<String, Object> attributes) throws Exception {
+			.addInterceptors(
+				new HttpSessionHandshakeInterceptor(),
+				new HandshakeInterceptor() {
 
-								if (request instanceof ServletServerHttpRequest servletRequest) {
-									HttpSession session = servletRequest.getServletRequest().getSession(false);
-									if (session == null) return true;
+					@Override
+					public boolean beforeHandshake(
+							ServerHttpRequest request,
+							ServerHttpResponse response,
+							WebSocketHandler wsHandler,
+							Map<String, Object> attributes
+					) {
 
-									// ✅ 1) loginMember(User) 우선
-									Object loginMember = session.getAttribute("loginMember");
-									if (loginMember instanceof User user) {
-										attributes.put("userId", user.getId());
-										return true;
-									}
+						if (request instanceof ServletServerHttpRequest servletRequest) {
+							HttpSession session = servletRequest
+									.getServletRequest()
+									.getSession(false);
 
-									// ✅ 2) loginUserId도 지원(프로젝트에서 흔히 같이 씀)
-									Object loginUserId = session.getAttribute("loginUserId");
-									Integer id = parseIntSafe(loginUserId);
-									if (id != null) {
-										attributes.put("userId", id);
-									}
-								}
+							if (session == null) return true;
+
+							// 1) loginMember(User)
+							Object loginMember = session.getAttribute("loginMember");
+							if (loginMember instanceof User user) {
+								attributes.put("userId", user.getId());
 								return true;
 							}
 
-							@Override
-							public void afterHandshake(ServerHttpRequest request,
-							                           ServerHttpResponse response,
-							                           WebSocketHandler wsHandler,
-							                           Exception exception) {
-								// no-op
-							}
-
-							private Integer parseIntSafe(Object v) {
-								if (v == null) return null;
-								if (v instanceof Integer) return (Integer) v;
-								if (v instanceof Number) return ((Number) v).intValue();
-								if (v instanceof String s) {
-									try { return Integer.parseInt(s); } catch (Exception e) { return null; }
-								}
-								return null;
+							// 2) loginUserId
+							Object loginUserId = session.getAttribute("loginUserId");
+							Integer id = parseIntSafe(loginUserId);
+							if (id != null) {
+								attributes.put("userId", id);
 							}
 						}
-				)
-
-				// ✅ handshake 단계에서 Principal 확정
-				.setHandshakeHandler(new DefaultHandshakeHandler() {
-					@Override
-					protected Principal determineUser(ServerHttpRequest request,
-					                                  WebSocketHandler wsHandler,
-					                                  Map<String, Object> attributes) {
-						Object uid = attributes.get("userId");
-						if (uid == null) return null;
-						String name = String.valueOf(uid);
-						return () -> name; // Principal.name = userId
+						return true;
 					}
-				})
 
-				.setAllowedOriginPatterns(
-						"http://localhost:*",
-						"http://127.0.0.1:*"
-				)
-				.withSockJS();
+					@Override
+					public void afterHandshake(
+							ServerHttpRequest request,
+							ServerHttpResponse response,
+							WebSocketHandler wsHandler,
+							Exception exception
+					) {}
+
+					private Integer parseIntSafe(Object v) {
+						if (v == null) return null;
+						if (v instanceof Integer) return (Integer) v;
+						if (v instanceof Number) return ((Number) v).intValue();
+						if (v instanceof String s) {
+							try { return Integer.parseInt(s); }
+							catch (Exception e) { return null; }
+						}
+						return null;
+					}
+				}
+			)
+
+			// Principal = userId
+			.setHandshakeHandler(new DefaultHandshakeHandler() {
+				@Override
+				protected Principal determineUser(
+						ServerHttpRequest request,
+						WebSocketHandler wsHandler,
+						Map<String, Object> attributes
+				) {
+					Object uid = attributes.get("userId");
+					if (uid == null) return null;
+					return () -> String.valueOf(uid);
+				}
+			})
+
+			.setAllowedOriginPatterns(
+				"http://localhost:*",
+				"http://127.0.0.1:*"
+			)
+			.withSockJS();
 	}
 
 	@Override
 	public void configureClientInboundChannel(ChannelRegistration registration) {
 
 		registration.interceptors(new ChannelInterceptor() {
+
 			@Override
 			public Message<?> preSend(Message<?> message, MessageChannel channel) {
 
 				StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
-
 				StompCommand cmd = accessor.getCommand();
 				if (cmd == null) return message;
 
 				Map<String, Object> attrs = accessor.getSessionAttributes();
 				Integer userId = getUserIdSafe(attrs);
 
-				// ✅ CONNECT: userId 없으면 차단(정상 정책)
+				// CONNECT
 				if (StompCommand.CONNECT.equals(cmd)) {
 
-					System.out.println("[WS CONNECT] userId=" + userId + ", attrs=" + attrs
-							+ ", principal=" + (accessor.getUser() != null ? accessor.getUser().getName() : null));
+					System.out.println(
+						"[WS CONNECT] userId=" + userId +
+						", attrs=" + attrs +
+						", principal=" +
+						(accessor.getUser() != null
+							? accessor.getUser().getName()
+							: null)
+					);
 
-					if (userId == null) {
-						return null;
-					}
+					if (userId == null) return null;
 
-					// 보험: Principal 비어있으면 세팅
 					if (accessor.getUser() == null) {
 						accessor.setUser((Principal) () -> String.valueOf(userId));
 					}
 
-					// 중복 CONNECT 방지
 					if (attrs != null && Boolean.TRUE.equals(attrs.get("onlineAdded"))) {
 						return message;
 					}
@@ -162,10 +174,18 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 					return message;
 				}
 
-				// CONNECT 이후에도 userId 없으면 무시
-				if (userId == null) return null;
+				// 🔥 핵심 수정부: userId 없어도 frame은 통과
+				if (userId == null) {
+					if (StompCommand.SEND.equals(cmd)) {
+						String dest = accessor.getDestination();
+						if (dest != null && dest.startsWith("/app/multi/frame")) {
+							return message;
+						}
+					}
+					return null;
+				}
 
-				// DISCONNECT 처리
+				// DISCONNECT
 				if (StompCommand.DISCONNECT.equals(cmd)) {
 
 					if (attrs != null && Boolean.TRUE.equals(attrs.get("disconnected"))) {
@@ -174,7 +194,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 					if (attrs != null) attrs.put("disconnected", true);
 
 					onlineUserService.removeUser(userId);
-
 					battleSessionService.spectatorLeaveAll(userId);
 					battleSessionService.playerLeaveAll(userId);
 				}
@@ -190,16 +209,21 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
 				if (v instanceof Integer) return (Integer) v;
 				if (v instanceof Number) return ((Number) v).intValue();
-
 				if (v instanceof String s) {
-					try {
-						return Integer.parseInt(s);
-					} catch (NumberFormatException e) {
-						return null;
-					}
+					try { return Integer.parseInt(s); }
+					catch (NumberFormatException e) { return null; }
 				}
 				return null;
 			}
 		});
+	}
+	@Override
+	public void configureWebSocketTransport(
+	    org.springframework.web.socket.config.annotation.WebSocketTransportRegistration registry
+	) {
+	    registry
+	        .setMessageSizeLimit(2 * 1024 * 1024)      // 2MB
+	        .setSendBufferSizeLimit(2 * 1024 * 1024)
+	        .setSendTimeLimit(20_000);
 	}
 }

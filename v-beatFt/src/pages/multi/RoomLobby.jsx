@@ -26,6 +26,7 @@ export default function RoomLobby() {
 
   const analyserRef = useRef(null);
   const stompRef = useRef(null);
+  const opponentRef = useRef(null);
 
   // ✅ 중복/지연 문제 방지용
   const closedHandledRef = useRef(false);      // ROOM_CLOSED 한 번만 처리
@@ -103,7 +104,6 @@ export default function RoomLobby() {
           const data = JSON.parse(msg.body);
 
           if (data.type === 'ROOM_STATE') {
-            console.log('[ROOM_STATE players]', data.players);
             setPlayers(data.players || []);
             return;
           }
@@ -111,11 +111,24 @@ export default function RoomLobby() {
           if (data.type === 'START') {
             playMenuConfirm();
 
-            // ✅ 여기서 songId는 항상 보장됨
+            const op = opponentRef.current;
+
             navigate(
-              `/game/play?mode=multi&roomId=${roomId}&songId=${roomInfo.songId}&startAt=${data.startAt}`
+              `/game/play?mode=multi&roomId=${roomId}&songId=${roomInfo.songId}&startAt=${data.startAt}`,
+              {
+                state: {
+                  rival: op
+                    ? {
+                      userId: op.userId,
+                      nickname: op.nickname,
+                      profileUrl: op.profileImg,
+                    }
+                    : null,
+                },
+              }
             );
           }
+
         });
 
         const subClosed = client.subscribe('/user/queue/room-closed', () => {
@@ -174,6 +187,8 @@ export default function RoomLobby() {
     myUserId != null
       ? players.find(p => Number(p.userId) !== Number(myUserId)) || null
       : null;
+
+  opponentRef.current = opponent;
 
   const toggleReady = () => {
     stompRef.current?.publish({

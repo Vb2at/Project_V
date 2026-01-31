@@ -23,7 +23,6 @@ export default function GameSession({
   selectedNoteIds,
   settings = { hitEffect: true, judgeText: true, comboText: true, lowEffect: false, visualizer: true },
   songId: propSongId,
-
   analyserRef,
   onState,
   paused = false,
@@ -34,8 +33,9 @@ export default function GameSession({
   isMulti = false,
   roomId,
   stompClientRef,
-
+  stompConnected,
   onRivalFinish,
+  onStreamReady
 }) {
 
   const isEditorTest =
@@ -57,6 +57,80 @@ export default function GameSession({
   const [internalNotes, setInternalNotes] = useState([]);
   const onFinishRef = useRef(onFinish);
   const onRivalFinishRef = useRef(onRivalFinish);
+  const frameCanvasRef = useRef(null);
+  const frameSendTimerRef = useRef(null);
+  const frameTmpCanvasRef = useRef(null);
+  const frameTmpCtxRef = useRef(null);
+  const [frameCanvasTick, setFrameCanvasTick] = useState(0);
+  useEffect(() => {
+    return () => {
+      if (frameSendTimerRef.current) {
+        clearInterval(frameSendTimerRef.current);
+        frameSendTimerRef.current = null;
+      }
+
+      frameCanvasRef.current = null;
+      frameTmpCtxRef.current = null;
+      frameTmpCanvasRef.current = null;
+    };
+  }, []);
+
+
+  useEffect(() => {
+    if (!isMulti) return;
+    if (!roomId) return;
+
+    if (frameSendTimerRef.current) return;
+    if (!frameCanvasRef.current) return;
+
+    frameSendTimerRef.current = setInterval(() => {
+      const c = stompClientRef.current;
+
+      console.log('[FRAME SEND TICK]', {
+        hasCanvas: !!frameCanvasRef.current,
+        loginUserId,
+        stompConnected,
+        hasClient: !!c,
+        connected: !!c?.connected,
+      });
+
+      if (!loginUserId) return;
+      const src = frameCanvasRef.current;
+      if (!src) return;
+
+      if (!c || !stompConnected) return;
+
+      if (!frameTmpCanvasRef.current) {
+        const tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = 480;
+        tmpCanvas.height = 270;
+        frameTmpCanvasRef.current = tmpCanvas;
+        frameTmpCtxRef.current = tmpCanvas.getContext('2d');
+      }
+
+      const tmp = frameTmpCanvasRef.current;
+      const ctx = frameTmpCtxRef.current;
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, tmp.width, tmp.height);
+      ctx.drawImage(src, 0, 0, tmp.width, tmp.height);
+
+      c.publish({
+        destination: '/app/multi/frame',
+        body: JSON.stringify({
+          roomId,
+          userId: loginUserId,
+          frame: tmp.toDataURL('image/jpeg', 0.3),
+        }),
+      });
+    }, 300); // FPS ~3.3
+
+    return () => {
+      clearInterval(frameSendTimerRef.current);
+      frameSendTimerRef.current = null;
+    };
+  }, [isMulti, roomId, loginUserId, stompConnected, frameCanvasTick]);
+
 
   const usedNotes = useMemo(
     () => (mode === 'edit' ? (notes ?? []) : internalNotes),
@@ -139,29 +213,15 @@ export default function GameSession({
     return Math.max(1, calcMaxScore(usedNotes));
   }, [usedNotes, calcMaxScore]);
 
-  useEffect(() => {
-    if (typeof onStateRef.current !== 'function') return;
-
-    onStateRef.current({
-      score,
-      combo,
-      diff,
-      currentTime: currentTimeRef.current,
-      duration: audioRef.current?.duration
-        ? audioRef.current.duration * 1000
-        : 0,
-      maxScore,
-    });
-  }, [score, combo, diff, currentTime, maxScore]);
-
   const lastSendRef = useRef(0);
+  const lastFrameSendRef = useRef(0);
 
   useEffect(() => {
     if (!isMulti) return;
     if (!roomId || !loginUserId) return;
 
     const client = stompClientRef.current;
-    if (!client || !client.connected) return;
+    if (!client) return;
 
     client.publish({
       destination: '/app/multi/score',
@@ -175,7 +235,7 @@ export default function GameSession({
       }),
     });
   }, [score, combo, isMulti, roomId, loginUserId]);
-  
+
   useEffect(() => {
     onRivalFinishRef.current = onRivalFinish;
   }, [onRivalFinish]);
@@ -522,6 +582,8 @@ export default function GameSession({
     });
   }, [songId, loadSongById]);
 
+  const lastTimeRef = useRef(0);
+
   useEffect(() => {
     let rafId = null;
 
@@ -530,8 +592,13 @@ export default function GameSession({
         const audio = audioRef.current;
         if (audio && !audio.paused) {
           const newTime = audio.currentTime * 1000;
-          currentTimeRef.current = newTime;
-          setCurrentTime(newTime); // React state는 렌더링 기준
+
+          // ✅ 변화 있을 때만 setState
+          if (Math.abs(newTime - lastTimeRef.current) > 8) {
+            lastTimeRef.current = newTime;
+            currentTimeRef.current = newTime;
+            setCurrentTime(newTime);
+          }
         }
       }
       rafId = requestAnimationFrame(loop);
@@ -540,6 +607,7 @@ export default function GameSession({
     rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
   }, [effectivePaused]);
+
 
 
   useEffect(() => {
@@ -1418,11 +1486,7 @@ export default function GameSession({
           pushUndo(prev);
           return prev.filter(n => {
             if (n.lane !== lane) return true;
-
-            const dy = Math.abs(n.timing - timing);
-            const HIT_MS = 60;
-
-            return dy > HIT_MS;
+            return Math.abs(n.timing - timing) > 60;
           });
         });
       }}
@@ -1486,8 +1550,13 @@ export default function GameSession({
           currentTime={currentTime}
           pressedKeys={pressedKeys}
           speed={speed}
+          onCanvasReady={(canvas) => {
+            console.log('[CANVAS READY]', canvas);
+            if (!canvas) return;
+            frameCanvasRef.current = canvas;
+            setFrameCanvasTick(t => t + 1);
+          }}
         />
-
         <PixiNotes
           notes={usedNotes ?? []}
           currentTime={currentTime}
@@ -1500,7 +1569,9 @@ export default function GameSession({
 
         {mode === 'play' && (
           <>
-            {settings.hitEffect !== false && <KeyEffectLayer pressedKeys={pressedKeys} />}
+            {settings.hitEffect !== false && (
+              <KeyEffectLayer pressedKeys={pressedKeys} />
+            )}
             {settings.hitEffect !== false && (
               <PixiEffects
                 effects={effects}
@@ -1511,7 +1582,11 @@ export default function GameSession({
               />
             )}
             {settings.visualizer !== false && (
-              <Visualizer active={!paused} size="game" analyserRef={analyserRef} />
+              <Visualizer
+                active={!paused}
+                size="game"
+                analyserRef={analyserRef}
+              />
             )}
           </>
         )}
@@ -1520,4 +1595,5 @@ export default function GameSession({
       </div>
     </div>
   );
+
 }

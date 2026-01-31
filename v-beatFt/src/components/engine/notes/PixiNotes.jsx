@@ -11,7 +11,7 @@ const longOutlinePool = [];
 const longFadeStartMap = new Map(); // noteId → fade 시작 시점
 
 
-export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, draggingPreviewRef, tapNoteColor, longNoteColor, fpsLimit = 60, onReady }) {
+export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, draggingPreviewRef, tapNoteColor, longNoteColor, fpsLimit = 60, onReady, onCanvasReady, }) {
     const appRef = useRef(null);
     const readyRef = useRef(false);
     const speedRef = useRef(speed);
@@ -63,6 +63,7 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, 
                 backgroundAlpha: 0,
                 antialias: true,
             });
+            onCanvasReady?.(app.canvas);
             app.ticker.maxFPS = 0;
             if (!mounted) {
                 try { app.destroy(true); } catch (e) { void e; }

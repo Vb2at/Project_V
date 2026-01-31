@@ -3,7 +3,6 @@ import UserReportModal from './UserReportModal';
 
 export default function UserProfileModal({ open, user, onClose }) {
     const [reportOpen, setReportOpen] = useState(false);
-    console.log("현재 모달에 전달된 user 데이터:", user);
 
     if (!open || !user) return null;
 
