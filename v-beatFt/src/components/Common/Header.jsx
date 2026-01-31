@@ -12,7 +12,7 @@ import {
   isMenuBgmPlaying,
 } from '../../components/engine/SFXManager';
 
-import { logoutApi, statusApi } from '../../api/auth';
+import { statusApi } from '../../api/auth';
 import Visualizer from '../visualizer/Visualizer';
 
 import './Header.css';
@@ -29,10 +29,10 @@ const DEFAULT_SETTINGS = {
   longNoteColor: 0xb50549,
   fps: 60,
   lowEffect: false,
-  visualizer: true, 
+  visualizer: true,
 };
 
-export default function Header() {
+export default function Header({ onLogout = () => {} }) {
   const HEADER_HEIGHT = 64;
 
   const navigate = useNavigate();
@@ -95,20 +95,6 @@ export default function Header() {
   const handleToggle = () => {
     toggleMenuBgm();
     setIsPlaying(isMenuBgmPlaying());
-  };
-
-  // ===== 로그아웃 =====
-  const handleLogout = async () => {
-    try {
-      await logoutApi();
-      setStatus(null);
-      setMobileOpen(false);
-      setNotify({ messages: false, admin: false, friend: false });
-      navigate('/login');
-    } catch (e) {
-      console.error(e);
-      alert('로그아웃 실패');
-    }
   };
 
   // ===== 로그인 상태 조회 =====
@@ -336,7 +322,7 @@ export default function Header() {
             }}
           >
             <ProfileAvatar
-              profileImg={status.loginUser.profileImg}
+              profileImg={status.loginUser?.profileImg}
               userId={status.loginUserId}
               size={50}
             />
@@ -427,6 +413,16 @@ export default function Header() {
               zIndex: 1100,
             }}
           >
+            <button
+              className="neon-btn"
+              onClick={() => {
+                setMobileOpen(false);
+                navigate('/main');
+              }}
+              >
+              메인페이지
+            </button>
+
             {status && !isBlockUser && (
               <button
                 className="neon-btn"
@@ -470,7 +466,14 @@ export default function Header() {
                   </button>
                 )}
 
-                <button className="neon-btn" onClick={handleLogout}>
+                <button
+                  className="neon-btn"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    setStatus(null);
+                    onLogout();
+                  }}
+                >
                   로그아웃
                 </button>
               </>

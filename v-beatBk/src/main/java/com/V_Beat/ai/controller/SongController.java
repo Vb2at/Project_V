@@ -341,7 +341,7 @@ public class SongController {
 		return ResponseEntity.ok(songService.getPendingSongs(true));
 	}
 
-	// 관리자 공개곡 승인 거절 처리 api
+	// 관리자 곡 심사 처리
 	@PostMapping("/{songId}/review")
 	public ResponseEntity<Void> reviewSong(
 	        @PathVariable Long songId,
@@ -372,19 +372,4 @@ public class SongController {
 
 		return ResponseEntity.ok().build();
 	}
-
-	// 토큰으로 곡 조회
-//	@GetMapping("/by-token/{shareToken}")
-//	public ResponseEntity<Song> getSongByToken(@PathVariable("shareToken") String token) {
-//		if (token == null || token.isBlank()) {
-//			return ResponseEntity.badRequest().build();
-//		}
-//
-//		Song song = this.songService.getSongByToken(token);
-//		if (song == null) {
-//			return ResponseEntity.notFound().build();
-//		}
-//
-//		return ResponseEntity.ok(song);
-//	}
 }

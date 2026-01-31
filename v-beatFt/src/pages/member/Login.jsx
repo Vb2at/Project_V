@@ -2,7 +2,7 @@ import './Login.css';
 import LoginForm from '../../components/Member/LoginForm';
 import LoginNoteRain from './LoginNoteRain';
 
-export default function Login() {
+export default function Login({ onLoginSuccess }) {
   const LOGIN_BGM_SRC = '/sound/bgm/menu2.mp3';
 
 
@@ -53,7 +53,7 @@ export default function Login() {
 
 
           {/* 로그인 폼 */}
-          <LoginForm />
+          <LoginForm onLoginSuccess={onLoginSuccess} />
         </div>
       </section>
     </div>
