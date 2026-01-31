@@ -107,13 +107,22 @@ public interface SongDao {
 			""")
 	void updateSong(Long songId, String title, String artist);
 
-	// 노래 상태 변경
+	// 곡 심사 후 노래 상태 변경
 	@Update("""
 			UPDATE song
-			SET visibility = #{visibility}
+			SET visibility = #{visibility},
+				review_reason = #{reason},
+			   	review_by = #{adminId},
+			    review_at = NOW()
 			WHERE id = #{songId}
+			AND visibility = 'PENDING'
 			""")
-	void updateVisibility(Long songId, String visibility);
+	int updateVisibility(
+		    @Param("songId") Long songId,
+		    @Param("visibility") String visibility,
+		    @Param("reason") String reason,
+		    @Param("adminId") int adminId
+		);
 
 	// 본인 업로드 곡 조회
 	@Select("""

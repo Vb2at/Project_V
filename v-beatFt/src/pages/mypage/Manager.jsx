@@ -59,7 +59,7 @@ export default function Manager() {
             setSelectedUser(null);
             //목록 갱신
             loadUsers();
-        } catch(e) {
+        } catch (e) {
             alert(e.response?.data?.message || '차단에 실패하였습니다.');
         }
     }
@@ -69,7 +69,7 @@ export default function Manager() {
         const ok = window.confirm(
             `[${user.nickname}]님의 차단을 해제 하시겠습니까?`
         );
-        if(!ok) {
+        if (!ok) {
             return;
         }
 
@@ -79,7 +79,7 @@ export default function Manager() {
 
             //목록 갱신
             loadUsers();
-        } catch(e) {
+        } catch (e) {
             alert(e.response?.data?.message || '차단 해제에 실패했습니다.');
         }
     }
@@ -250,7 +250,7 @@ export default function Manager() {
                         users={users}
                         loading={userLoading}
                         error={userError}
-                        onRequestBlock={(u) => { 
+                        onRequestBlock={(u) => {
                             setSelectedUser(u);
                             setBlockUserOpen(true);
                         }}
@@ -285,6 +285,7 @@ export default function Manager() {
                 onApprove={async (s) => {
                     try {
                         await reviewSongApi(s.id, 'APPROVE', null);
+                        alert('승인 처리가 완료되었습니다.');
                         setReviewOpen(false);
                         setReviewSong(null);
                         await loadReviewSongs();
@@ -296,6 +297,7 @@ export default function Manager() {
                 onReject={async (s, reason) => {
                     try {
                         await reviewSongApi(s.id, 'REJECT', reason);
+                        alert('반려 처리가 완료되었습니다.');
                         setReviewOpen(false);
                         setReviewSong(null);
                         await loadReviewSongs();
@@ -307,6 +309,7 @@ export default function Manager() {
                 onBlock={async (s, reason) => {
                     try {
                         await reviewSongApi(s.id, 'BLOCK', reason);
+                        alert('차단 처리가 완료되었습니다.');
                         setReviewOpen(false);
                         setReviewSong(null);
                         await loadReviewSongs();

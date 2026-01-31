@@ -5,6 +5,8 @@ export default function SongReviewDetailModal({
     song,
     onClose,
     onApprove,
+    onReject,
+    onBlock,
 }) {
     const [mode, setMode] = useState(null); // 'REJECT' | 'BLOCK'
     const [reason, setReason] = useState('');
@@ -68,7 +70,7 @@ export default function SongReviewDetailModal({
                                 style={btnReject}
                                 onClick={() => { setMode(null); setReason(''); }}
                             >
-                                취소
+                                이전으로
                             </button>
 
                             <button
@@ -82,19 +84,21 @@ export default function SongReviewDetailModal({
                                     if (mode === 'BLOCK') onBlock?.(song, reason.trim());
                                 }}
                             >
-                                {mode === 'REJECT' ? '확정' : '확정'}
+                                {mode === 'REJECT' ? '완료' : '완료'}
                             </button>
                         </div>
                     </section>
                 )}
             {/* ===== 조치 버튼 ===== */}
-            <section style={actionRow}>
-                <button style={btnApprove} onClick={() => onApprove?.(song)}>
-                    승인
-                </button>
-                <button style={btnReject} onClick={() => setMode('REJECT')}>반려</button>
-                <button style={btnBlock} onClick={() => setMode('BLOCK')}>차단</button>
-            </section>
+            {!mode && (
+                <section style={actionRow}>
+                    <button style={btnApprove} onClick={() => onApprove?.(song)}>
+                        승인
+                    </button>
+                    <button style={btnReject} onClick={() => setMode('REJECT')}>반려</button>
+                    <button style={btnBlock} onClick={() => setMode('BLOCK')}>차단</button>
+                </section>
+            )}
             <button style={closeBtn} onClick={onClose}>
                 닫기
             </button>

@@ -11,9 +11,7 @@ import com.V_Beat.ai.dto.NoteResult;
 import com.V_Beat.ai.dto.SongNotesResult;
 import com.V_Beat.dao.ScoreDao;
 import com.V_Beat.dto.Song;
-import com.V_Beat.report.dao.ReportActionDao;
 import com.V_Beat.report.dao.ReportDao;
-import com.V_Beat.report.dao.ReportSnapshotDao;
 
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -126,28 +124,38 @@ public class SongService {
 		return songDao.getPendingSongs();
 	}
 
+	//관리자 공개곡 심사처리 
 	@Transactional
-	public void reviewSong(Long songId, String result, boolean isAdmin) {
+	public void reviewSong(Long songId, String result, String reason, int adminId) {
 		result = result.toUpperCase();
 
-		if (!"PUBLIC".equals(result) && !"BLOCKED".equals(result)) {
-			throw new RuntimeException("invalid result");
-		}
-
-		if (!isAdmin)
-			throw new RuntimeException("admin only");
-
+		// 허용 상태 검증
+		if (!List.of("PUBLIC", "PRIVATE", "BLOCKED").contains(result)) {
+	        throw new RuntimeException("invalid review result");
+	    }
+		// 곡 존재하는 지 검증
 		Song song = songDao.getSong(songId);
 		if (song == null)
 			throw new RuntimeException("song not found");
-
+		// 곡 상태 확인
 		if (!"PENDING".equals(song.getVisibility())) {
 			throw new RuntimeException("not pending");
 		}
+		//반려, 차단은 사유 필수
+		if (!"PUBLIC".equals(result)) {
+			if (reason == null || reason.trim().isEmpty()) {
+				throw new RuntimeException("review reason required");
+			}
+		}
 
-		songDao.updateVisibility(songId, result);
+		// DB 업데이트
+		int updated = this.songDao.updateVisibility(songId, result, reason, adminId);
+		
+		if (updated == 0) {
+			throw new RuntimeException("review failed");
+		}
 	}
-
+	
 	// 본인 업록드 곡 조회
 	@Transactional(readOnly = true)
 	public List<MySong> getMySongs(int userId, String visibility) {

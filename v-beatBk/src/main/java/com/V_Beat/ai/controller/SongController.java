@@ -341,20 +341,23 @@ public class SongController {
 		return ResponseEntity.ok(songService.getPendingSongs(true));
 	}
 
+	// 관리자 공개곡 승인 거절 처리 api
 	@PostMapping("/{songId}/review")
-	public ResponseEntity<Void> reviewSong(@PathVariable Long songId, @RequestParam String result, // PUBLIC or BLOCKED
-			HttpSession session) {
-		Boolean isAdmin = (Boolean) session.getAttribute("isAdmin");
-		if (isAdmin == null || !isAdmin) {
-			return ResponseEntity.status(403).build();
-		}
+	public ResponseEntity<Void> reviewSong(
+	        @PathVariable Long songId,
+	        @RequestParam String result,                 // PUBLIC | PRIVATE | BLOCKED
+	        @RequestParam(required = false) String reason,
+	        HttpSession session
+	) {
+	    Boolean isAdmin = (Boolean) session.getAttribute("isAdmin");
+	    Integer adminId = (Integer) session.getAttribute("loginUserId");
 
-		try {
-			songService.reviewSong(songId, result, true);
-			return ResponseEntity.ok().build();
-		} catch (RuntimeException e) {
-			return ResponseEntity.badRequest().build();
-		}
+	    if (isAdmin == null || !isAdmin) {
+	        return ResponseEntity.status(403).build();
+	    }
+
+	    songService.reviewSong(songId, result, reason, adminId);
+	    return ResponseEntity.ok().build();
 	}
 
 	// 곡 삭제
