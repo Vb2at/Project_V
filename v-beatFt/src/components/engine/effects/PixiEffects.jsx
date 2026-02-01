@@ -134,7 +134,6 @@ export default function PixiEffects({
       }
 
       onPixiReady?.(app.canvas);
-      console.log('[EFFECTS CANVAS READY]');
       texturesRef.current = textures;
       window.__pixiEffectTextures = textures;
       window.__pixiStreamTexture = textures.laneStream;

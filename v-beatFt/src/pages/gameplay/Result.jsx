@@ -19,31 +19,13 @@ const GRADE_STYLE = {
   F: { color: '#ff6b6b', glow: 'rgba(255,107,107,0.9)' },
 };
 
-// 점수 저장 api 연동
-async function postScore(payload) {
-  const res = await fetch("http://localhost:8080/api/scores", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || "Failed to save score");
-  }
-  return;
-}
-
-// ===== 공용 카드 컴포넌트 =====
-function ScoreCard({ title, score, maxScore, maxCombo, glowColor }) {
+// ===== 공용 카드 =====
+function ScoreCard({ title, score, maxScore, maxCombo, grade, glowColor }) {
   const ratio = maxScore > 0 ? score / maxScore : 0;
-  const grade = getClassByRatio(ratio);
   const gradeStyle = GRADE_STYLE[grade] ?? GRADE_STYLE.F;
 
   return (
     <div style={{ position: 'relative', display: 'inline-block' }}>
-      {/* 네온 윤곽 */}
       <div
         style={{
           position: 'absolute',
@@ -55,15 +37,12 @@ function ScoreCard({ title, score, maxScore, maxCombo, glowColor }) {
           opacity: 0.6,
         }}
       />
-
-      {/* 카드 */}
       <div
         style={{
           position: 'relative',
           padding: '40px 56px',
           borderRadius: '16px',
           background: '#111',
-          isolation: 'isolate',
           color: '#e6faff',
           minWidth: 260,
           boxShadow: `
@@ -91,14 +70,8 @@ function ScoreCard({ title, score, maxScore, maxCombo, glowColor }) {
           {grade}
         </div>
 
-        <div style={{ marginTop: 16, fontSize: 18 }}>
-          점수: {score}
-        </div>
-
-        <div style={{ marginTop: 8, fontSize: 18 }}>
-          최대 콤보: {maxCombo}
-        </div>
-
+        <div style={{ marginTop: 16, fontSize: 18 }}>점수: {score}</div>
+        <div style={{ marginTop: 8, fontSize: 18 }}>최대 콤보: {maxCombo}</div>
         <div style={{ marginTop: 8, opacity: 0.7 }}>
           달성률: {(ratio * 100).toFixed(2)}%
         </div>
@@ -115,23 +88,18 @@ export default function Result() {
   useEffect(() => {
     playResultEnter();
     startResultBgm();
-    return () => {
-      stopResultBgm();
-    };
+    return () => stopResultBgm();
   }, []);
 
   const {
     mode = 'single',
-
-    songId = null,
-    diff = null,
+    winByLeave = false,
 
     score = 0,
     maxScore = 1,
     maxCombo = 0,
-    isReview = false,
-
-    // 멀티용
+    myNickname = 'ME',
+    rivalNickname = 'RIVAL',
     myScore = score,
     myMaxScore = maxScore,
     myMaxCombo = maxCombo,
@@ -143,39 +111,24 @@ export default function Result() {
 
   const isMulti = mode === 'multi';
 
-  const ratio = maxScore > 0 ? score / maxScore : 0;
-  const grade = getClassByRatio(ratio);
-  const accuracy = Number((ratio * 100).toFixed(2));
+  // ===== 핵심 계산 =====
+  const myRatio = myMaxScore > 0 ? myScore / myMaxScore : 0;
+  const rivalRatio = rivalMaxScore > 0 ? rivalScore / rivalMaxScore : 0;
 
-  // 싱글일 때만 점수 저장
-  useEffect(() => {
-    if (isMulti) return;
+  const myGrade = getClassByRatio(myRatio);
+  const rivalGrade = getClassByRatio(rivalRatio);
 
-    if (isReview) return;
-
-    if (sentRef.current) return;
-    sentRef.current = true;
-
-    if (!songId || !diff) return;
-
-    postScore({ songId, diff, score, accuracy, grade, maxCombo })
-      .catch((err) => {
-        console.error("점수 저장 실패:", err);
-      });
-  }, [isMulti, songId, diff, score, accuracy, grade, maxCombo, isReview]);
-
-  // 멀티 승패
+  // ===== 승패 =====
   let multiResultText = 'DRAW';
-  if (myScore > rivalScore) multiResultText = 'WIN';
+  if (winByLeave || myScore > rivalScore) multiResultText = 'WIN';
   else if (myScore < rivalScore) multiResultText = 'LOSE';
+
   const resultColor =
     multiResultText === 'WIN'
-      ? '#ff6b6b'   // 내가 승 → RED
+      ? '#ff6b6b'
       : multiResultText === 'LOSE'
-        ? '#5aeaff'   // 상대 승 → CYAN
-        : '#ffffff';  // DRAW → WHITE
-
-
+        ? '#5aeaff'
+        : '#ffffff';
 
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
@@ -192,7 +145,6 @@ export default function Result() {
       >
         <div style={{ textAlign: 'center' }}>
 
-          {/* ===== 멀티 ===== */}
           {isMulti && (
             <>
               <div
@@ -212,58 +164,38 @@ export default function Result() {
                 {multiResultText}
               </div>
 
-
-
               <div style={{ display: 'flex', gap: 48 }}>
                 <ScoreCard
-                  title="ME"
+                  title={myNickname}
                   score={myScore}
                   maxScore={myMaxScore}
                   maxCombo={myMaxCombo}
+                  grade={myGrade}
                 />
 
                 <ScoreCard
-                  title="RIVAL"
+                  title={rivalNickname}
                   score={rivalScore}
                   maxScore={rivalMaxScore}
                   maxCombo={rivalMaxCombo}
-                  glowColor="rgba(90,234,255,0.45)"   // 시안계
+                  grade={rivalGrade}
+                  glowColor="rgba(90,234,255,0.45)"
                 />
               </div>
             </>
           )}
 
-          {/* ===== 싱글 ===== */}
           {!isMulti && (
             <ScoreCard
               title="S C O R E"
               score={score}
               maxScore={maxScore}
               maxCombo={maxCombo}
+              grade={myGrade}
             />
           )}
 
-          {/* ===== 버튼 ===== */}
-          <div
-            style={{
-              marginTop: 32,
-              display: 'flex',
-              gap: 16,
-              justifyContent: 'center',
-            }}
-          >
-            {!isMulti && (
-              <button
-                onClick={() => {
-                  playMenuConfirm();
-                  navigate(-1);
-                }}
-                style={btnStyle}
-              >
-                다시하기
-              </button>
-            )}
-
+          <div style={{ marginTop: 32, display: 'flex', gap: 16, justifyContent: 'center' }}>
             <button
               onClick={() => {
                 playMenuConfirm();

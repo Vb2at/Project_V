@@ -64,7 +64,6 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, 
                 antialias: true,
             });
             onCanvasReady?.(app.canvas);
-            console.log('[NOTES CANVAS READY]');
             app.ticker.maxFPS = fpsLimit;
             if (!mounted) {
                 try { app.destroy(true); } catch (e) { void e; }

@@ -68,7 +68,6 @@ function AppInner() {
       setIsLogin(false);
       navigate('/login', { replace: true });
     } catch (err) {
-      console.error(err);
       setIsLogin(false);
       navigate('/login');
     }

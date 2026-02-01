@@ -39,6 +39,8 @@ public class MultiSocketController {
 		Integer userId;
 		try { userId = Integer.parseInt(principal.getName()); } catch (Exception e) { return; }
 
+		if (roomManager.isClosed(roomId)) return;
+
 		MultiRoom room = roomManager.getRoom(roomId);
 		if (room == null) return;
 

@@ -111,55 +111,15 @@ function GamePlay() {
   const pendingIceRef = useRef([]);
   const pendingOfferRef = useRef(null);
   const rtcSubRef = useRef(null);
+  const [showExitModal, setShowExitModal] = useState(false);
   const stompClientRef = stompRef;
   const pendingIceToSendRef = useRef([]);
   const [multiPhase, setMultiPhase] = useState('LOBBY');  // 'LOBBY' | 'LOADING' | 'PLAY'
   const handleStreamReady = useCallback((stream) => {
     if (!stream) return;
-    console.log('[LOCAL STREAM RECEIVED]', stream.getTracks());
     setLocalStream(stream); // ✅ 여기까지만
   }, []);
 
-  const startRTC = async (rivalId) => {
-    if (!localStream || !stompConnected || peerRef.current) return;
-
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    });
-    peerRef.current = pc;
-
-    /* 1️⃣ addTrack */
-    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-    /* 2️⃣ ontrack */
-    pc.ontrack = e => {
-      const stream = e.streams[0];
-      if (!stream) return;
-      setRival(prev => ({ ...prev, stream }));
-    };
-
-    /* 3️⃣ ICE candidate */
-    pc.onicecandidate = e => {
-      if (!e.candidate) return;
-      const payload = { roomId, candidate: e.candidate, userId: myId };
-      stompRef.current.publish({
-        destination: '/app/multi/rtc/candidate',
-        body: JSON.stringify(payload),
-      });
-    };
-
-    /* 4️⃣ offerer 결정 및 OFFER 전송 */
-    const isOfferer = String(myId) < String(rivalId);
-    if (isOfferer) {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      stompRef.current.publish({
-        destination: '/app/multi/rtc/offer',
-        body: JSON.stringify({ roomId, offer, userId: myId }),
-      });
-    }
-  };
   const [localReady, setLocalReady] = useState(false);
   const [rivalReady, setRivalReady] = useState(false);
 
@@ -196,16 +156,45 @@ function GamePlay() {
       reconnectDelay: 3000,
       debug: () => { },
       onStompError: (frame) => {
-        console.error('[STOMP ERROR]', frame);
       },
       onConnect: () => {
-        console.log('[STOMP CONNECTED]');
         stompRef.current = client;
         setStompConnected(true);
 
         // ================= ROOM_STATE =================
         client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
           const data = JSON.parse(msg.body);
+
+          if (data.type === 'ROOM_CLOSED') {
+            if (finished) return;
+            setFinished(true);
+            // RTC 종료
+            if (peerRef.current) {
+              try { peerRef.current.close(); } catch { }
+              peerRef.current = null;
+            }
+
+            setRival(prev => ({ ...prev, stream: null }));
+
+            // 🔥 즉시 게임 종료 + 승리 처리
+            navigate('/game/result', {
+              replace: true,
+              state: {
+                mode: 'multi',
+                winByLeave: true,
+                // ← 판별용 플래그
+                myScore: score,
+                myMaxScore: null,
+                myMaxCombo: combo,
+                rivalScore: rivalResult?.score ?? 0,
+                rivalMaxScore: rivalResult?.maxScore ?? null,
+                rivalMaxCombo: rivalResult?.maxCombo ?? 0,
+              },
+            });
+
+            return;
+          }
+
 
           if (data.type === 'ALL_READY') {
             setRivalReady(true);   // ✅ 상대 준비 완료
@@ -222,10 +211,6 @@ function GamePlay() {
           if (data.type === 'START' && data.startAt) {
             setMultiStartAt(data.startAt);
             setMultiPhase('LOADING');
-          }
-
-          if (data.type === 'ALL_READY') {
-            setMultiPhase('PLAY');
           }
 
           if (!Array.isArray(data.players)) return;
@@ -259,7 +244,6 @@ function GamePlay() {
 
         // 🔥 ICE send flush (필수)
         if (pendingIceToSendRef.current.length > 0) {
-          console.log('[RTC ICE FLUSH]', pendingIceToSendRef.current.length);
 
           for (const p of pendingIceToSendRef.current) {
             client.publish({
@@ -275,7 +259,6 @@ function GamePlay() {
         // ================= SCORE =================
         client.subscribe(`/topic/multi/room/${roomId}/score`, (msg) => {
           const data = JSON.parse(msg.body);
-          console.log('[SCORE]', data);
 
           if (String(data.userId) === String(myId)) return;
 
@@ -308,7 +291,6 @@ function GamePlay() {
           `/topic/multi/room/${roomId}/rtc`,
           async (msg) => {
             const data = JSON.parse(msg.body);
-            console.log('[RTC TYPE]', data.type);
 
             if (String(data.userId) === String(myId)) return;
 
@@ -340,6 +322,10 @@ function GamePlay() {
             if (data.type === 'ANSWER') {
               const pc = peerRef.current;
               if (!pc) return;
+
+              if (pc.signalingState === 'stable') {
+                return;
+              }
 
               await pc.setRemoteDescription(data.answer);
 
@@ -386,70 +372,34 @@ function GamePlay() {
 
     return () => {
       enteredRef.current = false;
-      if (rtcSubRef.current) {
-        rtcSubRef.current.unsubscribe();
-        rtcSubRef.current = null;
-      }
       client.deactivate();
     };
   }, [isMulti, roomId, myId]);
 
 
   useEffect(() => {
-    console.log('[RTC EFFECT CHECK]', {
-      isMulti,
-      roomId,
-      stompConnected,
-      localStream: !!localStream,
-      rivalUserId,
-      myId,
-      peerExists: !!peerRef.current,
-    });
-
-
-
     if (!isMulti) return;
     if (!roomId) return;
     if (!stompConnected) return;
     if (!localStream) return;
     if (peerRef.current) return;
 
-    console.log('[RTC START CONDITIONS OK]', {
-      localTracks: localStream.getTracks().map(t => t.kind),
-      myId,
-      rivalUserId,
-    });
 
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     });
-
-    pc.onicegatheringstatechange = () => {
-      console.log('[RTC ICE GATHERING]', pc.iceGatheringState);
-    };
-
-    console.log('[RTC PC CREATED]', {
-      stompConnected,
-      localStream: !!localStream,
-      rivalUserId,
-    });
-
-
 
     peerRef.current = pc;
 
     /* 1️⃣ addTrack (1회만) */
     localStream.getTracks().forEach(track => {
       pc.addTrack(track, localStream);
-      console.log('[RTC ADD TRACK]', track.kind);
     });
 
     /* 2️⃣ ontrack */
     pc.ontrack = (e) => {
       const stream = e.streams[0];
       if (!stream) return;
-
-      console.log('[RTC ONTRACK]', stream.getTracks());
 
       setRival(prev => {
         if (prev.stream === stream) return prev;
@@ -460,11 +410,8 @@ function GamePlay() {
     /* 3️⃣ ICE sender */
     pc.onicecandidate = (e) => {
       if (!e.candidate) {
-        console.log('[RTC ICE DONE]');
         return;
       }
-
-      console.log('[RTC ICE]', e.candidate.candidate);
 
       const payload = { roomId, candidate: e.candidate, userId: myId };
 
@@ -484,7 +431,6 @@ function GamePlay() {
     /* 4️⃣ stash OFFER / ICE 처리 */
     (async () => {
       if (pendingOfferRef.current) {
-        console.log('[RTC STASHED OFFER APPLY]');
         await pc.setRemoteDescription(pendingOfferRef.current);
         pendingOfferRef.current = null;
 
@@ -495,24 +441,10 @@ function GamePlay() {
           destination: '/app/multi/rtc/answer',
           body: JSON.stringify({ roomId, answer, userId: myId }),
         });
-
-        console.log('[RTC ANSWER SENT]');
       }
-      console.log('[RTC OFFERER CHECK]', { myId, peerExists: !!peerRef.current });
-      console.log('[RTC GUARD CHECK]', {
-        stompConnected,
-        localStream: !!localStream,
-        rivalUserId,
-        peerExists: !!peerRef.current,
-      });
       if (peerRef.current) {
-        console.log('[RTC CREATE OFFER START]');
         const offer = await pc.createOffer();
-        console.log('[RTC CREATE OFFER DONE]', offer?.type, offer?.sdp?.length);
-
         await pc.setLocalDescription(offer);
-        console.log('[RTC SET LOCAL DESC]', pc.signalingState);
-
         stompRef.current.publish({
           destination: '/app/multi/rtc/offer',
           body: JSON.stringify({ roomId, offer, userId: myId }),
@@ -715,11 +647,16 @@ function GamePlay() {
   }, []);
 
   useEffect(() => {
-    if (isMulti) return;
-
     const onKey = (e) => {
       if (e.code !== 'Escape') return;
 
+      if (isMulti) {
+        // ✅ 멀티에서는 이탈 금지, 모달만
+        setShowExitModal(true);
+        return;
+      }
+
+      // 싱글은 기존 일시정지 유지
       setUserPaused((p) => {
         const next = !p;
         if (p === true && next === false) {
@@ -728,6 +665,7 @@ function GamePlay() {
         return next;
       });
     };
+
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -765,10 +703,18 @@ function GamePlay() {
 
     if (countdown === 0) {
       playCountStart();
-      const t = setTimeout(() => {
-        setCountdown(null);
-      }, 300);
-      return () => clearTimeout(t);
+
+      // 🔥 멀티/싱글 공통: 카운트다운 종료
+      setCountdown(null);
+
+      if (!isMulti) {
+        const t = setTimeout(() => {
+          setUserPaused(true);
+        }, 300);
+        return () => clearTimeout(t);
+      }
+
+      return;
     }
 
     playCountTick();
@@ -782,7 +728,7 @@ function GamePlay() {
   const waitingForMultiStart = isMulti && multiStartAt != null && Date.now() < multiStartAt;
 
   const paused =
-    countdown !== null ||            
+    countdown !== null ||
     (!isMulti && userPaused) ||
     !ready;
 
@@ -918,7 +864,7 @@ function GamePlay() {
         </div>
       )}
 
-      {userPaused && (
+      {!isMulti && userPaused && (
         <div
           style={{
             position: 'fixed',
@@ -1089,6 +1035,85 @@ function GamePlay() {
         </div>
       )}
 
+      {isMulti && showExitModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 10000,
+          }}
+        >
+          <div
+            style={{
+              width: 420,
+              padding: 32,
+              borderRadius: 16,
+              background: '#5c5c5cff',
+              boxShadow: '0 0 40px rgba(255,0,0,0.45)',
+              color: '#fff',
+              textAlign: 'center',
+            }}
+          >
+            <h2 style={{ marginBottom: 18 }}>게임을 나가시겠습니까?</h2>
+
+            <div style={{ marginBottom: 28, opacity: 0.8, fontSize: 14 }}>
+              멀티플레이 중 나가면<br />
+              상대방은 자동으로 승리 처리됩니다.
+            </div>
+
+            <div style={{ display: 'flex', gap: 16 }}>
+              <button
+                style={{
+                  flex: 1,
+                  background: '#3a3a3aff',
+                  color: '#ddd',
+                  border: '1px solid #444',
+                  borderRadius: 8,
+                  padding: '10px 0',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  playMenuConfirm();
+                  setShowExitModal(false);
+                }}
+              >
+                취소
+              </button>
+
+              <button
+                style={{
+                  flex: 1,
+                  background: 'linear-gradient(90deg, #ff3a3ab9, #ff009db0)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 0',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  playMenuConfirm();
+
+                  // 🔥 명시적 멀티 이탈
+                  stompRef.current?.publish({
+                    destination: '/app/multi/leave',
+                    body: JSON.stringify({ roomId }),
+                  });
+
+                  navigate('/main', { replace: true });
+                }}
+              >
+                나가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
       <div
         style={{
           position: 'absolute',
@@ -1171,14 +1196,23 @@ function GamePlay() {
 
               if (isMulti) {
                 navigate('/game/result', {
+                  replace: true,
                   state: {
                     mode: 'multi',
+
+                    // ✅ 닉네임 (이미 GamePlay state에 존재하는 값만 사용)
+                    myNickname: loginUser?.loginUser?.nickName ?? loginUser?.loginUser?.nickname ?? null,
+                    rivalNickname: rival?.nickname ?? null,
+
+                    // ✅ 내 점수
                     myScore: score,
                     myMaxScore: maxScore,
                     myMaxCombo: maxCombo,
-                    rivalScore: rivalResult?.score ?? 0,
+
+                    // ✅ 상대 점수
+                    rivalScore: rivalResult?.score ?? rival?.score ?? 0,
                     rivalMaxScore: rivalResult?.maxScore ?? maxScore,
-                    rivalMaxCombo: rivalResult?.maxCombo ?? 0,
+                    rivalMaxCombo: rivalResult?.maxCombo ?? rival?.maxCombo ?? 0,
                   },
                 });
               } else {

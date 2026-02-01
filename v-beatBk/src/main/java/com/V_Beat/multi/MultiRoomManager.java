@@ -2,6 +2,7 @@ package com.V_Beat.multi;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,6 +26,9 @@ public class MultiRoomManager {
 
     @Autowired
     private UserService userService;
+    
+    private final Set<String> closedRooms = ConcurrentHashMap.newKeySet();
+
 
     /* ===== 방 생성 ===== */
     public synchronized MultiRoom createRoom(MultiRoom req, Integer hostUserId) {
@@ -78,8 +82,10 @@ public class MultiRoomManager {
 
     /* ===== 방 입장 ===== */
     public synchronized boolean joinRoom(String roomId, Integer userId) {
-        MultiRoom room = rooms.get(roomId);
-        if (room == null || room.isFull()) return false;
+    	if (closedRooms.contains(roomId)) return false;
+
+    	MultiRoom room = rooms.get(roomId);
+    	if (room == null || room.isFull()) return false;
 
         boolean exists = room.getPlayers().stream()
             .anyMatch(p -> p.getUserId().equals(userId));
@@ -115,10 +121,17 @@ public class MultiRoomManager {
         room.getPlayers().removeIf(p -> p.getUserId().equals(userId));
 
         if (isHostLeaving || room.getPlayers().isEmpty()) {
-            messagingTemplate.convertAndSend(
-                "/topic/multi/room/" + roomId,
-                Map.of("type", "ROOM_CLOSED")
-            );
+
+            // 남아있는 플레이어들에게만 ROOM_CLOSED 전송
+            for (MultiPlayer p : room.getPlayers()) {
+                messagingTemplate.convertAndSendToUser(
+                    String.valueOf(p.getUserId()),
+                    "/queue/room-closed",
+                    Map.of("roomId", roomId)
+                );
+            }
+
+            closedRooms.add(roomId);
             rooms.remove(roomId);
             broadcastRoomList();
             return true;
@@ -149,4 +162,24 @@ public class MultiRoomManager {
             )
         );
     }
+    
+    public boolean isClosed(String roomId) {
+        return closedRooms.contains(roomId);
+    }
+    
+    public synchronized String leaveByDisconnect(Integer userId) {
+        for (MultiRoom room : rooms.values()) {
+
+            boolean exists = room.getPlayers().stream()
+                .anyMatch(p -> p.getUserId().equals(userId));
+
+            if (!exists) continue;
+
+            leaveRoom(room.getRoomId(), userId);
+            return room.getRoomId();
+        }
+        return null;
+    }
+
+
 }

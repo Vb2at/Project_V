@@ -65,7 +65,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         WebSocketHandler wsHandler,
                         Map<String, Object> attributes
                     ) {
-
                         if (request instanceof ServletServerHttpRequest servletRequest) {
                             HttpSession session =
                                 servletRequest.getServletRequest().getSession(false);
@@ -158,12 +157,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                     return message;
                 }
 
-                // ❗ userId 없는 메시지는 전부 차단
-                if (userId == null) {
-                    return null;
-                }
+                // userId 없는 메시지는 차단
+                if (userId == null) return null;
 
-                // DISCONNECT
+                // DISCONNECT (여기서는 전역 상태만 정리)
                 if (StompCommand.DISCONNECT.equals(cmd)) {
 
                     if (attrs != null && Boolean.TRUE.equals(attrs.get("disconnected"))) {

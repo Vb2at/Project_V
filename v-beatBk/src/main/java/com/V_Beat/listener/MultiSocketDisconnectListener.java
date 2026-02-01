@@ -7,6 +7,8 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import com.V_Beat.multi.MultiRoomManager;
 
+import lombok.extern.slf4j.Slf4j;
+@Slf4j
 @Component
 public class MultiSocketDisconnectListener {
 
@@ -19,9 +21,12 @@ public class MultiSocketDisconnectListener {
     @EventListener
     public void onDisconnect(SessionDisconnectEvent event) {
 
+        log.warn("[DISCONNECT EVENT] fired");
+
         StompHeaderAccessor acc = StompHeaderAccessor.wrap(event.getMessage());
+        log.warn("[DISCONNECT] accessor user={}", acc.getUser());
+
         if (acc.getUser() == null) return;
-        if (acc.getSessionAttributes() == null) return;
 
         Integer userId;
         try {
@@ -30,9 +35,9 @@ public class MultiSocketDisconnectListener {
             return;
         }
 
-        String roomId = (String) acc.getSessionAttributes().get("roomId");
-        if (roomId == null) return;
+        log.warn("[DISCONNECT] userId={}", userId);
 
-        roomManager.leaveRoom(roomId, userId);
+        roomManager.leaveByDisconnect(userId);
     }
+
 }

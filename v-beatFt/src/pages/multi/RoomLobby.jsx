@@ -45,6 +45,24 @@ export default function RoomLobby() {
     roomInfo?.duration ??
     roomInfo?.lengthSec ??
     null;
+  const songTitleRef = useRef(null);
+  const [isTitleOverflow, setIsTitleOverflow] = useState(false);
+
+  useEffect(() => {
+    if (document.getElementById('vb-marquee-style')) return;
+
+    const style = document.createElement('style');
+    style.id = 'vb-marquee-style';
+    style.innerHTML = `
+    @keyframes vb-marquee {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-100%); }
+    }
+  `;
+    document.head.appendChild(style);
+  }, []);
+
+
   /* =========================
      초기 방 입장 + 정보 로드
   ========================= */
@@ -79,6 +97,14 @@ export default function RoomLobby() {
 
     return () => { alive = false; };
   }, [roomId, navigate]);
+
+  useEffect(() => {
+    const el = songTitleRef.current;
+    if (!el) return;
+
+    // 실제 내용 길이가 컨테이너보다 길면 true
+    setIsTitleOverflow(el.scrollWidth > el.clientWidth);
+  }, [roomInfo?.songTitle]);
 
   /* =========================
      STOMP
@@ -255,7 +281,9 @@ export default function RoomLobby() {
             <div style={{ fontSize: 18, fontWeight: 600 }}>{roomInfo.roomName}</div>
             <div style={{ opacity: 0.7 }}>{players.length} / {roomInfo.maxPlayers}</div>
             <div style={{ marginLeft: 'auto' }}>
-              <button style={btnGhost} onClick={leaveRoom}>나가기</button>
+              <button style={neonBtnDanger} onClick={leaveRoom}>
+                나가기
+              </button>
             </div>
           </div>
 
@@ -270,8 +298,18 @@ export default function RoomLobby() {
                 }
               </div>
 
-              <div style={ghostSongTitle}>
-                {sanitizeTitle(roomInfo.songTitle)}
+              <div style={ghostSongTitleWrap}>
+                <div
+                  style={{
+                    ...ghostSongTitleBase,
+                    ...(isTitleOverflow
+                      ? ghostSongTitleMarquee
+                      : { textAlign: 'center', width: '100%' }),
+                  }}
+                  ref={songTitleRef}
+                >
+                  {sanitizeTitle(roomInfo.songTitle)}
+                </div>
               </div>
 
               <div
@@ -297,13 +335,30 @@ export default function RoomLobby() {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: 20 }}>
-            <button style={btnPrimary} onClick={toggleReady} disabled={!me}>
+            <button
+              onClick={toggleReady}
+              disabled={!me}
+              style={
+                !me
+                  ? neonBtnDisabled
+                  : me?.ready
+                    ? neonBtnActive
+                    : neonBtn
+              }
+            >
               {me?.ready ? 'NOT READY' : 'READY'}
             </button>
+
             {isHost && me?.ready && opponent?.ready && (
-              <button style={btnPrimaryStrong} onClick={startGame}>START</button>
+              <button
+                onClick={startGame}
+                style={neonBtnActive}
+              >
+                START
+              </button>
             )}
           </div>
+
         </div>
       </div>
 
@@ -408,4 +463,74 @@ const DIFF_COLOR_MAP = {
   NORMAL: '#6cff5a',
   HARD: '#ffb85a',
   HELL: '#ff5a5a',
+};
+const ghostSongTitleWrap = {
+  width: 260,            // 중앙 카드 폭에 맞춤
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+};
+
+const ghostSongTitleMarquee = {
+  display: 'inline-block',
+  paddingLeft: '100%',
+  animation: 'vb-marquee 20s linear infinite',
+};
+
+const ghostSongTitleBase = {
+  fontSize: 30,
+  fontWeight: 600,
+  whiteSpace: 'nowrap',
+};
+const neonBtn = {
+  minWidth: 140,
+  height: 44,
+  padding: '0 28px',
+  borderRadius: 12,
+  background: 'rgba(10,20,30,0.9)',
+  border: '1px solid rgba(90,234,255,0.6)',
+  color: '#5aeaff',
+  fontSize: 15,
+  fontWeight: 600,
+  letterSpacing: '0.15em',
+  cursor: 'pointer',
+  boxShadow: `
+    inset 0 0 12px rgba(90,234,255,0.35),
+    0 0 18px rgba(90,234,255,0.45)
+  `,
+  transition: 'all 0.2s ease',
+};
+
+const neonBtnActive = {
+  ...neonBtn,
+  background: 'rgba(90,234,255,0.18)',
+  color: '#ffffff',
+  boxShadow: `
+    inset 0 0 18px rgba(90,234,255,0.6),
+    0 0 26px rgba(90,234,255,0.8)
+  `,
+};
+
+const neonBtnDisabled = {
+  ...neonBtn,
+  opacity: 0.35,
+  cursor: 'default',
+  boxShadow: 'none',
+};
+const neonBtnDanger = {
+  minWidth: 110,
+  height: 36,
+  padding: '0 22px',
+  borderRadius: 10,
+  background: 'rgba(30,10,10,0.9)',
+  border: '1px solid rgba(255,90,90,0.6)',
+  color: '#ff6b6b',
+  fontSize: 14,
+  fontWeight: 600,
+  letterSpacing: '0.1em',
+  cursor: 'pointer',
+  boxShadow: `
+    inset 0 0 10px rgba(255,90,90,0.35),
+    0 0 16px rgba(255,90,90,0.45)
+  `,
+  transition: 'all 0.2s ease',
 };

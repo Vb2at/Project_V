@@ -164,7 +164,7 @@ export default function GameSession({
     const notes = notesCanvasRef.current;
     const fx = effectsCanvasRef.current;
 
-    if (!out || !base || !notes || !fx) return;
+    if (!out || !base || !notes) return;
 
     compositeStartedRef.current = true;
 
@@ -185,7 +185,7 @@ export default function GameSession({
       const yOffset = 40;
       ctx.drawImage(base, 0, 0, WIDTH, HEIGHT);
       ctx.drawImage(notes, 0, 0, WIDTH, HEIGHT);
-      ctx.drawImage(fx, 0, 0, WIDTH, HEIGHT);
+      if (fx) ctx.drawImage(fx, 0, 0, WIDTH, HEIGHT);
 
       if (!firstFrameDrawn) {
         firstFrameDrawn = true;
@@ -209,6 +209,9 @@ export default function GameSession({
         cancelAnimationFrame(compositeRafRef.current);
         compositeRafRef.current = null;
       }
+      compositeRafRef.current = null;
+      compositeStartedRef.current = false;
+      sentStreamRef.current = null;
     };
   }, [canvasReadyTick, settings.fps]);
 
@@ -579,30 +582,32 @@ export default function GameSession({
 
   const lastTimeRef = useRef(0);
 
+  const lastRenderTimeRef = useRef(0);
+
   useEffect(() => {
     let rafId = null;
 
     const loop = () => {
       if (!effectivePaused) {
         const audio = audioRef.current;
-
         if (audio && !audio.paused) {
           const newTime = audio.currentTime * 1000;
-          lastTimeRef.current = newTime;
           currentTimeRef.current = newTime;
         }
-        // ✅ 렌더 기준 시간은 항상 state로 반영 (필터 고정 방지)
-        setCurrentTime(currentTimeRef.current);
 
+        // ✅ 16ms 이상 변했을 때만 state 업데이트
+        if (Math.abs(currentTimeRef.current - lastRenderTimeRef.current) >= 16) {
+          lastRenderTimeRef.current = currentTimeRef.current;
+          setCurrentTime(currentTimeRef.current);
+        }
       }
+
       rafId = requestAnimationFrame(loop);
     };
 
     rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
   }, [effectivePaused]);
-
-
 
   useEffect(() => {
     if (mode === 'edit') return;
@@ -613,9 +618,19 @@ export default function GameSession({
         let missOccurred = false;
 
         const newNotes = prev.map((note) => {
-          if (note.hit) return note;
+          if (note.hit && !(note.type === 'long' && note.holding && !note.released)) return note;
 
           if (note.type === 'long') {
+            // ✅ 자연 종료(endTime) 처리: 이펙트 즉시 제거 + holding 종료, 콤보 reset 금지
+            if (note.holding && !note.released && now >= note.endTime) {
+              setEffects((prevEffects) =>
+                prevEffects.filter(
+                  (e) => !(e.type === 'long' && e.noteId === `${note.timing}-${note.lane}`)
+                )
+              );
+              return { ...note, hit: true, holding: false, released: true };
+            }
+
             if (!note.holding && now > note.timing + GAME_CONFIG.JUDGEMENT.MISS) {
               missOccurred = true;
               applyMissPenalty();
@@ -625,6 +640,7 @@ export default function GameSession({
               ]);
               return { ...note, hit: true, judgement: 'MISS' };
             }
+
             if (note.holding && now > note.endTime + GAME_CONFIG.JUDGEMENT.MISS) {
               missOccurred = true;
               applyMissPenalty();
@@ -665,7 +681,15 @@ export default function GameSession({
     if (mode === 'edit') return;
     const interval = setInterval(() => {
       if (effectivePaused) return;
-      const holdingNotes = notesRef.current.filter((n) => n.holding && !n.released);
+      const now = currentTimeRef.current;
+
+      const holdingNotes = notesRef.current.filter(
+        (n) =>
+          n.type === 'long' &&
+          n.holding &&
+          !n.released &&
+          now < n.endTime
+      );
       if (holdingNotes.length > 0) {
         const mult = getComboMultiplier(comboRef.current);
         const bonus =
@@ -1204,9 +1228,6 @@ export default function GameSession({
   const handleEditorMouseUp = (e) => {
 
     if (mode === 'edit' && draggingPreviewRef.current.size > 0) {
-      console.log('[DEBUG COMMIT]', {
-        usedSetNotesType: typeof usedSetNotes,
-      });
       pushUndo(notesRef.current);
 
       const willCollide = (notes, previewMap, selectedIds) => {
@@ -1556,7 +1577,6 @@ export default function GameSession({
           currentTime={currentTime}
           pressedKeys={pressedKeys}
           onCanvasReady={(canvas) => {
-            console.log('[BASE CANVAS READY]');
             baseCanvasRef.current = canvas;
             setCanvasReadyTick((v) => v + 1);
           }}
@@ -1570,7 +1590,6 @@ export default function GameSession({
           tapNoteColor={settings?.tapNoteColor ?? 0x05acb5}
           longNoteColor={settings?.longNoteColor ?? 0xb50549}
           onCanvasReady={(canvas) => {
-            console.log('[NOTES CANVAS READY]');
             notesCanvasRef.current = canvas;
             setCanvasReadyTick((v) => v + 1);
           }}
@@ -1593,7 +1612,6 @@ export default function GameSession({
                 onPixiReady={(canvas) => {
                   if (!canvas) return;
                   effectsCanvasRef.current = canvas;
-                  console.log('[EFFECTS CANVAS READY]');
                   setCanvasReadyTick((v) => v + 1);
                 }}
               />
