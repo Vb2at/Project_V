@@ -1432,8 +1432,8 @@ export default function GameSession({
 
     const now = currentTimeRef.current;
 
-    const tStart = Math.max(Math.min(tStartRaw, tEndRaw), now + MIN_PREVIEW_MS);
-    const tEnd = Math.max(Math.max(tStartRaw, tEndRaw), tStart + 150);
+    const tStart = Math.min(tStartRaw, tEndRaw);
+    const tEnd = Math.max(tStartRaw, tEndRaw);
 
     if (tEnd - tStart < 150) return;
 
@@ -1442,18 +1442,25 @@ export default function GameSession({
 
     const newStart = Math.round(start);
     const newEnd = Math.round(end);
-
+    
     pushUndo(notesRef.current);
 
     usedSetNotes(prev => {
       const isOverlap = prev.some(n => {
         if (n.lane !== lane) return false;
 
-        if (n.type === 'long') {
-          return newStart < (n.endTime ?? n.timing) && newEnd > n.timing;
+        // tap ↔ tap
+        if (n.type === 'tap') {
+          return Math.abs(n.timing - newStart) < 60 ||
+            Math.abs(n.timing - newEnd) < 60 ||
+            (n.timing > newStart && n.timing < newEnd);
         }
 
-        return n.timing > newStart && n.timing < newEnd;
+        // long ↔ long / long ↔ tap
+        const nStart = n.timing;
+        const nEnd = n.endTime ?? n.timing;
+
+        return newStart < nEnd && newEnd > nStart;
       });
 
       if (isOverlap) return prev;

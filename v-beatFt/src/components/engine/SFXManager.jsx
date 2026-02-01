@@ -17,8 +17,16 @@ function playOnce(src, volume = 1.0) {
   const settings = getUserSettings();
   if (settings && settings.hitSound === false) return;
   const audio = new Audio(src);
-  const sfxVol = settings ? settings.sfxVolume / 100 : 1;
+
+  const sfxVol =
+    settings && settings.sfxMute
+      ? 0
+      : settings
+        ? settings.sfxVolume / 100
+        : 1;
+
   audio.volume = volume * sfxVol;
+
   audio.play().catch(() => { });
 }
 
@@ -121,7 +129,12 @@ export function playMenuBgmRandom() {
   menuBgmAudio.loop = false;
 
   const settings = getUserSettings();
-  const bgmVol = settings ? settings.bgmVolume / 100 : 1;
+  const bgmVol =
+    settings && settings.bgmMute
+      ? 0
+      : settings
+        ? settings.bgmVolume / 100
+        : 1;
 
   menuBgmBaseVolume = 0.4 * bgmVol;
   menuBgmAudio.volume = menuBgmBaseVolume;
@@ -255,7 +268,12 @@ export function singleBgm({
   menuBgmAudio.loop = loop;
 
   const settings = getUserSettings();
-  const bgmVol = settings ? settings.bgmVolume / 100 : 1;
+  const bgmVol =
+    settings && settings.bgmMute
+      ? 0
+      : settings
+        ? settings.bgmVolume / 100
+        : 1;
 
   menuBgmBaseVolume = volume * bgmVol;
   menuBgmAudio.volume = menuBgmBaseVolume;
@@ -307,22 +325,27 @@ export function playPreview(
     volume = 0.8,
   } = {}
 ) {
-  if (!isPreviewEnabled()) return;
+  const settings = getUserSettings();
+  if (settings && settings.previewMute) return; // ✅ 미리듣기 완전 차단
 
   stopPreview();
 
-  const settings = getUserSettings();
   const pvVol = settings ? settings.previewVolume / 100 : 1;
-  previewAudio = new Audio(src);
-  previewAudio.volume = volume * pvVol;
-  previewAudio.currentTime = startSec;
+
+  const audio = new Audio(src);
+  audio.volume = volume * pvVol;
+  audio.currentTime = startSec;
+
+  previewAudio = audio;
+
   muteMenuBgm();
-  previewAudio.play().catch(() => { });
+  audio.play().catch(() => { });
 
   previewTimer = setTimeout(() => {
     stopPreview();
   }, durationSec * 1000);
 }
+
 
 let unlockGainNode = null;
 

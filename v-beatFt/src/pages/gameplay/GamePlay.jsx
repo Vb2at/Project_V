@@ -748,6 +748,7 @@ function GamePlay() {
       <Header />
 
       <LeftSidebar songId={tokenParam ? song?.id : resolvedSongId} diff={diff} />
+      
       <RightSidebar
         isMulti={isMulti}
         rival={rival}

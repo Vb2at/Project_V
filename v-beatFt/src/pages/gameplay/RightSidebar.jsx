@@ -12,45 +12,45 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
   if (isMulti) {
     if (!rival) return null;
 
-  const { nickname, profileUrl, score, combo } = useMemo(
-    () => ({
-      nickname: rival?.nickname ?? 'OPPONENT',
-      profileUrl: resolveProfileImg(rival?.profileUrl),
-      score: rival?.score ?? 0,
-      combo: rival?.combo ?? 0,
-    }),
-    [rival]
-  );
+    const { nickname, profileUrl, score, combo } = useMemo(
+      () => ({
+        nickname: rival?.nickname ?? 'OPPONENT',
+        profileUrl: resolveProfileImg(rival?.profileUrl),
+        score: rival?.score ?? 0,
+        combo: rival?.combo ?? 0,
+      }),
+      [rival]
+    );
 
-  // 프로필 이미지 url 관련 함수
-  function resolveProfileImg(src) {
-    if (!src) return null;
+    // 프로필 이미지 url 관련 함수
+    function resolveProfileImg(src) {
+      if (!src) return null;
 
-    if (src.startsWith('http')) return src;
+      if (src.startsWith('http')) return src;
 
-    if (!src.startsWith('/')) {
-      return `http://localhost:8080/${src}`;
+      if (!src.startsWith('/')) {
+        return `http://localhost:8080/${src}`;
+      }
+
+      return `http://localhost:8080${src}`;
     }
 
-    return `http://localhost:8080${src}`;
-  }
+    useEffect(() => {
+      if (!profileUrl) {
+        setProfileBg(null);
+        return;
+      }
 
-  useEffect(() => {
-    if (!profileUrl) {
-      setProfileBg(null);
-      return;
-    }
+      const img = new Image();
+      img.src = profileUrl;
 
-    const img = new Image();
-    img.src = profileUrl;
+      img.onload = () => setProfileBg(profileUrl);
+      img.onerror = () => setProfileBg(null);
+    }, [profileUrl]);
 
-    img.onload = () => setProfileBg(profileUrl);
-    img.onerror = () => setProfileBg(null);
-  }, [profileUrl]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    const stream = rival?.stream;
+    useEffect(() => {
+      const video = videoRef.current;
+      const stream = rival?.stream;
 
       video.onloadedmetadata = () => { };
       video.muted = true;
@@ -122,25 +122,9 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
       </div>
 
       {/* ===== RIVAL INFO ===== */}
-      <div style={styles.rivalInfo}>
-        <div style={styles.profileRow}>
-          <div
-            style={{
-              ...styles.profileImg,
-              background: profileUrl
-                ? `url(${profileBg}) center / cover no-repeat`
-                : styles.profileFallback.background,
-              opacity: profileBg ? 1 : 0.5,
-            }}
-          >
-            {!profileUrl && 'PROFILE'}
-          </div>
-
-          <div style={styles.nickname}>{nickname}</div>
-        </div>
-
-        <InfoRow label="SCORE" value={score} color="#5aeaff" />
-        <InfoRow label="COMBO" value={combo} color="#ff8cff" />
+      <div style={styles.singleInfo}>
+        <div style={styles.nickname}>{playerName ?? 'PLAYER'}</div>
+        <div style={{ opacity: 0.7 }}>{diffLabel}</div>
       </div>
     </div>
   );

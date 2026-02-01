@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Background from "../components/Common/Background";
 import LoginNoteRain from "./member/LoginNoteRain";
 /* ===== Layout Numbers (여기만 조절) ===== */
@@ -24,7 +24,7 @@ const S = {
 
 export default function LandingPage() {
   const navigate = useNavigate();
-
+  const videoRef = useRef(null);
   const [glitch, setGlitch] = useState(false);
 
   useEffect(() => {
@@ -184,7 +184,7 @@ export default function LandingPage() {
             <div style={{ marginLeft: S.contentShiftX }}>
 
               {/* Buttons */}
-              <div style={{ display: "flex", gap: 20, marginTop: 10, marginLeft:50, }}>
+              <div style={{ display: "flex", gap: 20, marginTop: 10, marginLeft: 50, }}>
                 <button
                   onClick={() => navigate("/main")}
                   className="rounded-xl bg-cyan-400 text-black font-semibold hover:bg-cyan-300 transition"
@@ -194,7 +194,19 @@ export default function LandingPage() {
                 </button>
 
                 <button
-                  className="rounded-xl border border-white/30 hover:bg-white/10 transition"
+                  onClick={() => {
+                    const v = videoRef.current;
+                    if (!v) return;
+
+                    v.muted = false;
+                    v.volume = 1;
+                    v.currentTime = 0;
+                    v.play();
+
+                    if (v.requestFullscreen) v.requestFullscreen();
+                    else if (v.webkitRequestFullscreen) v.webkitRequestFullscreen();
+                  }}
+                  className="rounded-xl border border-cyan-400 text-cyan-300 font-semibold hover:bg-cyan-400/10 transition"
                   style={{ padding: "14px 48px", fontSize: 16 }}
                 >
                   WATCH TRAILER
@@ -240,15 +252,25 @@ export default function LandingPage() {
                   background: "rgba(0,0,0,0.6)",
                   border: "1px solid rgba(34,211,238,0.4)",
                   boxShadow: "0 0 40px rgba(34,211,238,0.25)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  letterSpacing: "0.2em",
-                  color: "rgba(255,255,255,0.4)",
+                  overflow: "hidden",          // ⭐ 중요
                   marginRight: 30,
                 }}
               >
-                VIDEO
+                <video
+                  ref={videoRef}
+                  src="/video/trailer.mp4"
+                  muted
+                  autoPlay
+                  loop
+                  playsInline
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: 26,
+                    objectFit: "cover",
+                  }}
+                />
+
               </div>
             </div>
           </div>
@@ -275,7 +297,7 @@ export default function LandingPage() {
               opacity: 0.6,
             }}
           >
-            © 2026 Team Syntax Error
+            © 2026 Team Syntax Error v1.0
           </div>
         </footer>
       </div>

@@ -398,7 +398,7 @@ export default function Header({ onLogout = () => { } }) {
             <div
               style={{
                 position: 'absolute',
-                right: '30px',
+                right: '38px',
                 top: HEADER_HEIGHT + 6,
                 background: 'rgba(10,20,30,0.95)',
                 border: '2px solid rgba(90,234,255,0.4)',

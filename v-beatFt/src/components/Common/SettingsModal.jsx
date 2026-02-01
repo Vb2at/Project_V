@@ -23,16 +23,24 @@ export default function SettingsModal({
                     <Slider
                         label="BGM 볼륨"
                         value={settings.bgmVolume}
+                        muted={settings.bgmMute}
+                        onMute={() => update({ bgmMute: !settings.bgmMute })}
                         onChange={(v) => update({ bgmVolume: v })}
                     />
+
                     <Slider
                         label="미리듣기 볼륨"
                         value={settings.previewVolume}
+                        muted={settings.previewMute}
+                        onMute={() => update({ previewMute: !settings.previewMute })}
                         onChange={(v) => update({ previewVolume: v })}
                     />
+
                     <Slider
                         label="효과음 볼륨"
                         value={settings.sfxVolume}
+                        muted={settings.sfxMute}
+                        onMute={() => update({ sfxMute: !settings.sfxMute })}
                         onChange={(v) => update({ sfxVolume: v })}
                     />
                     <Toggle
@@ -99,7 +107,15 @@ export default function SettingsModal({
                     <button style={btn} onClick={onReset}>기본값 복원</button>
                     <div style={{ flex: 1 }} />
                     <button style={btn} onClick={onClose}>취소</button>
-                    <button style={btnPrimary} onClick={onApply}>적용</button>
+                    <button
+                        style={btnPrimary}
+                        onClick={() => {
+                            onApply();
+                            window.location.reload();
+                        }}
+                    >
+                        적용
+                    </button>
                 </div>
 
             </div>
@@ -132,21 +148,43 @@ function Toggle({ label, value, onChange }) {
     );
 }
 
-function Slider({ label, value, onChange }) {
+function Slider({ label, value, muted, onMute, onChange }) {
     return (
         <div style={row}>
-            <span>{label}</span>
+            <span style={{ width: 110 }}>{label}</span>
+
+            <button
+                onClick={onMute}
+                style={{
+                    width: 24,          // ← 핵심
+                    textAlign: 'center',
+                    background: 'transparent',
+                    border: 'none',
+                    color: muted ? '#ff5a5a' : '#5aeaff',
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    flexShrink: 0,      // ← 밀림 방지
+                }}
+            >
+                {muted ? '🔇' : '🔊'}
+            </button>
+
             <input
                 type="range"
                 min={0}
                 max={100}
-                value={value}
+                value={muted ? 0 : value}
+                disabled={muted}
                 onChange={(e) => onChange(Number(e.target.value))}
             />
-            <span style={{ width: 36, textAlign: 'right' }}>{value}</span>
+
+            <span style={{ width: 36, textAlign: 'right' }}>
+                {muted ? 0 : value}
+            </span>
         </div>
     );
 }
+
 
 function Color({ label, value, onChange }) {
     if (typeof value !== 'number') return null;

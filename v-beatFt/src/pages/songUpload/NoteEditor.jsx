@@ -16,7 +16,7 @@ const VISIBILITY_TEXT = {
 };
 
 const HEADER_HEIGHT = 64;
-const SIDE_W = 260;
+const SIDE_W = 300;
 
 export default function NoteEditor() {
     const { songId } = useParams();
@@ -129,6 +129,7 @@ export default function NoteEditor() {
 
                 const notesRes = await fetch(`/api/songs/${songId}/notes`);
                 const notesJson = await notesRes.json();
+
 
                 setSong(songJson.data ?? songJson.song ?? songJson);
 
@@ -411,9 +412,9 @@ const editorRightWrap = {
     zIndex: 60,
     padding: '18px 14px',
     boxSizing: 'border-box',
-    background: 'rgba(10,20,30,0.25)',
+     background: 'rgba(10,20,30,0.45)',
     borderLeft: '1px solid rgba(255,255,255,0.08)',
-    backdropFilter: 'blur(6px)',
+    backdropFilter: 'blur(10px)',
 };
 
 /* ===== 왼쪽 사이드바 안쪽 공개여부 위치 ===== */

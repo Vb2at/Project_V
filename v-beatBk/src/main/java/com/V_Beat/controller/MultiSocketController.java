@@ -6,6 +6,7 @@ import java.util.Map;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
 
@@ -169,4 +170,12 @@ public class MultiSocketController {
 
 		messagingTemplate.convertAndSend("/topic/multi/room/" + roomId + "/rtc", payload);
 	}
+	
+	@MessageMapping("/multi/ping")
+	@SendToUser("/queue/pong")
+	public Map<String, Object> ping(Map<String, Object> payload) {
+	    // 그대로 돌려줌 (ts 기준 RTT 계산용)
+	    return payload;
+	}
+
 }

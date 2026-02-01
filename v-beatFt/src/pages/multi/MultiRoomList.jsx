@@ -132,11 +132,6 @@ export default function MultiRoomList() {
             >
               방 만들기
             </button>
-            <button
-              onClick={() => alert("초대 입장은 Invite 플로우에서 처리됩니다.")}
-            >
-              초대 입장
-            </button>
           </div>
 
           {/* 🟡 방 리스트 영역 */}

@@ -247,14 +247,6 @@ export default function MyPage() {
             return;
           }
 
-          // ✅ 멀티 초대 알림
-          if (payload.type === 'MULTI_INVITE') {
-            window.dispatchEvent(
-              new CustomEvent('multi:invite', { detail: payload })
-            );
-            return;
-          }
-
           // ✅ 친구 요청 알림 (탭 아니면 +1, 탭이면 무시)
           // payload 예:
           // { type:'FRIEND_NOTIFY', event:'REQUEST_NEW', data:{...} }

@@ -8,6 +8,29 @@ import Background from '../../components/Common/Background';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client/dist/sockjs.min.js';
 
+function startPing(stomp, onPing) {
+  let timer = null;
+
+  const sub = stomp.subscribe('/user/queue/pong', (msg) => {
+    const { ts } = JSON.parse(msg.body);
+    const ping = Date.now() - ts;
+    onPing(ping);
+  });
+
+  timer = setInterval(() => {
+    stomp.publish({
+      destination: '/app/multi/ping',
+      body: JSON.stringify({ ts: Date.now() }),
+    });
+  }, 2000);
+
+  return () => {
+    clearInterval(timer);
+    sub.unsubscribe();
+  };
+}
+
+
 // 프로필 이미지 경로 정리 함수
 function resolveProfileImg(src) {
   if (!src) return null;
@@ -63,6 +86,8 @@ export default function RoomLobby() {
     null;
   const songTitleRef = useRef(null);
   const [isTitleOverflow, setIsTitleOverflow] = useState(false);
+  const [hostPing, setHostPing] = useState(null);
+  const pingBufferRef = useRef([]);
 
   useEffect(() => {
     if (document.getElementById('vb-marquee-style')) return;
@@ -137,10 +162,23 @@ export default function RoomLobby() {
       debug: () => { },
 
       onConnect: () => {
+
         client.publish({
           destination: '/app/multi/enter',
           body: JSON.stringify({ roomId }),
         });
+
+        const stopPing = startPing(client, (ping) => {
+          const buf = pingBufferRef.current;
+          buf.push(ping);
+          if (buf.length > 5) buf.shift();
+
+          const avg =
+            Math.round(buf.reduce((a, b) => a + b, 0) / buf.length);
+
+          setHostPing(avg);
+        });
+        client.__stopPing = stopPing;
 
         const subRoom = client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
           const data = JSON.parse(msg.body);
@@ -193,6 +231,7 @@ export default function RoomLobby() {
 
     return () => {
       try {
+        client.__stopPing?.();
         const subs = client.__vbeatSubs;
         subs?.subRoom?.unsubscribe?.();
         subs?.subClosed?.unsubscribe?.();
@@ -281,11 +320,25 @@ export default function RoomLobby() {
       <Background />
       <Header />
 
-      <div style={{ position: 'absolute', inset: 0, top: 64, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          top: 64,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          background: 'rgba(10,20,30,0.25)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
+        }}
+      >
         <div style={{
           width: '75%',
           height: '65%',
-          background: 'rgba(10,20,30,0.75)',
+          background: 'rgba(10,20,30,0.55)',     // 투명도 ↓
+          backdropFilter: 'blur(10px)',          // ✅ 여기만 블러
+          WebkitBackdropFilter: 'blur(10px)',
           border: '2px solid rgba(90,234,255,0.6)',
           borderRadius: 18,
           padding: 24,
@@ -343,6 +396,11 @@ export default function RoomLobby() {
               <div style={ghostMeta}>
                 LENGTH {formatTime(lengthSec)}
               </div>
+              {hostPing != null && (
+                <div style={{ fontSize: 11, opacity: 0.8 }}>
+                  HOST PING {hostPing} ms
+                </div>
+              )}
               <div style={ghostRoomId}>Room ID: {roomId}</div>
             </div>
 
@@ -366,12 +424,27 @@ export default function RoomLobby() {
             </button>
 
             {isHost && me?.ready && opponent?.ready && (
-              <button
-                onClick={startGame}
-                style={neonBtnActive}
-              >
-                START
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {hostPing != null && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: '0.1em',
+                      color: PING_COLOR(hostPing),
+                    }}
+                  >
+                    PING {hostPing}ms
+                  </div>
+                )}
+
+                <button
+                  onClick={startGame}
+                  style={neonBtnActive}
+                >
+                  START
+                </button>
+              </div>
             )}
           </div>
 
@@ -417,9 +490,6 @@ function PlayerCard({ title, player, hostUserId }) {
           )
         }
       </div>
-
-      {!waiting && <div style={ghostRecord}>12W · 8L</div>}
-
       <div
         style={{
           ...ghostStatus,
@@ -557,4 +627,9 @@ const neonBtnDanger = {
     0 0 16px rgba(255,90,90,0.45)
   `,
   transition: 'all 0.2s ease',
+};
+const PING_COLOR = (ms) => {
+  if (ms < 80) return '#6cff5a';     // GOOD
+  if (ms < 150) return '#ffb85a';    // OK
+  return '#ff5a5a';                  // BAD
 };

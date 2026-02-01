@@ -44,11 +44,13 @@ export default function MainOverlay({
   const [isBlockUser, setIsBlockUser] = useState(false);
   const [multiRooms, setMultiRooms] = useState([]);
   const [createRoomOpen, setCreateRoomOpen] = useState(false);
+  const [multiSearch, setMultiSearch] = useState('');
   const [roomName, setRoomName] = useState('');
   const [isPrivateRoom, setIsPrivateRoom] = useState(false);
   const [roomPassword, setRoomPassword] = useState('');
   const [selectedMultiSongId, setSelectedMultiSongId] = useState(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
+  const [roomSearch, setRoomSearch] = useState('');
 
   useEffect(() => {
     const flag = sessionStorage.getItem('roomClosed');
@@ -377,6 +379,11 @@ export default function MainOverlay({
   const isLoggedIn = !!auth?.user || loginUserId != null;
   const linkActive = listMode === 'LINK';
   const multiActive = listMode === 'MULTI';
+
+  const filteredMultiRooms = multiRooms.filter((r) =>
+    r.roomName?.toLowerCase().includes(multiSearch.toLowerCase())
+  );
+
   const isMySong =
     loginUserId != null &&
     selectedSong?.uploaderUserId != null &&
@@ -871,7 +878,9 @@ export default function MainOverlay({
               style={{
                 position: 'relative',
                 flex: 1,
-                overflow: 'hidden',
+                overflow: 'hidden',   // 유지
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
               {/* ===== 멀티 컨트롤 바 ===== */}
@@ -882,30 +891,47 @@ export default function MainOverlay({
                     borderRadius: 12,
                     background: 'rgba(0,0,0,0.25)',
                     display: 'flex',
+                    alignItems: 'center',
                     gap: 8,
                     flexShrink: 0,
-
                   }}
                 >
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button style={multiBtn}>공개방</button>
-                    <button style={multiBtn}>비공개 입장</button>
+                  {/* 왼쪽: 검색 */}
+                  <input
+                    value={multiSearch}
+                    onChange={(e) => setMultiSearch(e.target.value)}
+                    placeholder="방 검색"
+                    style={{
+                      flex: 1,                // ⭐ 왼쪽 차지
+                      maxWidth: 260,
+                      padding: '8px 12px',
+                      borderRadius: 10,
+                      background: 'rgba(0,0,0,0.35)',
+                      border: '1px solid rgba(90,234,255,0.35)',
+                      color: '#cfd8e3',
+                      fontSize: 13,
+                      outline: 'none',
+                    }}
+                  />
+
+                  {/* 오른쪽: 버튼 */}
+                  <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
                     <button style={multiBtn} onClick={fetchMultiRooms}>
                       새로고침
                     </button>
 
-                    <div style={{ marginLeft: 'auto' }}>
-                      <button
-                        style={multiBtnPrimary}
-                        onClick={() => {
-                          setSelectedMultiSongId(null);
-                          setCreateRoomOpen(true);
-                        }}
-                      >
-                        방 만들기
-                      </button>                    </div>
+                    <button
+                      style={multiBtnPrimary}
+                      onClick={() => {
+                        setSelectedMultiSongId(null);
+                        setCreateRoomOpen(true);
+                      }}
+                    >
+                      방 만들기
+                    </button>
                   </div>
                 </div>
+
               )}
 
               {/* ===== 링크 입장 화면 ===== */}
@@ -959,7 +985,7 @@ export default function MainOverlay({
                             token = url.searchParams.get('token') || token;
                           } catch { }
                           token = decodeURIComponent(token); // URL 디코딩
-                          
+
                           if (!token) {
                             alert('토큰을 입력해주세요.');
                             return;
@@ -1193,17 +1219,17 @@ export default function MainOverlay({
                   </div>
                 </>
               )}
-
-
               {/* ===== 멀티 방 리스트 화면 ===== */}
               {listMode === 'MULTI' && (
                 <div
                   style={{
                     padding: 12,
                     borderRadius: 12,
-                    overflowY: 'auto',
                     background: 'rgba(0,0,0,0.25)',
+
                     flex: 1,
+                    minHeight: 0,            // ⭐ 중요
+                    overflowY: 'auto',       // 스크롤 활성
                   }}
                 >
                   {multiRooms.length === 0 && (
@@ -1212,7 +1238,7 @@ export default function MainOverlay({
                     </div>
                   )}
 
-                  {multiRooms.map((r) => (
+                  {filteredMultiRooms.map((r) => (
                     <div
                       key={r.roomId ?? r.id}
                       onClick={async () => {
@@ -1228,6 +1254,7 @@ export default function MainOverlay({
                         }
                       }}
                       style={{
+                        position: 'relative', // ⭐ 필수
                         padding: 14,
                         borderRadius: 12,
                         border: '1px solid rgba(255,255,255,0.15)',
@@ -1241,21 +1268,42 @@ export default function MainOverlay({
                     >
                       {/* 상단: 방 이름 + 잠금 */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>
+                        <div style={{ fontWeight: 700, fontSize: 20, letterSpacing: '0.02em' }}>
                           {r.roomName}
                         </div>
-                        {r.isPrivate && <span style={{ fontSize: 13, opacity: 0.7 }}>🔒</span>}
                       </div>
 
                       {/* 곡 정보 */}
-                      <div style={{ fontSize: 12, opacity: 0.7 }}>
+                      <div style={{ fontSize: 18, opacity: 0.7 }}>
                         🎵 {r.songTitle}
                       </div>
 
                       {/* 하단: 인원 */}
-                      <div style={{ display: 'flex', gap: 10, fontSize: 12, opacity: 0.75 }}>
+                      <div style={{ display: 'flex', gap: 10, fontSize: 15, opacity: 0.75 }}>
                         <span>{(r.players?.length ?? 0)} / {r.maxPlayers} 명</span>
                       </div>
+                      {/* 호스트 핑 */}
+                      {r.hostUserId && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            right: 16,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontSize: 11,
+                            padding: '4px 8px',
+                            borderRadius: 8,
+                            background: 'rgba(90,234,255,0.18)',
+                            border: '1px solid rgba(90,234,255,0.6)',
+                            color: '#5aeaff',
+                            fontWeight: 700,
+                            letterSpacing: '0.1em',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          PING {typeof r.hostPing === 'number' ? `${r.hostPing}ms` : '--'}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1402,28 +1450,14 @@ export default function MainOverlay({
               })}
             </div>
 
-
-            <label style={{ display: 'flex', gap: 6, fontSize: 13 }}>
-              <input
-                type="checkbox"
-                checked={isPrivateRoom}
-                onChange={(e) => setIsPrivateRoom(e.target.checked)}
-              />
-              비공개 방
-            </label>
-
-            {/* 비밀번호 */}
-            {isPrivateRoom && (
-              <input
-                value={roomPassword}
-                onChange={(e) => setRoomPassword(e.target.value)}
-                placeholder="비밀번호"
-                type="password"
-                style={modalInput}
-              />
-            )}
-
-            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: 10,
+                marginTop: 10,
+                justifyContent: 'center',   // ← 핵심
+              }}
+            >
               <button
                 style={multiBtn}
                 onClick={() => setCreateRoomOpen(false)}
@@ -1440,10 +1474,6 @@ export default function MainOverlay({
                   }
                   if (!selectedMultiSongId) {
                     alert('곡을 선택해 주세요.');
-                    return;
-                  }
-                  if (isPrivateRoom && !roomPassword.trim()) {
-                    alert('비공개 방 비밀번호를 입력해 주세요.');
                     return;
                   }
 
