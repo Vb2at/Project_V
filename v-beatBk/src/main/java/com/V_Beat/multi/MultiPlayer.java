@@ -10,6 +10,6 @@ import lombok.NoArgsConstructor;
 public class MultiPlayer {
     private Integer userId;
     private String nickname;
-    private String profileImg; // 🔥 추가
+    private String profileImg;
     private boolean ready;
 }

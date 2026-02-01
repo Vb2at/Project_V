@@ -74,6 +74,7 @@ export default function PixiEffects({
   showComboText = true,
   lowEffect = false,
   fpsLimit = 60,
+  onPixiReady,
 }) {
   const containerRef = useRef(null);
   const appRef = useRef(null);
@@ -123,13 +124,17 @@ export default function PixiEffects({
         height: GAME_CONFIG.CANVAS.HEIGHT,
         backgroundAlpha: 0,
         antialias: true,
+        preserveDrawingBuffer: true,
       });
+
 
       if (!mounted) {
         try { app.destroy(true); } catch {/* ignore */ }
         return;
       }
 
+      onPixiReady?.(app.canvas);
+      console.log('[EFFECTS CANVAS READY]');
       texturesRef.current = textures;
       window.__pixiEffectTextures = textures;
       window.__pixiStreamTexture = textures.laneStream;

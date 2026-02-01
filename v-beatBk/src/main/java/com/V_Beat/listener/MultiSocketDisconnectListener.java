@@ -21,6 +21,7 @@ public class MultiSocketDisconnectListener {
 
         StompHeaderAccessor acc = StompHeaderAccessor.wrap(event.getMessage());
         if (acc.getUser() == null) return;
+        if (acc.getSessionAttributes() == null) return;
 
         Integer userId;
         try {
@@ -32,11 +33,6 @@ public class MultiSocketDisconnectListener {
         String roomId = (String) acc.getSessionAttributes().get("roomId");
         if (roomId == null) return;
 
-        // ❗ 여기서 leaveRoom만 호출
-        // - 방 폭파 여부 판단
-        // - ROOM_CLOSED / ROOM_STATE 브로드캐스트
-        // - 방 리스트 갱신
-        // 전부 MultiRoomManager가 책임짐
         roomManager.leaveRoom(roomId, userId);
     }
 }

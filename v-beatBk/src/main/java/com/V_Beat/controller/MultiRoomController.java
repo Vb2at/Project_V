@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.*;
 import com.V_Beat.ai.service.SongService;
 import com.V_Beat.dto.Song;
 import com.V_Beat.dto.User;
-import com.V_Beat.multi.MultiPlayer;
 import com.V_Beat.multi.MultiRoom;
 import com.V_Beat.multi.MultiRoomManager;
 
@@ -29,11 +28,19 @@ public class MultiRoomController {
 
     /* ===== 방 생성 ===== */
     @PostMapping("/rooms")
-    public Map<String, Object> createRoom(@RequestBody MultiRoom req, HttpSession session) {
+    public Map<String, Object> createRoom(
+        @RequestBody MultiRoom req,
+        HttpSession session
+    ) {
         Map<String, Object> res = new HashMap<>();
 
         User user = (User) session.getAttribute("loginUser");
         if (user == null) {
+            res.put("ok", false);
+            return res;
+        }
+
+        if (req.getSongId() == null) {
             res.put("ok", false);
             return res;
         }
@@ -44,19 +51,14 @@ public class MultiRoomController {
             return res;
         }
 
+        // 🔹 곡 정보 보정
         req.setSongTitle(song.getTitle().replaceAll("(?i)\\.mp3$", ""));
         req.setDiff(song.getDiff());
         req.setLengthSec(parseDurationToSec(song.getDuration()));
         req.setCoverPath("/api/songs/" + song.getId() + "/cover");
 
-        MultiPlayer host = new MultiPlayer(
-            user.getId(),
-            user.getNickName(),
-            user.getProfileImg(),
-            false
-        );
-
-        MultiRoom room = roomManager.createRoom(req, host);
+        // ✅ MultiRoomManager 시그니처와 정확히 일치
+        MultiRoom room = roomManager.createRoom(req, user.getId());
 
         res.put("ok", true);
         res.put("room", room);
@@ -66,7 +68,10 @@ public class MultiRoomController {
 
     /* ===== 방 단건 조회 ===== */
     @GetMapping("/rooms/{roomId}")
-    public Map<String, Object> getRoom(@PathVariable String roomId, HttpSession session) {
+    public Map<String, Object> getRoom(
+        @PathVariable String roomId,
+        HttpSession session
+    ) {
         Map<String, Object> res = new HashMap<>();
 
         MultiRoom room = roomManager.getRoom(roomId);
@@ -88,6 +93,7 @@ public class MultiRoomController {
     @GetMapping("/rooms")
     public Map<String, Object> getRooms() {
         Map<String, Object> res = new HashMap<>();
+
         res.put("ok", true);
         res.put(
             "rooms",
@@ -100,7 +106,10 @@ public class MultiRoomController {
 
     /* ===== 방 입장 ===== */
     @PostMapping("/rooms/{roomId}/join")
-    public Map<String, Object> joinRoom(@PathVariable String roomId, HttpSession session) {
+    public Map<String, Object> joinRoom(
+        @PathVariable String roomId,
+        HttpSession session
+    ) {
         Map<String, Object> res = new HashMap<>();
 
         User user = (User) session.getAttribute("loginUser");
@@ -109,14 +118,9 @@ public class MultiRoomController {
             return res;
         }
 
-        MultiPlayer p = new MultiPlayer(
-            user.getId(),
-            user.getNickName(),
-            user.getProfileImg(),
-            false
-        );
+        // ✅ MultiRoomManager.joinRoom(String, Integer)
+        boolean ok = roomManager.joinRoom(roomId, user.getId());
 
-        boolean ok = roomManager.joinRoom(roomId, p);
         res.put("ok", ok);
         return res;
     }

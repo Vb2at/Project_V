@@ -32,198 +32,177 @@ import jakarta.servlet.http.HttpSession;
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-	private final OnlineUserService onlineUserService;
-	private final BattleSessionService battleSessionService;
+    private final OnlineUserService onlineUserService;
+    private final BattleSessionService battleSessionService;
 
-	public WebSocketConfig(
-			OnlineUserService onlineUserService,
-			BattleSessionService battleSessionService
-	) {
-		this.onlineUserService = onlineUserService;
-		this.battleSessionService = battleSessionService;
-	}
+    public WebSocketConfig(
+        OnlineUserService onlineUserService,
+        BattleSessionService battleSessionService
+    ) {
+        this.onlineUserService = onlineUserService;
+        this.battleSessionService = battleSessionService;
+    }
 
-	@Override
-	public void configureMessageBroker(MessageBrokerRegistry config) {
-		config.enableSimpleBroker("/topic", "/queue");
-		config.setApplicationDestinationPrefixes("/app");
-		config.setUserDestinationPrefix("/user");
-	}
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        config.enableSimpleBroker("/topic", "/queue");
+        config.setApplicationDestinationPrefixes("/app");
+        config.setUserDestinationPrefix("/user");
+    }
 
-	@Override
-	public void registerStompEndpoints(StompEndpointRegistry registry) {
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
 
-		registry.addEndpoint("/ws")
-			.addInterceptors(
-				new HttpSessionHandshakeInterceptor(),
-				new HandshakeInterceptor() {
+        registry.addEndpoint("/ws")
+            .addInterceptors(
+                new HttpSessionHandshakeInterceptor(),
+                new HandshakeInterceptor() {
 
-					@Override
-					public boolean beforeHandshake(
-							ServerHttpRequest request,
-							ServerHttpResponse response,
-							WebSocketHandler wsHandler,
-							Map<String, Object> attributes
-					) {
+                    @Override
+                    public boolean beforeHandshake(
+                        ServerHttpRequest request,
+                        ServerHttpResponse response,
+                        WebSocketHandler wsHandler,
+                        Map<String, Object> attributes
+                    ) {
 
-						if (request instanceof ServletServerHttpRequest servletRequest) {
-							HttpSession session = servletRequest
-									.getServletRequest()
-									.getSession(false);
+                        if (request instanceof ServletServerHttpRequest servletRequest) {
+                            HttpSession session =
+                                servletRequest.getServletRequest().getSession(false);
+                            if (session == null) return true;
 
-							if (session == null) return true;
+                            Object loginMember = session.getAttribute("loginMember");
+                            if (loginMember instanceof User user) {
+                                attributes.put("userId", user.getId());
+                                return true;
+                            }
 
-							// 1) loginMember(User)
-							Object loginMember = session.getAttribute("loginMember");
-							if (loginMember instanceof User user) {
-								attributes.put("userId", user.getId());
-								return true;
-							}
+                            Object loginUserId = session.getAttribute("loginUserId");
+                            Integer id = parseIntSafe(loginUserId);
+                            if (id != null) {
+                                attributes.put("userId", id);
+                            }
+                        }
+                        return true;
+                    }
 
-							// 2) loginUserId
-							Object loginUserId = session.getAttribute("loginUserId");
-							Integer id = parseIntSafe(loginUserId);
-							if (id != null) {
-								attributes.put("userId", id);
-							}
-						}
-						return true;
-					}
+                    @Override
+                    public void afterHandshake(
+                        ServerHttpRequest request,
+                        ServerHttpResponse response,
+                        WebSocketHandler wsHandler,
+                        Exception exception
+                    ) {}
 
-					@Override
-					public void afterHandshake(
-							ServerHttpRequest request,
-							ServerHttpResponse response,
-							WebSocketHandler wsHandler,
-							Exception exception
-					) {}
+                    private Integer parseIntSafe(Object v) {
+                        if (v == null) return null;
+                        if (v instanceof Integer) return (Integer) v;
+                        if (v instanceof Number) return ((Number) v).intValue();
+                        if (v instanceof String s) {
+                            try { return Integer.parseInt(s); }
+                            catch (Exception e) { return null; }
+                        }
+                        return null;
+                    }
+                }
+            )
+            .setHandshakeHandler(new DefaultHandshakeHandler() {
+                @Override
+                protected Principal determineUser(
+                    ServerHttpRequest request,
+                    WebSocketHandler wsHandler,
+                    Map<String, Object> attributes
+                ) {
+                    Object uid = attributes.get("userId");
+                    if (uid == null) return null;
+                    return () -> String.valueOf(uid);
+                }
+            })
+            .setAllowedOriginPatterns(
+                "http://localhost:*",
+                "http://127.0.0.1:*"
+            )
+            .withSockJS();
+    }
 
-					private Integer parseIntSafe(Object v) {
-						if (v == null) return null;
-						if (v instanceof Integer) return (Integer) v;
-						if (v instanceof Number) return ((Number) v).intValue();
-						if (v instanceof String s) {
-							try { return Integer.parseInt(s); }
-							catch (Exception e) { return null; }
-						}
-						return null;
-					}
-				}
-			)
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
 
-			// Principal = userId
-			.setHandshakeHandler(new DefaultHandshakeHandler() {
-				@Override
-				protected Principal determineUser(
-						ServerHttpRequest request,
-						WebSocketHandler wsHandler,
-						Map<String, Object> attributes
-				) {
-					Object uid = attributes.get("userId");
-					if (uid == null) return null;
-					return () -> String.valueOf(uid);
-				}
-			})
+        registration.interceptors(new ChannelInterceptor() {
 
-			.setAllowedOriginPatterns(
-				"http://localhost:*",
-				"http://127.0.0.1:*"
-			)
-			.withSockJS();
-	}
+            @Override
+            public Message<?> preSend(Message<?> message, MessageChannel channel) {
 
-	@Override
-	public void configureClientInboundChannel(ChannelRegistration registration) {
+                StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+                StompCommand cmd = accessor.getCommand();
+                if (cmd == null) return message;
 
-		registration.interceptors(new ChannelInterceptor() {
+                Map<String, Object> attrs = accessor.getSessionAttributes();
+                Integer userId = getUserIdSafe(attrs);
 
-			@Override
-			public Message<?> preSend(Message<?> message, MessageChannel channel) {
+                // CONNECT
+                if (StompCommand.CONNECT.equals(cmd)) {
 
-				StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
-				StompCommand cmd = accessor.getCommand();
-				if (cmd == null) return message;
+                    if (userId == null) return null;
 
-				Map<String, Object> attrs = accessor.getSessionAttributes();
-				Integer userId = getUserIdSafe(attrs);
+                    if (accessor.getUser() == null) {
+                        accessor.setUser((Principal) () -> String.valueOf(userId));
+                    }
 
-				// CONNECT
-				if (StompCommand.CONNECT.equals(cmd)) {
+                    if (attrs != null && Boolean.TRUE.equals(attrs.get("onlineAdded"))) {
+                        return message;
+                    }
+                    if (attrs != null) attrs.put("onlineAdded", true);
 
-					System.out.println(
-						"[WS CONNECT] userId=" + userId +
-						", attrs=" + attrs +
-						", principal=" +
-						(accessor.getUser() != null
-							? accessor.getUser().getName()
-							: null)
-					);
+                    onlineUserService.addUser(userId);
+                    return message;
+                }
 
-					if (userId == null) return null;
+                // ❗ userId 없는 메시지는 전부 차단
+                if (userId == null) {
+                    return null;
+                }
 
-					if (accessor.getUser() == null) {
-						accessor.setUser((Principal) () -> String.valueOf(userId));
-					}
+                // DISCONNECT
+                if (StompCommand.DISCONNECT.equals(cmd)) {
 
-					if (attrs != null && Boolean.TRUE.equals(attrs.get("onlineAdded"))) {
-						return message;
-					}
-					if (attrs != null) attrs.put("onlineAdded", true);
+                    if (attrs != null && Boolean.TRUE.equals(attrs.get("disconnected"))) {
+                        return message;
+                    }
+                    if (attrs != null) attrs.put("disconnected", true);
 
-					onlineUserService.addUser(userId);
-					return message;
-				}
+                    onlineUserService.removeUser(userId);
+                    battleSessionService.spectatorLeaveAll(userId);
+                    battleSessionService.playerLeaveAll(userId);
+                }
 
-				// 🔥 핵심 수정부: userId 없어도 frame은 통과
-				if (userId == null) {
-					if (StompCommand.SEND.equals(cmd)) {
-						String dest = accessor.getDestination();
-						if (dest != null && dest.startsWith("/app/multi/frame")) {
-							return message;
-						}
-					}
-					return null;
-				}
+                return message;
+            }
 
-				// DISCONNECT
-				if (StompCommand.DISCONNECT.equals(cmd)) {
+            private Integer getUserIdSafe(Map<String, Object> attrs) {
+                if (attrs == null) return null;
 
-					if (attrs != null && Boolean.TRUE.equals(attrs.get("disconnected"))) {
-						return message;
-					}
-					if (attrs != null) attrs.put("disconnected", true);
+                Object v = attrs.get("userId");
+                if (v == null) return null;
 
-					onlineUserService.removeUser(userId);
-					battleSessionService.spectatorLeaveAll(userId);
-					battleSessionService.playerLeaveAll(userId);
-				}
+                if (v instanceof Integer) return (Integer) v;
+                if (v instanceof Number) return ((Number) v).intValue();
+                if (v instanceof String s) {
+                    try { return Integer.parseInt(s); }
+                    catch (NumberFormatException e) { return null; }
+                }
+                return null;
+            }
+        });
+    }
 
-				return message;
-			}
-
-			private Integer getUserIdSafe(Map<String, Object> attrs) {
-				if (attrs == null) return null;
-
-				Object v = attrs.get("userId");
-				if (v == null) return null;
-
-				if (v instanceof Integer) return (Integer) v;
-				if (v instanceof Number) return ((Number) v).intValue();
-				if (v instanceof String s) {
-					try { return Integer.parseInt(s); }
-					catch (NumberFormatException e) { return null; }
-				}
-				return null;
-			}
-		});
-	}
-	@Override
-	public void configureWebSocketTransport(
-	    org.springframework.web.socket.config.annotation.WebSocketTransportRegistration registry
-	) {
-	    registry
-	        .setMessageSizeLimit(2 * 1024 * 1024)      // 2MB
-	        .setSendBufferSizeLimit(2 * 1024 * 1024)
-	        .setSendTimeLimit(20_000);
-	}
+    @Override
+    public void configureWebSocketTransport(
+        org.springframework.web.socket.config.annotation.WebSocketTransportRegistration registry
+    ) {
+        registry
+            .setMessageSizeLimit(2 * 1024 * 1024)
+            .setSendBufferSizeLimit(2 * 1024 * 1024)
+            .setSendTimeLimit(20_000);
+    }
 }

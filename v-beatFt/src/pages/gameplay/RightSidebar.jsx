@@ -1,10 +1,14 @@
 // src/pages/multi/RightSidebar.jsx
-import { useMemo } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 
 const HEADER_HEIGHT = 64;
 const SIDEBAR_WIDTH = 300;
 
-export default function RightSidebar({ isMulti, rival, frameImgRef }) {
+export default function RightSidebar({ isMulti, rival }) {
+  const videoRef = useRef(null);
+
+  if (!isMulti) return null;
+
   const { nickname, profileUrl, score, combo } = useMemo(
     () => ({
       nickname: rival?.nickname ?? 'OPPONENT',
@@ -15,7 +19,44 @@ export default function RightSidebar({ isMulti, rival, frameImgRef }) {
     [rival]
   );
 
-  if (!isMulti) return null;
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = rival?.stream;
+
+    if (!video || !stream) return;
+
+    // ✅ 참조 비교만 허용
+    if (video.srcObject === stream) return;
+
+    console.log('[VIDEO BIND STREAM]', stream.getTracks());
+
+    video.onloadedmetadata = () => {
+      console.log(
+        '[VIDEO META]',
+        video.videoWidth,
+        'x',
+        video.videoHeight
+      );
+    };
+
+    video.muted = true;
+    video.playsInline = true;
+    video.srcObject = stream;
+
+    const p = video.play();
+    if (p?.catch) {
+      p.catch((e) => {
+        if (e.name !== 'AbortError') {
+          console.error('[VIDEO PLAY ERROR]', e);
+        }
+      });
+    }
+
+    return () => {
+      video.onloadedmetadata = null;
+    };
+  }, [rival?.stream]);
+
 
   return (
     <div style={styles.sidebar}>
@@ -27,10 +68,19 @@ export default function RightSidebar({ isMulti, rival, frameImgRef }) {
         <div style={styles.rivalTitle}>RIVAL VIEW</div>
 
         <div style={styles.frameBox}>
-          <img
-            ref={frameImgRef}
-            alt="RIVAL FRAME"
-            style={styles.frameImg}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{
+              position: 'relative',
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              background: '#222',
+              outline: '2px solid red',
+            }}
           />
         </div>
       </div>
@@ -98,10 +148,12 @@ const styles = {
 
   rivalView: {
     flex: 6,
+    minHeight: 0,
     borderRadius: 14,
     border: '1px solid rgba(90,234,255,0.55)',
     background: 'rgba(0,0,0,0.35)',
     padding: 10,
+    height: '100%',
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
@@ -114,12 +166,15 @@ const styles = {
   },
 
   frameBox: {
-    flex: 1,
     position: 'relative',
     borderRadius: 10,
     overflow: 'hidden',
     background: '#000',
     border: '1px solid rgba(90,234,255,0.35)',
+    margin: '0 auto',
+    width: '100%',
+    aspectRatio: '9 / 16',   // ✅ 핵심
+    minHeight: 200,
   },
 
   frameImg: {

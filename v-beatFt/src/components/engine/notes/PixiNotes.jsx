@@ -26,7 +26,7 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, 
     useEffect(() => {
         const app = appRef.current;
         if (!app) return;
-        app.ticker.maxFPS = 60;
+        app.ticker.maxFPS = fpsLimit;
     }, [fpsLimit]);
 
     useEffect(() => {
@@ -64,7 +64,8 @@ export default function PixiNotes({ notes, currentTime, speed, selectedNoteIds, 
                 antialias: true,
             });
             onCanvasReady?.(app.canvas);
-            app.ticker.maxFPS = 0;
+            console.log('[NOTES CANVAS READY]');
+            app.ticker.maxFPS = fpsLimit;
             if (!mounted) {
                 try { app.destroy(true); } catch (e) { void e; }
                 return;

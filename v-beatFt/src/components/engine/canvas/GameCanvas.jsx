@@ -7,13 +7,11 @@ const KEY_LABELS = ['A', 'S', 'D', 'SPACE', 'J', 'K', 'L'];
 export default function GameCanvas({
   currentTime,
   pressedKeys = new Set(),
-  onCanvasReady,   // ✅ 추가
+  onCanvasReady,   
 }) {
   const canvasRef = useRef(null);
   const pressedKeysRef = useRef(pressedKeys);
   const timeRef = useRef(currentTime);
-
-  // ✅ canvas DOM 준비되면 1회 전달
 
   useEffect(() => {
     const c = canvasRef.current;

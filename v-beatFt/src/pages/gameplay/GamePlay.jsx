@@ -1,5 +1,5 @@
 // src/pages/multi/GamePlay.jsx
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { statusApi } from '../../api/auth';
 import Header from '../../components/Common/Header';
 import GameSession from '../../components/engine/GameSession';
@@ -38,7 +38,6 @@ function GamePlay() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const lobbyRival = location.state?.rival ?? null;
-
   const [settings, setSettings] = useState(() => {
     try {
       const v = localStorage.getItem('userSettings');
@@ -82,10 +81,6 @@ function GamePlay() {
   const [rivalResult, setRivalResult] = useState(null);
   const analyserRef = useRef(null);
   const [sessionKey, setSessionKey] = useState(0);
-  const frameRafRef = useRef(0);
-  const rivalFrameRef = useRef(null);
-  const frameImgRef = useRef(null);
-
   // ✅ 오른쪽 사이드바에 들어갈 상대 상태(닉/프사/점수/콤보)
   const [rival, setRival] = useState(() => ({
     userId: lobbyRival?.userId ?? null,
@@ -93,8 +88,9 @@ function GamePlay() {
     profileUrl: lobbyRival?.profileUrl ?? null,
     score: 0,
     combo: 0,
-    frame: null,
+    stream: null,
   }));
+  const [localStream, setLocalStream] = useState(null);
   const [rivalUserId, setRivalUserId] = useState(null);
   const MIN_LOADING_TIME = 2500;
   const loadingStartRef = useRef(0);
@@ -107,63 +103,112 @@ function GamePlay() {
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
   const [song, setSong] = useState(null);
   const [myId, setMyId] = useState(null);
-
+  const peerRef = useRef(null);
   const myIdRef = useRef(null);
+  const [stompConnected, setStompConnected] = useState(false);
   // ✅ stomp single instance
   const stompRef = useRef(null);
-
-  // ===== 멀티 STOMP 연결 + 구독 + ROOM_STATE 요청 =====
-
-
+  const pendingIceRef = useRef([]);
+  const pendingOfferRef = useRef(null);
+  const rtcSubRef = useRef(null);
+  const stompClientRef = stompRef;
+  const pendingIceToSendRef = useRef([]);
+  const [multiPhase, setMultiPhase] = useState('LOBBY');  // 'LOBBY' | 'LOADING' | 'PLAY'
+  const handleStreamReady = useCallback((stream) => {
+    if (!stream) return;
+    console.log('[LOCAL STREAM RECEIVED]', stream.getTracks());
+    setLocalStream(stream); // ✅ 여기까지만
+  }, []);
 
   useEffect(() => {
     if (!isMulti || !roomId) return;
     if (!myId) return;
-
-    if (!loginUser && !isMulti) return;
 
     const client = new Client({
       webSocketFactory: () =>
         new SockJS('http://localhost:8080/ws', null, { withCredentials: true }),
       reconnectDelay: 3000,
       debug: () => { },
+      onStompError: (frame) => {
+        console.error('[STOMP ERROR]', frame);
+      },
       onConnect: () => {
+        console.log('[STOMP CONNECTED]');
         stompRef.current = client;
+        setStompConnected(true);
 
-        // ROOM_STATE
+        // ================= ROOM_STATE =================
         client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
           const data = JSON.parse(msg.body);
-          console.log('[ROOM_STATE RAW]', data); // ✅ 여기
+          console.log('[ROOM_STATE RAW]', data);
+
+          // songId 동기화
+          if (data.songId != null) {
+            setMultiSongId(String(data.songId));
+          } else if (data.song?.id != null) {
+            setMultiSongId(String(data.song.id));
+          }
+
+          if (data.type === 'START' && data.startAt) {
+            setMultiStartAt(data.startAt);
+            setMultiPhase('LOADING');
+          }
+
+          if (data.type === 'ALL_READY') {
+            setMultiPhase('PLAY');
+          }
 
           if (!Array.isArray(data.players)) return;
 
-          console.log('[ROOM_STATE COUNT]', data.players.length); // ✅ 여기
+          const other = data.players.find(
+            (p) => String(p.userId) !== String(myId)
+          );
 
-          if (data.players.length < 2) {
-            console.log('[ROOM_STATE WAIT]', data.players);
-            return;
+          if (other) {
+            setRivalUserId(other.userId);
+
+            setRival((prev) => ({
+              ...prev,
+              userId: other.userId,
+              nickname: other.nickname ?? prev.nickname ?? null,
+              profileUrl: other.profileImg ?? prev.profileUrl ?? null,
+            }));
+
+            // SCORE 캐시 반영
+            const cached = pendingRivalScoreRef.current;
+            if (cached) {
+              setRival((prev) => {
+                if (!prev?.userId) return prev;
+                if (String(prev.userId) !== String(other.userId)) return prev;
+                return { ...prev, ...cached };
+              });
+              pendingRivalScoreRef.current = null;
+            }
           }
-
-          const other = data.players.find((p) => String(p.userId) !== String(myId));
-          if (!other) return;
-
-          setRivalUserId(other.userId);
-
-          setRival(prev => ({
-            ...prev,
-            userId: other.userId,
-            nickname: other.nickname ?? prev.nickname ?? null,
-            profileUrl: other.profileImg ?? prev.profileUrl ?? null,
-          }));
         });
 
-        // SCORE
+        // 🔥 ICE send flush (필수)
+        if (pendingIceToSendRef.current.length > 0) {
+          console.log('[RTC ICE FLUSH]', pendingIceToSendRef.current.length);
+
+          for (const p of pendingIceToSendRef.current) {
+            client.publish({
+              destination: '/app/multi/rtc/candidate',
+              body: JSON.stringify(p),
+            });
+          }
+          pendingIceToSendRef.current = [];
+        }
+
+
+        // ================= SCORE =================
         client.subscribe(`/topic/multi/room/${roomId}/score`, (msg) => {
           const data = JSON.parse(msg.body);
           console.log('[SCORE]', data);
-          if (String(data.userId) === myId) return;
 
-          // rival 생성 전이면 캐시
+          if (String(data.userId) === String(myId)) return;
+
+          // ROOM_STATE 전에 오면 캐시
           pendingRivalScoreRef.current = {
             score: data.score,
             combo: data.combo,
@@ -171,9 +216,7 @@ function GamePlay() {
           };
 
           setRival((prev) => {
-            // ✅ ROOM_STATE로 rival userId 확정 전이면 UI 반영 금지
             if (!prev?.userId) return prev;
-            // ✅ 다른 유저 점수만 반영
             if (String(prev.userId) !== String(data.userId)) return prev;
             return {
               ...prev,
@@ -184,46 +227,285 @@ function GamePlay() {
           });
         });
 
-        client.subscribe(`/topic/multi/room/${roomId}/frame`, (msg) => {
-          console.log('[FRAME SUBSCRIBED]');
-          const data = JSON.parse(msg.body);
-          console.log('[FRAME DATA]', data);
+        // ================= RTC =================
+        if (rtcSubRef.current) {
+          rtcSubRef.current.unsubscribe();
+          rtcSubRef.current = null;
+        }
 
-          if (!data?.frame) return;
+        rtcSubRef.current = client.subscribe(
+          `/topic/multi/room/${roomId}/rtc`,
+          async (msg) => {
+            const data = JSON.parse(msg.body);
+            console.log('[RTC TYPE]', data.type);
 
-          if (data.userId != null && String(data.userId) === String(myIdRef.current)) return;
+            if (String(data.userId) === String(myId)) return;
 
-          if (frameImgRef.current) {
-            frameImgRef.current.src = data.frame;
+            if (data.type === 'OFFER') {
+              const pc = peerRef.current;
+              if (!pc) {
+                pendingOfferRef.current = data.offer;
+                return;
+              }
 
-            console.log('[FRAME]', data.frame.slice(0, 40));
+              await pc.setRemoteDescription(data.offer);
+
+              for (const c of pendingIceRef.current) {
+                try {
+                  await pc.addIceCandidate(c);
+                } catch { }
+              }
+              pendingIceRef.current = [];
+
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+
+              stompRef.current.publish({
+                destination: '/app/multi/rtc/answer',
+                body: JSON.stringify({ roomId, answer, userId: myId }),
+              });
+            }
+
+            if (data.type === 'ANSWER') {
+              const pc = peerRef.current;
+              if (!pc) return;
+
+              await pc.setRemoteDescription(data.answer);
+
+              for (const c of pendingIceRef.current) {
+                try {
+                  await pc.addIceCandidate(c);
+                } catch { }
+              }
+              pendingIceRef.current = [];
+            }
+
+            if (data.type === 'CANDIDATE') {
+              const pc = peerRef.current;
+              if (!pc || !pc.remoteDescription) {
+                pendingIceRef.current.push(data.candidate);
+                return;
+              }
+              await pc.addIceCandidate(data.candidate);
+            }
           }
-        });
+        );
 
+        // ================= ENTER =================
         if (!enteredRef.current) {
-          client.publish({
-            destination: `/app/multi/enter`,
-            body: JSON.stringify({ roomId }),
-          });
-          enteredRef.current = true;
+          setTimeout(() => {
+            client.publish({
+              destination: '/app/multi/enter',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ roomId }),
+            });
+
+            client.publish({
+              destination: '/app/multi/ready',
+              body: JSON.stringify({ roomId }),
+            });
+
+            enteredRef.current = true;
+          }, 0);
         }
       },
     });
 
     client.activate();
+
     return () => {
       enteredRef.current = false;
-
-      if (frameRafRef.current) {
-        cancelAnimationFrame(frameRafRef.current);
-        frameRafRef.current = 0;
+      if (rtcSubRef.current) {
+        rtcSubRef.current.unsubscribe();
+        rtcSubRef.current = null;
       }
-
-      rivalFrameRef.current = null;
       client.deactivate();
     };
-
   }, [isMulti, roomId, myId]);
+
+
+  useEffect(() => {
+    console.log('[RTC EFFECT CHECK]', {
+      isMulti,
+      roomId,
+      stompConnected,
+      localStream: !!localStream,
+      rivalUserId,
+      myId,
+      peerExists: !!peerRef.current,
+    });
+
+
+
+    if (!isMulti) return;
+    if (!roomId) return;
+    if (!stompConnected) return;
+    if (!localStream) return;
+    if (peerRef.current) return;
+
+    console.log('[RTC START CONDITIONS OK]', {
+      localTracks: localStream.getTracks().map(t => t.kind),
+      myId,
+      rivalUserId,
+    });
+
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    });
+
+    pc.onicegatheringstatechange = () => {
+      console.log('[RTC ICE GATHERING]', pc.iceGatheringState);
+    };
+
+    console.log('[RTC PC CREATED]', {
+      stompConnected,
+      localStream: !!localStream,
+      rivalUserId,
+    });
+
+
+
+    peerRef.current = pc;
+
+    /* 1️⃣ addTrack (1회만) */
+    localStream.getTracks().forEach(track => {
+      pc.addTrack(track, localStream);
+      console.log('[RTC ADD TRACK]', track.kind);
+    });
+
+    /* 2️⃣ ontrack */
+    pc.ontrack = (e) => {
+      const stream = e.streams[0];
+      if (!stream) return;
+
+      console.log('[RTC ONTRACK]', stream.getTracks());
+
+      setRival(prev => {
+        if (prev.stream === stream) return prev;
+        return { ...prev, stream };
+      });
+    };
+
+    /* 3️⃣ ICE sender */
+    pc.onicecandidate = (e) => {
+      if (!e.candidate) {
+        console.log('[RTC ICE DONE]');
+        return;
+      }
+
+      console.log('[RTC ICE]', e.candidate.candidate);
+
+      const payload = { roomId, candidate: e.candidate, userId: myId };
+
+      // STOMP 연결 전이면 버퍼링
+      if (!stompRef.current?.connected) {
+        pendingIceToSendRef.current.push(payload);
+        return;
+      }
+
+      stompRef.current.publish({
+        destination: '/app/multi/rtc/candidate',
+        body: JSON.stringify(payload),
+      });
+    };
+
+
+    /* 4️⃣ stash OFFER / ICE 처리 */
+    (async () => {
+      if (pendingOfferRef.current) {
+        console.log('[RTC STASHED OFFER APPLY]');
+        await pc.setRemoteDescription(pendingOfferRef.current);
+        pendingOfferRef.current = null;
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        stompRef.current.publish({
+          destination: '/app/multi/rtc/answer',
+          body: JSON.stringify({ roomId, answer, userId: myId }),
+        });
+
+        console.log('[RTC ANSWER SENT]');
+      }
+      console.log('[RTC OFFERER CHECK]', { myId, peerExists: !!peerRef.current });
+      console.log('[RTC GUARD CHECK]', {
+        stompConnected,
+        localStream: !!localStream,
+        rivalUserId,
+        peerExists: !!peerRef.current,
+      });
+      if (peerRef.current) {
+        console.log('[RTC CREATE OFFER START]');
+        const offer = await pc.createOffer();
+        console.log('[RTC CREATE OFFER DONE]', offer?.type, offer?.sdp?.length);
+
+        await pc.setLocalDescription(offer);
+        console.log('[RTC SET LOCAL DESC]', pc.signalingState);
+
+        stompRef.current.publish({
+          destination: '/app/multi/rtc/offer',
+          body: JSON.stringify({ roomId, offer, userId: myId }),
+        });
+      }
+    })();
+
+    return () => {
+      try {
+        pc.ontrack = null;
+        pc.onicecandidate = null;
+        pc.onconnectionstatechange = null;
+        pc.oniceconnectionstatechange = null;
+        pc.getSenders?.().forEach(s => {
+          try { pc.removeTrack(s); } catch { }
+        });
+        pc.close();
+      } catch { }
+      peerRef.current = null;
+
+      // ✅ 재시작/재시도 시 잔여물 제거
+      pendingIceRef.current = [];
+      pendingOfferRef.current = null;
+
+      setRival(prev => (prev ? { ...prev, stream: null } : prev));
+    };
+  }, [
+    isMulti,
+    roomId,
+    stompConnected,
+    localStream,
+    rivalUserId,
+    myId,
+  ]);
+
+  useEffect(() => {
+    setLocalStream(null);
+  }, [sessionKey]);
+
+  // ✅ 게임 재시작(sessionKey 변경) 시 WebRTC 상태 완전 초기화
+  useEffect(() => {
+    // 기존 peer 정리
+    if (peerRef.current) {
+      try {
+        peerRef.current.ontrack = null;
+        peerRef.current.onicecandidate = null;
+        peerRef.current.close();
+      } catch { }
+      peerRef.current = null;
+    }
+
+    // 스트림/RTC 상태 리셋
+    pendingIceRef.current = [];
+    pendingOfferRef.current = null;
+
+    // UI도 리셋 (안 하면 오른쪽 video는 이전 상태로 남을 수 있음)
+    setRival((prev) => ({
+      ...prev,
+      stream: null,
+      score: 0,
+      combo: 0,
+    }));
+  }, [sessionKey]);
+
 
   useEffect(() => {
     if (!rivalUserId) return;
@@ -435,15 +717,6 @@ function GamePlay() {
   }, []);
 
   useEffect(() => {
-    if (!isMulti) return;
-
-    // 멀티 모드에서는 로딩 스킵
-    setLoadingDone(true);
-    setReady(true);
-    setCountdown(null);
-  }, [isMulti]);
-
-  useEffect(() => {
     if (countdown === null) return;
 
     if (countdown === 0) {
@@ -489,7 +762,6 @@ function GamePlay() {
       <RightSidebar
         isMulti={isMulti}
         rival={rival}
-        frameImgRef={frameImgRef}
       />
       <HUDFrame>
         <HUD score={score} combo={combo} songProgress={songProgress} classProgress={classProgress} />
@@ -802,6 +1074,7 @@ function GamePlay() {
 
         {(tokenParam ? Boolean(song) : (!isMulti && resolvedSongId && song) || (isMulti && resolvedSongId)) && (
           <GameSession
+            mode="play"
             songId={tokenParam ? song.id : resolvedSongId}
             token={tokenParam}
             analyserRef={analyserRef}
@@ -818,7 +1091,7 @@ function GamePlay() {
             isMulti={isMulti}
             roomId={roomId}
             stompClientRef={stompRef}
-            stompConnected={true}
+            stompConnected={stompConnected}
             startAt={multiStartAt}
             onReady={() => {
               loadingEndRef.current = performance.now();
@@ -838,6 +1111,12 @@ function GamePlay() {
               if (finished) return;
               setFinished(true);
 
+              if (isMulti && roomId && stompClientRef.current) {
+                stompClientRef.current.publish({
+                  destination: '/app/multi/end',
+                  body: JSON.stringify({ roomId }),
+                });
+              }
               const params = new URLSearchParams(window.location.search);
               const isEditorTest = params.get('mode') === 'editorTest';
 
@@ -871,9 +1150,7 @@ function GamePlay() {
                 });
               }
             }}
-
-            onStreamReady={() => { }}
-
+            onStreamReady={handleStreamReady}
           />
         )}
 

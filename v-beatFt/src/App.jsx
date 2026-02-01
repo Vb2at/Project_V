@@ -19,8 +19,7 @@ import RePw from './pages/member/RePw';
 import RoomLobby from './pages/multi/RoomLobby';
 import LandingPage from './pages/LandingPage';
 import InviteModal from './components/mulit/InviteModal'; 
-import FrameTestPage from './pages/FrameTestPage'; 
-
+import WebRTCLoopbackTest from './pages/WebRTCLoopbackTest';
 /* ===============================
    Router 안에서 모달 제어용
 =============================== */
@@ -53,7 +52,7 @@ function AppInner() {
       )}
 
       <Routes>
-        <Route path="/test/frame" element={<FrameTestPage />} />
+        <Route path="/webrtc" element={<WebRTCLoopbackTest />} />
         <Route path="/login" element={<Login />} />
         <Route path="/join" element={<Join />} />
         <Route path="/re-password" element={<RePw />} />

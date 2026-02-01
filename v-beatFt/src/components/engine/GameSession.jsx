@@ -48,7 +48,7 @@ export default function GameSession({
   const [combo, setCombo] = useState(0);
   const comboRef = useRef(0);
   const [pressedKeys, setPressedKeys] = useState(new Set());
-  const [effects, setEffects] = useState([]);
+  const [canvasReadyTick, setCanvasReadyTick] = useState(0);
   const readyCalledRef = useRef(false);
   const notesRef = useRef(notes ?? []);
   const currentTimeRef = useRef(0);
@@ -57,81 +57,7 @@ export default function GameSession({
   const [internalNotes, setInternalNotes] = useState([]);
   const onFinishRef = useRef(onFinish);
   const onRivalFinishRef = useRef(onRivalFinish);
-  const frameCanvasRef = useRef(null);
-  const frameSendTimerRef = useRef(null);
-  const frameTmpCanvasRef = useRef(null);
-  const frameTmpCtxRef = useRef(null);
-  const [frameCanvasTick, setFrameCanvasTick] = useState(0);
-  useEffect(() => {
-    return () => {
-      if (frameSendTimerRef.current) {
-        clearInterval(frameSendTimerRef.current);
-        frameSendTimerRef.current = null;
-      }
-
-      frameCanvasRef.current = null;
-      frameTmpCtxRef.current = null;
-      frameTmpCanvasRef.current = null;
-    };
-  }, []);
-
-
-  useEffect(() => {
-    if (!isMulti) return;
-    if (!roomId) return;
-
-    if (frameSendTimerRef.current) return;
-    if (!frameCanvasRef.current) return;
-
-    frameSendTimerRef.current = setInterval(() => {
-      const c = stompClientRef.current;
-
-      console.log('[FRAME SEND TICK]', {
-        hasCanvas: !!frameCanvasRef.current,
-        loginUserId,
-        stompConnected,
-        hasClient: !!c,
-        connected: !!c?.connected,
-      });
-
-      if (!loginUserId) return;
-      const src = frameCanvasRef.current;
-      if (!src) return;
-
-      if (!c || !stompConnected) return;
-
-      if (!frameTmpCanvasRef.current) {
-        const tmpCanvas = document.createElement('canvas');
-        tmpCanvas.width = 480;
-        tmpCanvas.height = 270;
-        frameTmpCanvasRef.current = tmpCanvas;
-        frameTmpCtxRef.current = tmpCanvas.getContext('2d');
-      }
-
-      const tmp = frameTmpCanvasRef.current;
-      const ctx = frameTmpCtxRef.current;
-      if (!ctx) return;
-
-      ctx.clearRect(0, 0, tmp.width, tmp.height);
-      ctx.drawImage(src, 0, 0, tmp.width, tmp.height);
-
-      c.publish({
-        destination: '/app/multi/frame',
-        body: JSON.stringify({
-          roomId,
-          userId: loginUserId,
-          frame: tmp.toDataURL('image/jpeg', 0.3),
-        }),
-      });
-    }, 300); // FPS ~3.3
-
-    return () => {
-      clearInterval(frameSendTimerRef.current);
-      frameSendTimerRef.current = null;
-    };
-  }, [isMulti, roomId, loginUserId, stompConnected, frameCanvasTick]);
-
-
+  const [effects, setEffects] = useState([]);
   const usedNotes = useMemo(
     () => (mode === 'edit' ? (notes ?? []) : internalNotes),
     [mode, notes, internalNotes]
@@ -184,6 +110,14 @@ export default function GameSession({
   const audioRef = useRef(null);
 
   const viewRef = useRef(null);
+  const baseCanvasRef = useRef(null);     // GameCanvas
+  const notesCanvasRef = useRef(null);    // PixiNotes
+  const effectsCanvasRef = useRef(null);  // PixiEffects
+
+  const compositeCanvasRef = useRef(null);
+  const compositeStartedRef = useRef(false);
+  const compositeRafRef = useRef(null);
+  const sentStreamRef = useRef(null);
   const dragStartRef = useRef(null);
   const audioCtxRef = useRef(null);
   const dataArrayRef = useRef(null);
@@ -217,8 +151,65 @@ export default function GameSession({
   const lastFrameSendRef = useRef(0);
 
   useEffect(() => {
+    compositeStartedRef.current = false;
+    sentStreamRef.current = null;
+  }, [propSongId, roomId]);
+
+  useEffect(() => {
+    if (!onStreamReady) return;          // mode 체크 제거
+    if (compositeStartedRef.current) return;
+
+    const out = compositeCanvasRef.current;
+    const base = baseCanvasRef.current;
+    const notes = notesCanvasRef.current;
+    const fx = effectsCanvasRef.current;
+
+    if (!out || !base || !notes || !fx) return;
+
+    compositeStartedRef.current = true;
+
+    out.width = 720;
+    out.height = 1280;
+
+    const ctx = out.getContext('2d');
+    if (!ctx) return;
+
+    let firstFrameDrawn = false;
+
+    const loop = () => {
+      ctx.clearRect(0, 0, out.width, out.height);
+      ctx.drawImage(base, 0, 0, out.width, out.height);
+      ctx.drawImage(notes, 0, 0, out.width, out.height);
+      ctx.drawImage(fx, 0, 0, out.width, out.height);
+
+      if (!firstFrameDrawn) {
+        firstFrameDrawn = true;
+        requestAnimationFrame(() => {
+          const stream = out.captureStream(60);
+          if (!sentStreamRef.current) {
+            sentStreamRef.current = stream;
+            onStreamReady(stream);
+          }
+        });
+      }
+
+      compositeRafRef.current = requestAnimationFrame(loop);
+    };
+
+    compositeRafRef.current = requestAnimationFrame(loop);
+
+    return () => {
+      if (compositeRafRef.current) {
+        cancelAnimationFrame(compositeRafRef.current);
+        compositeRafRef.current = null;
+      }
+    };
+  }, [canvasReadyTick]);
+
+  useEffect(() => {
     if (!isMulti) return;
     if (!roomId || !loginUserId) return;
+    if (!stompConnected) return;
 
     const client = stompClientRef.current;
     if (!client) return;
@@ -234,7 +225,7 @@ export default function GameSession({
         maxCombo: maxComboRef.current,
       }),
     });
-  }, [score, combo, isMulti, roomId, loginUserId]);
+  }, [score, combo, isMulti, roomId, loginUserId, stompConnected]);
 
   useEffect(() => {
     onRivalFinishRef.current = onRivalFinish;
@@ -505,8 +496,6 @@ export default function GameSession({
     setCombo(0);
     setEffects([]);
     setPressedKeys(new Set());
-    setCurrentTime(0);
-    currentTimeRef.current = 0;
 
     passedSafeZoneRef.current = false;
     finishedRef.current = false;
@@ -590,16 +579,15 @@ export default function GameSession({
     const loop = () => {
       if (!effectivePaused) {
         const audio = audioRef.current;
+
         if (audio && !audio.paused) {
           const newTime = audio.currentTime * 1000;
-
-          // ✅ 변화 있을 때만 setState
-          if (Math.abs(newTime - lastTimeRef.current) > 8) {
-            lastTimeRef.current = newTime;
-            currentTimeRef.current = newTime;
-            setCurrentTime(newTime);
-          }
+          lastTimeRef.current = newTime;
+          currentTimeRef.current = newTime;
         }
+        // ✅ 렌더 기준 시간은 항상 state로 반영 (필터 고정 방지)
+        setCurrentTime(currentTimeRef.current);
+
       }
       rafId = requestAnimationFrame(loop);
     };
@@ -1506,10 +1494,22 @@ export default function GameSession({
         style={{
           width: `${GAME_CONFIG.CANVAS.WIDTH}px`,
           height: `${GAME_CONFIG.CANVAS.HEIGHT}px`,
+
           transform: `scale(${SCALE})`,
           transformOrigin: 'top left',
         }}
       >
+        <canvas
+          ref={compositeCanvasRef}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            opacity: 0,
+            pointerEvents: 'none',
+            zIndex: 9999,
+          }}
+        />
         {mode === 'edit' && tool === 'delete' && deleteBox && (
           <div
             style={{
@@ -1549,12 +1549,10 @@ export default function GameSession({
           }
           currentTime={currentTime}
           pressedKeys={pressedKeys}
-          speed={speed}
           onCanvasReady={(canvas) => {
-            console.log('[CANVAS READY]', canvas);
-            if (!canvas) return;
-            frameCanvasRef.current = canvas;
-            setFrameCanvasTick(t => t + 1);
+            console.log('[BASE CANVAS READY]');
+            baseCanvasRef.current = canvas;
+            setCanvasReadyTick((v) => v + 1);
           }}
         />
         <PixiNotes
@@ -1565,6 +1563,11 @@ export default function GameSession({
           draggingPreviewRef={draggingPreviewRef}
           tapNoteColor={settings?.tapNoteColor ?? 0x05acb5}
           longNoteColor={settings?.longNoteColor ?? 0xb50549}
+          onCanvasReady={(canvas) => {
+            console.log('[NOTES CANVAS READY]');
+            notesCanvasRef.current = canvas;
+            setCanvasReadyTick((v) => v + 1);
+          }}
         />
 
         {mode === 'play' && (
@@ -1573,12 +1576,20 @@ export default function GameSession({
               <KeyEffectLayer pressedKeys={pressedKeys} />
             )}
             {settings.hitEffect !== false && (
+
               <PixiEffects
                 effects={effects}
                 showHitEffect={settings.hitEffect}
                 showJudgeText={settings.judgeText}
                 showComboText={settings.comboText}
                 lowEffect={settings.lowEffect}
+                fpsLimit={settings.fps}
+                onPixiReady={(canvas) => {
+                  if (!canvas) return;
+                  effectsCanvasRef.current = canvas;
+                  console.log('[EFFECTS CANVAS READY]');
+                  setCanvasReadyTick((v) => v + 1);
+                }}
               />
             )}
             {settings.visualizer !== false && (
