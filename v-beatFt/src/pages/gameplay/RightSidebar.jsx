@@ -39,7 +39,7 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
       <div style={styles.sidebar}>
         <div style={styles.neonLine} />
         <div style={styles.rivalView}>
-          <div style={styles.rivalTitle}>RIVAL VIEW</div>
+          <div style={styles.rivalTitle}>MATCH VIEW</div>
           <div style={styles.frameBox}>
             <video
               ref={videoRef}
@@ -57,7 +57,7 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
           </div>
         </div>
         <div style={styles.rivalInfo}>
-          <div style={styles.profileRow}>
+          <div style={styles.profileBlock}>
             <div
               style={{
                 ...styles.profileImg,
@@ -69,10 +69,12 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
             >
               {!profileUrl && 'PROFILE'}
             </div>
-            <div style={styles.nickname}>{nickname}</div>
+            <div style={styles.nickname}>NICK:  {nickname}</div>
           </div>
-          <InfoRow label="SCORE" value={score} color="#5aeaff" />
-          <InfoRow label="COMBO" value={combo} color="#ff8cff" />
+          <div style={styles.scoreBlock}>
+            <InfoRow label="SCORE: " value={score} color="#5aeaff" />
+            <InfoRow label="COMBO: " value={combo} color="#ff8cff" />
+          </div>
         </div>
       </div>
     );
@@ -85,7 +87,7 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
   return (
     <div style={styles.sidebar}>
       <div style={styles.neonLine} />
-      <div style={styles.rivalView}>
+      <div style={styles.singleView}>
         <div style={styles.rivalTitle}>{modeLabel ?? 'SINGLE PLAY'}</div>
         <div style={styles.frameBox}>
           <div style={styles.logoBox}>
@@ -93,7 +95,7 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
           </div>
         </div>
       </div>
-      <div style={styles.rivalInfo}>
+      <div style={styles.singleInfo}>
         <InfoRow label="MODE" value={modeLabel ?? 'SINGL'} color="#00ff99" />
         <InfoRow label="PLAYER" value={playerName ?? 'PLAYER1'} color="#ff33ff" />
         <InfoRow label="DIFF" value={diffLabel ?? 'NORMAL'} color="#ffff66" />
@@ -184,8 +186,9 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: 14,
-    justifyContent: 'center', // 세로 중앙
-    alignItems: 'center',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+
   },
   profileRow: { display: 'flex', alignItems: 'center', gap: 12 },
   profileImg: {
@@ -215,4 +218,45 @@ const styles = {
     fontFamily: 'monospace',
     textAlign: 'center',
   },
+
+  profileBlock: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  scoreBlock: {
+    marginTop: 8,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    alignItems: 'center',
+  },
+  // styles 하단에 추가
+
+  singleView: {
+    flex: 6,
+    borderRadius: 14,
+    border: '1px solid rgba(90,234,255,0.55)',
+    background: 'rgba(0,0,0,0.35)',
+    padding: 10,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+
+  singleInfo: {
+    flex: 4,
+    borderRadius: 14,
+    border: '1px solid rgba(90,234,255,0.45)',
+    background: 'rgba(0,0,0,0.35)',
+    padding: 14,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
 };

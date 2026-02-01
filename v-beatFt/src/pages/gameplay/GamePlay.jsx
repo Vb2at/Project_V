@@ -160,7 +160,31 @@ function GamePlay() {
       });
     }
   };
+  const [localReady, setLocalReady] = useState(false);
+  const [rivalReady, setRivalReady] = useState(false);
 
+  useEffect(() => {
+    if (!ready) {
+      setCountdown(null);
+    }
+  }, [ready]);
+
+  useEffect(() => {
+    if (!isMulti) return;
+    if (!ready) return;          // 🔒 로딩 끝
+    if (!multiStartAt) return;   // 🔒 START 수신됨
+
+    setCountdown(3);
+  }, [isMulti, ready, multiStartAt]);
+
+
+  useEffect(() => {
+    if (isMulti) return;   // ✅ 멀티 차단
+    if (!ready) return;
+    if (!loadingDone) return;
+
+    setCountdown(3);
+  }, [isMulti, ready, loadingDone]);
 
   useEffect(() => {
     if (!isMulti || !roomId) return;
@@ -182,7 +206,11 @@ function GamePlay() {
         // ================= ROOM_STATE =================
         client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
           const data = JSON.parse(msg.body);
-          console.log('[ROOM_STATE RAW]', data);
+
+          if (data.type === 'ALL_READY') {
+            setRivalReady(true);   // ✅ 상대 준비 완료
+            setMultiPhase('PLAY'); // 기존
+          }
 
           // songId 동기화
           if (data.songId != null) {
@@ -240,6 +268,7 @@ function GamePlay() {
             });
           }
           pendingIceToSendRef.current = [];
+
         }
 
 
@@ -705,32 +734,6 @@ function GamePlay() {
   }, [isMulti]);
 
   useEffect(() => {
-    if (!isMulti) return;
-    if (!multiStartAt) return;
-
-    let timer = null;
-
-    const tick = () => {
-      const diff = Math.ceil((multiStartAt - Date.now()) / 1000);
-
-      if (diff > 0) {
-        setCountdown(diff);
-      } else {
-        setCountdown(0);
-        setTimeout(() => setCountdown(null), 300);
-        if (timer) clearInterval(timer);
-      }
-    };
-
-    tick();
-    timer = setInterval(tick, 200);
-
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [isMulti, multiStartAt]);
-
-  useEffect(() => {
     if (!loadingDone) return;
 
     const raf = requestAnimationFrame(function tick() {
@@ -747,7 +750,6 @@ function GamePlay() {
         requestAnimationFrame(tick);
       } else {
         setReady(true);
-        setCountdown(3);
       }
     });
 
@@ -780,10 +782,9 @@ function GamePlay() {
   const waitingForMultiStart = isMulti && multiStartAt != null && Date.now() < multiStartAt;
 
   const paused =
+    countdown !== null ||            
     (!isMulti && userPaused) ||
-    !ready ||
-    countdown !== null ||
-    waitingForMultiStart;
+    !ready;
 
   const canStartSession = tokenParam ? Boolean(song) : Boolean(resolvedSongId);
 
@@ -1138,6 +1139,7 @@ function GamePlay() {
             onReady={() => {
               loadingEndRef.current = performance.now();
               setLoadingDone(true);
+              setLocalReady(true);
             }}
             onState={({ score, combo, diff, currentTime, duration, maxScore }) => {
               if (finished) return;
