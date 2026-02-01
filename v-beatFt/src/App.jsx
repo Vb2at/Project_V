@@ -1,6 +1,8 @@
 // src/App.jsx
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { statusApi, logoutApi } from './api/auth';
+import Header from './components/Common/Header';
 
 import Login from './pages/member/Login';
 import MainPage from './pages/mainpage/MainPage';
@@ -19,13 +21,75 @@ import RePw from './pages/member/RePw';
 import RoomLobby from './pages/multi/RoomLobby';
 import LandingPage from './pages/LandingPage';
 import InviteModal from './components/mulit/InviteModal'; 
+<<<<<<< HEAD
 import WebRTCLoopbackTest from './pages/WebRTCLoopbackTest';
+=======
+import FrameTestPage from './pages/FrameTestPage'; 
+
+// 로그인 필수 페이지용
+function RequireAuth({ isLogin, children }) {
+  const [alertDone, setAlertDone] = useState(false);
+
+  useEffect(() => {
+    if (isLogin === false && !alertDone) {
+      alert("로그인 후 이용 가능한 서비스입니다.");
+      setAlertDone(true);
+    }
+  }, [isLogin, alertDone]);
+
+  if (isLogin === null) return null;
+  if (!isLogin) return <Navigate to="/login" replace />;
+  return children;
+}
+
+// 로그아웃 필수 페이지용
+function RequireGuest({ isLogin, children }) {
+  const [alertDone, setAlertDone] = useState(false);
+
+  useEffect(() => {
+    if (isLogin === true && !alertDone) {
+      alert("로그아웃 후 이용 가능한 서비스입니다.");
+      setAlertDone(true);
+    }
+  }, [isLogin, alertDone]);
+
+  if (isLogin === null) return null;
+  if (isLogin) return <Navigate to="/main" replace />;
+  return children;
+}
+
+>>>>>>> 5a80f0376905a100f165430bf04eab3fe8bb49e1
 /* ===============================
    Router 안에서 모달 제어용
 =============================== */
 function AppInner() {
   const [invite, setInvite] = useState(null);
+  const [isLogin, setIsLogin] = useState(null);
   const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await logoutApi();   // 서버 세션 제거
+      setIsLogin(false);
+      navigate('/login', { replace: true });
+    } catch (err) {
+      console.error(err);
+      setIsLogin(false);
+      navigate('/login');
+    }
+
+    setIsLogin(false);
+  };
+
+  useEffect(() => {
+    statusApi()
+      .then(res => {
+        setIsLogin(res.data.ok === true);
+      })
+      .catch(() => {
+        setIsLogin(false);
+      });
+  }, []);
 
   useEffect(() => {
     const handler = (e) => {
@@ -52,16 +116,19 @@ function AppInner() {
       )}
 
       <Routes>
+<<<<<<< HEAD
         <Route path="/webrtc" element={<WebRTCLoopbackTest />} />
         <Route path="/login" element={<Login />} />
         <Route path="/join" element={<Join />} />
         <Route path="/re-password" element={<RePw />} />
+=======
+        <Route path="/join" element={<RequireGuest isLogin={isLogin}><Join /></RequireGuest>} />
+        <Route path="/re-password" element={<RequireGuest isLogin={isLogin}><RePw /></RequireGuest>} />
+>>>>>>> 5a80f0376905a100f165430bf04eab3fe8bb49e1
         <Route path="/start" element={<StartPage />} />
         <Route path="/terms" element={<TermsPage />} />
-        <Route path="/mypage" element={<MyPage />} />
-        <Route path="/main" element={<MainPage />} />
-        <Route path="/multi/room/:roomId" element={<RoomLobby />} />
-        <Route path="/song/upload" element={<SongUpload />} />
+        <Route path="/main" element={<MainPage onLogout={handleLogout} />} />
+        <Route path="/multi/room/:roomId" element={<RequireAuth isLogin={isLogin}><RoomLobby /></RequireAuth>} />
         <Route path="/song/:songId/edit" element={<SongEditor />} />
         <Route path="/song/:songId/note/edit" element={<NoteEditor />} />
         <Route path="/song/:songId" element={<GamePlay />} />
@@ -69,9 +136,14 @@ function AppInner() {
         <Route path="/game/test" element={<GamePlay />} />
         <Route path="/game/result" element={<Result />} />
         <Route path="/nav-loading" element={<NavLoading />} />
-        <Route path="/game/result-test-multi" element={<Result />} />
+        <Route path="/game/result-test-multi" element={<RequireAuth isLogin={isLogin}><Result /></RequireAuth>} />
         <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<RequireGuest isLogin={isLogin}><Login onLoginSuccess={() => setIsLogin(true)} /></RequireGuest>} />
+        <Route path="/mypage" element={<RequireAuth isLogin={isLogin}><MyPage /></RequireAuth>} />
+        <Route path="/song/upload" element={<RequireAuth isLogin={isLogin}><SongUpload /></RequireAuth>} />
       </Routes>
+
+      <Header isLogin={isLogin} onLogout={handleLogout} />
     </>
   );
 }

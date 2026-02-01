@@ -12,7 +12,7 @@ import {
   isMenuBgmPlaying,
 } from '../../components/engine/SFXManager';
 
-import { logoutApi, statusApi } from '../../api/auth';
+import { statusApi } from '../../api/auth';
 import Visualizer from '../visualizer/Visualizer';
 
 import './Header.css';
@@ -29,14 +29,17 @@ const DEFAULT_SETTINGS = {
   longNoteColor: 0xb50549,
   fps: 60,
   lowEffect: false,
-  visualizer: true, 
+  visualizer: true,
 };
 
-export default function Header() {
+export default function Header({ onLogout = () => { } }) {
   const HEADER_HEIGHT = 64;
 
   const navigate = useNavigate();
   const location = useLocation();
+
+  const hideHeaderPaths = ['/login', '/join', '/re-password', '/terms'];
+  const shouldHide = hideHeaderPaths.includes(location.pathname);
 
   const isGamePage = location.pathname.startsWith('/game');
   const isEditorPage =
@@ -97,52 +100,30 @@ export default function Header() {
     setIsPlaying(isMenuBgmPlaying());
   };
 
-  // ===== 로그아웃 =====
-  const handleLogout = async () => {
-    try {
-      await logoutApi();
-      setStatus(null);
-      setMobileOpen(false);
-      setNotify({ messages: false, admin: false, friend: false });
-      navigate('/login');
-    } catch (e) {
-      console.error(e);
-      alert('로그아웃 실패');
-    }
-  };
-
   // ===== 로그인 상태 조회 =====
   useEffect(() => {
-    let alive = true;
-
-    (async () => {
+    const fetchStatus = async () => {
       try {
         const res = await statusApi();
-
-        if (res.data?.ok !== true) {
-          if (alive) setStatus(null);
-          return;
-        }
-
-        if (alive) {
+        if (res.data?.ok) {
           setStatus({
             loginUserId: res.data.loginUserId,
             loginUser: res.data.loginUser,
             loginUserNickName: res.data.loginUserNickName,
             loginUserRole: res.data.loginUserRole,
           });
+        } else {
+          setStatus(null);
         }
       } catch {
-        if (alive) setStatus(null);
+        setStatus(null);
       } finally {
-        if (alive) setStatusLoading(false);
+        setStatusLoading(false);
       }
-    })();
-
-    return () => {
-      alive = false;
     };
-  }, []);
+
+    fetchStatus();
+  }, [location.pathname]); // 경로가 바뀔 때마다 로그인 상태 갱신
 
   // ===== 알림 이벤트 =====
   useEffect(() => {
@@ -206,297 +187,317 @@ export default function Header() {
 
   return (
     <>
-      <header
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: HEADER_HEIGHT + 'px',
-          background: 'rgba(10, 20, 30, 0.6)',
-          zIndex: 1000,
-        }}
-      >
-        {/* 좌측 타이틀 */}
-        <div
+      {!shouldHide && (
+
+        <header
           style={{
-            position: 'absolute',
-            left: '-20px',
-            top: '55%',
-            transform: 'translateY(-50%)',
-            display: 'flex',
-            alignItems: 'center',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: HEADER_HEIGHT + 'px',
+            background: 'rgba(10, 20, 30, 0.6)',
+            zIndex: 1000,
           }}
         >
-          <img
-            src="/images/logo.png"
-            alt="V-BEAT"
-            style={{
-              height: '130px',
-              objectFit: 'contain',
-            }}
-          />
-        </div>
-
-        {/* BGM 컨트롤 */}
-        {isMenuPage && (
+          {/* 좌측 타이틀 */}
           <div
             style={{
               position: 'absolute',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
+              left: '-20px',
+              top: '55%',
+              transform: 'translateY(-50%)',
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
             }}
           >
-            <Visualizer active={isPlaying} size="small" />
+            <img
+              src="/images/logo.png"
+              alt="V-BEAT"
+              style={{
+                height: '130px',
+                objectFit: 'contain',
+              }}
+            />
+          </div>
 
-            <button className="neon-btn" onClick={handleToggle} aria-label="toggle bgm">
-              {isPlaying ? (
+          {/* BGM 컨트롤 */}
+          {isMenuPage && (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+              }}
+            >
+              <Visualizer active={isPlaying} size="small" />
+
+              <button className="neon-btn" onClick={handleToggle} aria-label="toggle bgm">
+                {isPlaying ? (
+                  <svg viewBox="0 0 24 24" width="22" height="22">
+                    <path
+                      d="M8 5v14M16 5v14"
+                      fill="none"
+                      stroke="url(#grad-toggle)"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                    <defs>
+                      <linearGradient id="grad-toggle" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#5aeaff" />
+                        <stop offset="100%" stopColor="#ff0080" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="22" height="22">
+                    <path
+                      d="M7 4l12 8-12 8V4z"
+                      fill="none"
+                      stroke="url(#grad-toggle)"
+                      strokeWidth="2"
+                      strokeLinejoin="round"
+                    />
+                    <defs>
+                      <linearGradient id="grad-toggle" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#5aeaff" />
+                        <stop offset="100%" stopColor="#ff0080" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                )}
+              </button>
+
+              <button
+                className="neon-btn"
+                onClick={() => {
+                  playMenuBgmRandom();
+                  setIsPlaying(isMenuBgmPlaying());
+                }}
+                aria-label="random bgm"
+              >
                 <svg viewBox="0 0 24 24" width="22" height="22">
                   <path
-                    d="M8 5v14M16 5v14"
+                    d="M5 4l7 8-7 8V4zm8 0l7 8-7 8V4z"
                     fill="none"
-                    stroke="url(#grad-toggle)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                  <defs>
-                    <linearGradient id="grad-toggle" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#5aeaff" />
-                      <stop offset="100%" stopColor="#ff0080" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" width="22" height="22">
-                  <path
-                    d="M7 4l12 8-12 8V4z"
-                    fill="none"
-                    stroke="url(#grad-toggle)"
+                    stroke="url(#grad-next)"
                     strokeWidth="2"
                     strokeLinejoin="round"
                   />
                   <defs>
-                    <linearGradient id="grad-toggle" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="grad-next" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#5aeaff" />
                       <stop offset="100%" stopColor="#ff0080" />
                     </linearGradient>
                   </defs>
                 </svg>
-              )}
-            </button>
-
-            <button
-              className="neon-btn"
-              onClick={() => {
-                playMenuBgmRandom();
-                setIsPlaying(isMenuBgmPlaying());
-              }}
-              aria-label="random bgm"
-            >
-              <svg viewBox="0 0 24 24" width="22" height="22">
-                <path
-                  d="M5 4l7 8-7 8V4zm8 0l7 8-7 8V4z"
-                  fill="none"
-                  stroke="url(#grad-next)"
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                />
-                <defs>
-                  <linearGradient id="grad-next" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#5aeaff" />
-                    <stop offset="100%" stopColor="#ff0080" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </button>
-
-          </div>
-        )}
-
-        {/* 프로필 + 닉네임 */}
-        {!statusLoading && status && (
-          <div
-            style={{
-              position: 'absolute',
-              right: 230, // 전체 묶음 기준 위치
-              top: '50%',
-              transform: 'translateY(-50%)',
-
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-
-              zIndex: 1100,
-              maxWidth: '260px', // 닉네임 영역 포함 전체 폭 제한
-              overflow: 'hidden',
-            }}
-          >
-            <ProfileAvatar
-              profileImg={status.loginUser.profileImg}
-              userId={status.loginUserId}
-              size={50}
-            />
-
-            <div
-              style={{
-                color: '#5aeaff',
-                fontSize: 25,
-                fontWeight: 600,
-
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-              title={status.loginUserNickName}
-            >
-              {status.loginUserNickName}
-            </div>
-          </div>
-        )}
-
-
-        {/* 햄버거 */}
-        {isMenuPage && (
-          <div
-            style={{
-              position: 'absolute',
-              right: '70px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-            }}
-          >
-            <div style={{ position: 'relative' }}>
-              <button
-                className="neon-btn"
-                onClick={() => setMobileOpen((v) => !v)}
-                aria-label="mobile menu"
-              >
-                <svg viewBox="0 0 24 24" width="30" height="30">
-                  <path
-                    d="M4 6h16M4 12h16M4 18h16"
-                    fill="none"
-                    stroke="url(#grad-mobile)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                  <defs>
-                    <linearGradient id="grad-mobile" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#5aeaff" />
-                      <stop offset="100%" stopColor="#ff0040" />
-                    </linearGradient>
-                  </defs>
-                </svg>
               </button>
 
-
-              {hasDot && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: -2,
-                    right: -2,
-                    width: 10,
-                    height: 10,
-                    borderRadius: '50%',
-                    background: '#ff4d4f',
-                  }}
-                />
-              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* 모바일 메뉴 */}
-        {isMenuPage && mobileOpen && (
-          <div
-            style={{
-              position: 'absolute',
-              right: '30px',
-              top: HEADER_HEIGHT + 6,
-              background: 'rgba(10,20,30,0.95)',
-              border: '2px solid rgba(90,234,255,0.4)',
-              borderRadius: '10px',
-              padding: '10px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-              zIndex: 1100,
-            }}
-          >
-            {status && !isBlockUser && (
+          {/* 프로필 + 닉네임 */}
+          {!statusLoading && status && (
+            <div
+              style={{
+                position: 'absolute',
+                right: 230, // 전체 묶음 기준 위치
+                top: '50%',
+                transform: 'translateY(-50%)',
+
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+
+                zIndex: 1100,
+                maxWidth: '260px', // 닉네임 영역 포함 전체 폭 제한
+                overflow: 'hidden',
+              }}
+            >
+              <ProfileAvatar
+                profileImg={status.loginUser?.profileImg}
+                userId={status.loginUserId}
+                size={50}
+              />
+
+              <div
+                style={{
+                  color: '#5aeaff',
+                  fontSize: 25,
+                  fontWeight: 600,
+
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+                title={status.loginUserNickName}
+              >
+                {status.loginUserNickName}
+              </div>
+            </div>
+          )}
+
+
+          {/* 햄버거 */}
+          {isMenuPage && (
+            <div
+              style={{
+                position: 'absolute',
+                right: '70px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+              }}
+            >
+              <div style={{ position: 'relative' }}>
+                <button
+                  className="neon-btn"
+                  onClick={() => setMobileOpen((v) => !v)}
+                  aria-label="mobile menu"
+                >
+                  <svg viewBox="0 0 24 24" width="30" height="30">
+                    <path
+                      d="M4 6h16M4 12h16M4 18h16"
+                      fill="none"
+                      stroke="url(#grad-mobile)"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                    <defs>
+                      <linearGradient id="grad-mobile" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#5aeaff" />
+                        <stop offset="100%" stopColor="#ff0040" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </button>
+
+
+                {hasDot && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: -2,
+                      right: -2,
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: '#ff4d4f',
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 모바일 메뉴 */}
+          {isMenuPage && mobileOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                right: '30px',
+                top: HEADER_HEIGHT + 6,
+                background: 'rgba(10,20,30,0.95)',
+                border: '2px solid rgba(90,234,255,0.4)',
+                borderRadius: '10px',
+                padding: '10px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                zIndex: 1100,
+              }}
+            >
               <button
                 className="neon-btn"
                 onClick={() => {
                   setMobileOpen(false);
-                  navigate('/song/upload');
+                  navigate('/main');
                 }}
               >
-                곡 등록
+                메인페이지
               </button>
-            )}
 
-            <button
-              className="neon-btn"
-              onClick={() => {
-                setMobileOpen(false);
-                setSettingsOpen(true);
-              }}
-            >
-              설정
-            </button>
-
-            {!statusLoading && status && (
-              <>
+              {status && !isBlockUser && (
                 <button
                   className="neon-btn"
-                  onClick={() => navigate('/mypage')}
+                  onClick={() => {
+                    setMobileOpen(false);
+                    navigate('/song/upload');
+                  }}
                 >
-                  마이페이지
+                  곡 등록
                 </button>
+              )}
 
-                {!isBlockUser && (
+              <button
+                className="neon-btn"
+                onClick={() => {
+                  setMobileOpen(false);
+                  setSettingsOpen(true);
+                }}
+              >
+                설정
+              </button>
+
+              {!statusLoading && status && (
+                <>
+                  <button
+                    className="neon-btn"
+                    onClick={() => navigate('/mypage')}
+                  >
+                    마이페이지
+                  </button>
+
+                  {!isBlockUser && (
+                    <button
+                      className="neon-btn"
+                      onClick={() => {
+                        setMobileOpen(false);
+                        navigate('/mypage', { state: { tab: 'messages' } });
+                      }}
+                    >
+                      메세지 {hasMessageDot ? '•' : ''}
+                    </button>
+                  )}
+
                   <button
                     className="neon-btn"
                     onClick={() => {
                       setMobileOpen(false);
-                      navigate('/mypage', { state: { tab: 'messages' } });
+                      setStatus(null);
+                      onLogout();
                     }}
                   >
-                    메세지 {hasMessageDot ? '•' : ''}
+                    로그아웃
                   </button>
-                )}
+                </>
+              )}
 
-                <button className="neon-btn" onClick={handleLogout}>
-                  로그아웃
+              {!status && !statusLoading && (
+                <button className="neon-btn" onClick={() => navigate('/login')}>
+                  로그인
                 </button>
-              </>
-            )}
+              )}
+            </div>
+          )}
 
-            {!status && !statusLoading && (
-              <button className="neon-btn" onClick={() => navigate('/login')}>
-                로그인
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* 하단 네온 바 */}
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            bottom: 0,
-            width: '100%',
-            height: '4px',
-            background:
-              'linear-gradient(to right,#ff0000ff, #ff00eaff, #5aeaff)',
-          }}
-        />
-      </header>
+          {/* 하단 네온 바 */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              bottom: 0,
+              width: '100%',
+              height: '4px',
+              background:
+                'linear-gradient(to right,#ff0000ff, #ff00eaff, #5aeaff)',
+            }}
+          />
+        </header>
+      )}
 
       {/* 설정 모달 */}
       <SettingsModal

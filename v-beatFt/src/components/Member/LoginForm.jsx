@@ -1,12 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { unlockAudioContext } from '../../components/engine/SFXManager';
 import './LoginForm.css';
 
-export default function LoginForm() {
+export default function LoginForm({ onLoginSuccess }) {
 
-    unlockAudioContext();
-    localStorage.setItem('bgmUnlocked', 'true');
+    useEffect(() => {
+        unlockAudioContext();
+        localStorage.setItem('bgmUnlocked', 'true');
+    }, []);
 
     // 1. 상태(State) 관리
     const [email, setEmail] = useState('');
@@ -71,10 +73,12 @@ export default function LoginForm() {
                 return;
             }
 
+            onLoginSuccess?.();
+
             navigate('/start', {
                 state: {
                     target: '/main',
-                    needPwChange: data.needPwChange === true, 
+                    needPwChange: data.needPwChange === true,
                 },
             });
         } catch {
