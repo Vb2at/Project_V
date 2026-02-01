@@ -120,6 +120,48 @@ function GamePlay() {
     setLocalStream(stream); // ✅ 여기까지만
   }, []);
 
+  const startRTC = async (rivalId) => {
+    if (!localStream || !stompConnected || peerRef.current) return;
+
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    });
+    peerRef.current = pc;
+
+    /* 1️⃣ addTrack */
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+    /* 2️⃣ ontrack */
+    pc.ontrack = e => {
+      const stream = e.streams[0];
+      if (!stream) return;
+      setRival(prev => ({ ...prev, stream }));
+    };
+
+    /* 3️⃣ ICE candidate */
+    pc.onicecandidate = e => {
+      if (!e.candidate) return;
+      const payload = { roomId, candidate: e.candidate, userId: myId };
+      stompRef.current.publish({
+        destination: '/app/multi/rtc/candidate',
+        body: JSON.stringify(payload),
+      });
+    };
+
+    /* 4️⃣ offerer 결정 및 OFFER 전송 */
+    const isOfferer = String(myId) < String(rivalId);
+    if (isOfferer) {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      stompRef.current.publish({
+        destination: '/app/multi/rtc/offer',
+        body: JSON.stringify({ roomId, offer, userId: myId }),
+      });
+    }
+  };
+
+
   useEffect(() => {
     if (!isMulti || !roomId) return;
     if (!myId) return;

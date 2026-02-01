@@ -168,8 +168,11 @@ export default function GameSession({
 
     compositeStartedRef.current = true;
 
-    out.width = 720;
-    out.height = 1280;
+    // ===== 해상도 조절 =====
+    const WIDTH = 1080;
+    const HEIGHT = 1920;
+    out.width = WIDTH;
+    out.height = HEIGHT;
 
     const ctx = out.getContext('2d');
     if (!ctx) return;
@@ -178,14 +181,17 @@ export default function GameSession({
 
     const loop = () => {
       ctx.clearRect(0, 0, out.width, out.height);
-      ctx.drawImage(base, 0, 0, out.width, out.height);
-      ctx.drawImage(notes, 0, 0, out.width, out.height);
-      ctx.drawImage(fx, 0, 0, out.width, out.height);
+
+      const yOffset = 40;
+      ctx.drawImage(base, 0, 0, WIDTH, HEIGHT);
+      ctx.drawImage(notes, 0, 0, WIDTH, HEIGHT);
+      ctx.drawImage(fx, 0, 0, WIDTH, HEIGHT);
 
       if (!firstFrameDrawn) {
         firstFrameDrawn = true;
         requestAnimationFrame(() => {
-          const stream = out.captureStream(60);
+          const fps = settings.fps ?? 60; // GamePlay에서 전달
+          const stream = out.captureStream(fps);
           if (!sentStreamRef.current) {
             sentStreamRef.current = stream;
             onStreamReady(stream);
@@ -204,7 +210,7 @@ export default function GameSession({
         compositeRafRef.current = null;
       }
     };
-  }, [canvasReadyTick]);
+  }, [canvasReadyTick, settings.fps]);
 
   useEffect(() => {
     if (!isMulti) return;

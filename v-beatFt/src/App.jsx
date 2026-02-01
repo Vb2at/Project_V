@@ -21,10 +21,6 @@ import RePw from './pages/member/RePw';
 import RoomLobby from './pages/multi/RoomLobby';
 import LandingPage from './pages/LandingPage';
 import InviteModal from './components/mulit/InviteModal'; 
-<<<<<<< HEAD
-import WebRTCLoopbackTest from './pages/WebRTCLoopbackTest';
-=======
-import FrameTestPage from './pages/FrameTestPage'; 
 
 // 로그인 필수 페이지용
 function RequireAuth({ isLogin, children }) {
@@ -58,7 +54,6 @@ function RequireGuest({ isLogin, children }) {
   return children;
 }
 
->>>>>>> 5a80f0376905a100f165430bf04eab3fe8bb49e1
 /* ===============================
    Router 안에서 모달 제어용
 =============================== */
@@ -116,15 +111,8 @@ function AppInner() {
       )}
 
       <Routes>
-<<<<<<< HEAD
-        <Route path="/webrtc" element={<WebRTCLoopbackTest />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/join" element={<Join />} />
-        <Route path="/re-password" element={<RePw />} />
-=======
         <Route path="/join" element={<RequireGuest isLogin={isLogin}><Join /></RequireGuest>} />
         <Route path="/re-password" element={<RequireGuest isLogin={isLogin}><RePw /></RequireGuest>} />
->>>>>>> 5a80f0376905a100f165430bf04eab3fe8bb49e1
         <Route path="/start" element={<StartPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/main" element={<MainPage onLogout={handleLogout} />} />

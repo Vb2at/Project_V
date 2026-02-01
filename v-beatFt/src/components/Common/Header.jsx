@@ -38,7 +38,7 @@ export default function Header({ onLogout = () => { } }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const hideHeaderPaths = ['/login', '/join', '/re-password', '/terms'];
+  const hideHeaderPaths = ['/login', '/join', '/re-password', '/terms','/'];
   const shouldHide = hideHeaderPaths.includes(location.pathname);
 
   const isGamePage = location.pathname.startsWith('/game');

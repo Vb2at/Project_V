@@ -7,7 +7,7 @@ const SIDEBAR_WIDTH = 300;
 export default function RightSidebar({ isMulti, rival }) {
   const videoRef = useRef(null);
 
-  if (!isMulti) return null;
+  if (!rival) return null;
 
   const { nickname, profileUrl, score, combo } = useMemo(
     () => ({
