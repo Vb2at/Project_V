@@ -4,107 +4,99 @@ import { useMemo, useEffect, useRef } from 'react';
 const HEADER_HEIGHT = 64;
 const SIDEBAR_WIDTH = 300;
 
-export default function RightSidebar({ isMulti, rival }) {
+export default function RightSidebar({ isMulti, rival, singleInfo }) {
   const videoRef = useRef(null);
 
-  if (!rival) return null;
+  // ===== 멀티 플레이 UI =====
+  if (isMulti) {
+    if (!rival) return null;
 
-  const { nickname, profileUrl, score, combo } = useMemo(
-    () => ({
-      nickname: rival?.nickname ?? 'OPPONENT',
-      profileUrl: rival?.profileUrl ?? null,
-      score: rival?.score ?? 0,
-      combo: rival?.combo ?? 0,
-    }),
-    [rival]
-  );
+    const { nickname, profileUrl, score, combo } = useMemo(
+      () => ({
+        nickname: rival?.nickname ?? 'OPPONENT',
+        profileUrl: rival?.profileUrl ?? null,
+        score: rival?.score ?? 0,
+        combo: rival?.combo ?? 0,
+      }),
+      [rival]
+    );
 
-  useEffect(() => {
-    const video = videoRef.current;
-    const stream = rival?.stream;
+    useEffect(() => {
+      const video = videoRef.current;
+      const stream = rival?.stream;
+      if (!video || !stream) return;
+      if (video.srcObject === stream) return;
 
-    if (!video || !stream) return;
+      video.onloadedmetadata = () => { };
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      video.play().catch(() => { });
+      return () => { video.onloadedmetadata = null; };
+    }, [rival?.stream]);
 
-    // ✅ 참조 비교만 허용
-    if (video.srcObject === stream) return;
+    return (
+      <div style={styles.sidebar}>
+        <div style={styles.neonLine} />
+        <div style={styles.rivalView}>
+          <div style={styles.rivalTitle}>RIVAL VIEW</div>
+          <div style={styles.frameBox}>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              style={{
+                position: 'relative',
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                background: '#222',
+              }}
+            />
+          </div>
+        </div>
+        <div style={styles.rivalInfo}>
+          <div style={styles.profileRow}>
+            <div
+              style={{
+                ...styles.profileImg,
+                background: profileUrl
+                  ? `url(${profileUrl}) center / cover no-repeat`
+                  : styles.profileFallback.background,
+                opacity: profileUrl ? 1 : 0.5,
+              }}
+            >
+              {!profileUrl && 'PROFILE'}
+            </div>
+            <div style={styles.nickname}>{nickname}</div>
+          </div>
+          <InfoRow label="SCORE" value={score} color="#5aeaff" />
+          <InfoRow label="COMBO" value={combo} color="#ff8cff" />
+        </div>
+      </div>
+    );
+  }
 
-    console.log('[VIDEO BIND STREAM]', stream.getTracks());
-
-    video.onloadedmetadata = () => {
-      console.log(
-        '[VIDEO META]',
-        video.videoWidth,
-        'x',
-        video.videoHeight
-      );
-    };
-
-    video.muted = true;
-    video.playsInline = true;
-    video.srcObject = stream;
-
-    const p = video.play();
-    if (p?.catch) {
-      p.catch((e) => {
-        if (e.name !== 'AbortError') {
-          console.error('[VIDEO PLAY ERROR]', e);
-        }
-      });
-    }
-
-    return () => {
-      video.onloadedmetadata = null;
-    };
-  }, [rival?.stream]);
-
+  // ===== 싱글 플레이 UI =====
+  const { modeLabel, playerName, diffLabel } = singleInfo ?? {};
+  const logoUrl = '/public/images/teamlogo.png';
 
   return (
     <div style={styles.sidebar}>
-      {/* 네온 라인 */}
       <div style={styles.neonLine} />
-
-      {/* ===== RIVAL VIEW ===== */}
       <div style={styles.rivalView}>
-        <div style={styles.rivalTitle}>RIVAL VIEW</div>
-
+        <div style={styles.rivalTitle}>{modeLabel ?? 'SINGLE PLAY'}</div>
         <div style={styles.frameBox}>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            style={{
-              position: 'relative',
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              background: '#222',
-              outline: '2px solid red',
-            }}
-          />
+          <div style={styles.logoBox}>
+            <img src={logoUrl} style={styles.logoImg} />
+          </div>
         </div>
       </div>
-
-      {/* ===== RIVAL INFO ===== */}
       <div style={styles.rivalInfo}>
-        <div style={styles.profileRow}>
-          <div
-            style={{
-              ...styles.profileImg,
-              background: profileUrl
-                ? `url(${profileUrl}) center / cover no-repeat`
-                : styles.profileFallback.background,
-              opacity: profileUrl ? 1 : 0.5,
-            }}
-          >
-            {!profileUrl && 'PROFILE'}
-          </div>
-
-          <div style={styles.nickname}>{nickname}</div>
-        </div>
-
-        <InfoRow label="SCORE" value={score} color="#5aeaff" />
-        <InfoRow label="COMBO" value={combo} color="#ff8cff" />
+        <InfoRow label="MODE" value={modeLabel ?? 'SINGL'} color="#00ff99" />
+        <InfoRow label="PLAYER" value={playerName ?? 'PLAYER1'} color="#ff33ff" />
+        <InfoRow label="DIFF" value={diffLabel ?? 'NORMAL'} color="#ffff66" />
       </div>
     </div>
   );
@@ -113,7 +105,7 @@ export default function RightSidebar({ isMulti, rival }) {
 function InfoRow({ label, value, color }) {
   return (
     <div style={styles.infoRow}>
-      <span style={styles.infoLabel}>{label}</span>
+      <span style={{ ...styles.infoLabel, color }}>{label}</span>
       <span style={{ ...styles.infoValue, color }}>{value}</span>
     </div>
   );
@@ -133,7 +125,6 @@ const styles = {
     flexDirection: 'column',
     gap: 12,
   },
-
   neonLine: {
     position: 'absolute',
     top: 0,
@@ -141,11 +132,9 @@ const styles = {
     width: 5,
     height: '100%',
     background: 'linear-gradient(to bottom, #5aeaff, #ff00ea, #5aeaff)',
-    boxShadow:
-      '0 0 6px rgba(90,234,255,0.8), 0 0 12px rgba(255,80,200,0.6)',
+    boxShadow: '0 0 6px rgba(90,234,255,0.8), 0 0 12px rgba(255,80,200,0.6)',
     pointerEvents: 'none',
   },
-
   rivalView: {
     flex: 6,
     minHeight: 0,
@@ -158,13 +147,12 @@ const styles = {
     flexDirection: 'column',
     gap: 8,
   },
-
   rivalTitle: {
     fontSize: 12,
     letterSpacing: '0.12em',
     opacity: 0.8,
+    textAlign: 'center',
   },
-
   frameBox: {
     position: 'relative',
     borderRadius: 10,
@@ -173,19 +161,20 @@ const styles = {
     border: '1px solid rgba(90,234,255,0.35)',
     margin: '0 auto',
     width: '100%',
-    aspectRatio: '9 / 16',   // ✅ 핵심
+    aspectRatio: '9 / 16',
     minHeight: 200,
   },
-
-  frameImg: {
-    position: 'absolute',
-    inset: 0,
+  logoBox: {
     width: '100%',
     height: '100%',
-    objectFit: 'cover',
-    display: 'block',
+    background: '#111',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-
+  logoImg: {
+    objectFit: 'contain',
+  },
   rivalInfo: {
     flex: 4,
     borderRadius: 14,
@@ -195,14 +184,10 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: 14,
-  },
-
-  profileRow: {
-    display: 'flex',
+    justifyContent: 'center', // 세로 중앙
     alignItems: 'center',
-    gap: 12,
   },
-
+  profileRow: { display: 'flex', alignItems: 'center', gap: 12 },
   profileImg: {
     width: 120,
     height: 120,
@@ -213,26 +198,21 @@ const styles = {
     justifyContent: 'center',
     fontSize: 10,
   },
-
-  profileFallback: {
-    background: 'linear-gradient(135deg, #2a2f3a, #111)',
-  },
-
-  nickname: {
-    fontSize: 14,
-    fontWeight: 700,
-  },
-
+  profileFallback: { background: 'linear-gradient(135deg, #2a2f3a, #111)' },
+  nickname: { fontSize: 14, fontWeight: 700 },
   infoRow: {
     display: 'flex',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 6,
   },
-
   infoLabel: {
-    opacity: 0.75,
+    opacity: 0.8,
+    fontFamily: 'monospace',
+    textAlign: 'center',
   },
-
   infoValue: {
     fontWeight: 700,
+    fontFamily: 'monospace',
+    textAlign: 'center',
   },
 };
