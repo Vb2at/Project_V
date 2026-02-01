@@ -1,31 +1,56 @@
 // src/pages/multi/RightSidebar.jsx
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 
 const HEADER_HEIGHT = 64;
 const SIDEBAR_WIDTH = 300;
 
 export default function RightSidebar({ isMulti, rival, singleInfo }) {
   const videoRef = useRef(null);
+  const [profileBg, setProfileBg] = useState(null);
 
   // ===== 멀티 플레이 UI =====
   if (isMulti) {
     if (!rival) return null;
 
-    const { nickname, profileUrl, score, combo } = useMemo(
-      () => ({
-        nickname: rival?.nickname ?? 'OPPONENT',
-        profileUrl: rival?.profileUrl ?? null,
-        score: rival?.score ?? 0,
-        combo: rival?.combo ?? 0,
-      }),
-      [rival]
-    );
+  const { nickname, profileUrl, score, combo } = useMemo(
+    () => ({
+      nickname: rival?.nickname ?? 'OPPONENT',
+      profileUrl: resolveProfileImg(rival?.profileUrl),
+      score: rival?.score ?? 0,
+      combo: rival?.combo ?? 0,
+    }),
+    [rival]
+  );
 
-    useEffect(() => {
-      const video = videoRef.current;
-      const stream = rival?.stream;
-      if (!video || !stream) return;
-      if (video.srcObject === stream) return;
+  // 프로필 이미지 url 관련 함수
+  function resolveProfileImg(src) {
+    if (!src) return null;
+
+    if (src.startsWith('http')) return src;
+
+    if (!src.startsWith('/')) {
+      return `http://localhost:8080/${src}`;
+    }
+
+    return `http://localhost:8080${src}`;
+  }
+
+  useEffect(() => {
+    if (!profileUrl) {
+      setProfileBg(null);
+      return;
+    }
+
+    const img = new Image();
+    img.src = profileUrl;
+
+    img.onload = () => setProfileBg(profileUrl);
+    img.onerror = () => setProfileBg(null);
+  }, [profileUrl]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = rival?.stream;
 
       video.onloadedmetadata = () => { };
       video.muted = true;
@@ -95,10 +120,27 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
           </div>
         </div>
       </div>
-      <div style={styles.singleInfo}>
-        <InfoRow label="MODE" value={modeLabel ?? 'SINGL'} color="#00ff99" />
-        <InfoRow label="PLAYER" value={playerName ?? 'PLAYER1'} color="#ff33ff" />
-        <InfoRow label="DIFF" value={diffLabel ?? 'NORMAL'} color="#ffff66" />
+
+      {/* ===== RIVAL INFO ===== */}
+      <div style={styles.rivalInfo}>
+        <div style={styles.profileRow}>
+          <div
+            style={{
+              ...styles.profileImg,
+              background: profileUrl
+                ? `url(${profileBg}) center / cover no-repeat`
+                : styles.profileFallback.background,
+              opacity: profileBg ? 1 : 0.5,
+            }}
+          >
+            {!profileUrl && 'PROFILE'}
+          </div>
+
+          <div style={styles.nickname}>{nickname}</div>
+        </div>
+
+        <InfoRow label="SCORE" value={score} color="#5aeaff" />
+        <InfoRow label="COMBO" value={combo} color="#ff8cff" />
       </div>
     </div>
   );

@@ -8,6 +8,22 @@ import Background from '../../components/Common/Background';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client/dist/sockjs.min.js';
 
+// 프로필 이미지 경로 정리 함수
+function resolveProfileImg(src) {
+  if (!src) return null;
+
+  // 카카오 (절대 url)
+  if (src.startsWith('http')) return src;
+
+  // 슬래시 없는 서버 경로
+  if (!src.startsWith('/')) {
+    return `http://localhost:8080/${src}`;
+  }
+
+  // 슬래시 있는 서버 경로
+  return `http://localhost:8080${src}`;
+}
+
 function formatTime(sec) {
   if (sec == null || isNaN(sec)) return '--:--';
   const m = Math.floor(sec / 60);
@@ -376,10 +392,18 @@ function PlayerCard({ title, player, hostUserId }) {
       <div style={ghostTitle}>{title}</div>
 
       <div style={ghostProfile}>
-        {player?.profileImg
-          ? <img src={player.profileImg} alt="" style={ghostImg} />
-          : <div style={ghostPlaceholder}>PROFILE</div>
-        }
+        {player?.profileImg ? (
+          <img
+            src={resolveProfileImg(player.profileImg)}
+            onError={(e) => {
+              e.currentTarget.src = '/assets/default_profile.png';
+            }}
+            alt=""
+            style={ghostImg}
+          />
+        ) : (
+          <div style={ghostPlaceholder}>PROFILE</div>
+        )}
       </div>
 
       <div style={ghostName}>
