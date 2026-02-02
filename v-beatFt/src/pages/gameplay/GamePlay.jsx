@@ -15,8 +15,15 @@ import { playMenuConfirm } from '../../components/engine/SFXManager';
 import Visualizer from '../../components/visualizer/Visualizer';
 import { LOADING_TIPS as TIPS } from '../../constants/LoadingTips';
 import { useSearchParams } from 'react-router-dom';
+import {
+  connectMultiSocket,
+  setMultiSocketHandlers,
+  publishMulti,
+  sendRtcOffer,
+  sendRtcAnswer,
+  sendRtcCandidate,
+} from '../multi/MultiSocket';
 const DEFAULT_SETTINGS = {
-  fps: 60,
   hitEffect: true,
   judgeText: true,
   comboText: true,
@@ -64,17 +71,278 @@ function GamePlay() {
   const [rival, setRival] = useState(null);
   const analyserRef = useRef(null);
   const [sessionKey, setSessionKey] = useState(0);
-
+  const comboRef = useRef(0);
   const MIN_LOADING_TIME = 2500;
   const loadingStartRef = useRef(0);
   const loadingEndRef = useRef(null);
   const HEADER_HEIGHT = 25;
-
+  const localStreamRef = useRef(null);
+  const pendingIceRef = useRef([]);
+  const rtcStartedRef = useRef(false);
+  const pcRef = useRef(null);
+  const rivalIdRef = useRef(null);
+  const hostIdRef = useRef(null);
   const [loginUser, setLoginUser] = useState(undefined);
+  const myId = loginUser?.loginUser?.id ?? null;
   const navigate = useNavigate();
+  const pendingOfferRef = useRef(null); // { roomId, offer }
 
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
   const [song, setSong] = useState(null);
+
+  const tryStartRtc = async () => {
+    if (!isMulti) return;
+    if (!roomId) return;
+    if (!myId) return;
+    if (!localStreamRef.current) return;
+    if (!rivalIdRef.current) return;
+    if (!hostIdRef.current) return;
+
+    const pc = pcRef.current;
+    if (!pc) return;
+
+    const isOfferer = Number(myId) === Number(hostIdRef.current);
+    if (!isOfferer) return;
+
+    // 이미 협상 중이면 중단
+    if (pc.signalingState !== 'stable') return;
+    if (pc.localDescription) return;
+
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      console.log('[RTC OFFER TX]');
+      sendRtcOffer(roomId, offer);
+    } catch (err) {
+      console.error('[RTC OFFER FAIL]', err);
+    }
+  };
+
+
+  const multiConnectedRef = useRef(false);
+  const roomId = searchParams.get('roomId');
+
+  // 멀티 연결
+  useEffect(() => {
+    if (!isMulti) return;
+    if (!loginUser?.loginUser?.id) return;
+    if (!roomId) return;
+
+    const myId = loginUser.loginUser.id;
+
+    // ===================== 단일 PC 생성 경로 =====================
+    const ensurePc = () => {
+      if (pcRef.current) return pcRef.current;
+
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      });
+
+      pc.onconnectionstatechange = () => console.log('[RTC conn]', pc.connectionState);
+      pc.onsignalingstatechange = () => console.log('[RTC sig]', pc.signalingState);
+      pc.oniceconnectionstatechange = () => console.log('[RTC ice]', pc.iceConnectionState);
+
+      pc.onicecandidate = (e) => {
+        if (!e.candidate) return;
+
+        const payload = (typeof e.candidate.toJSON === 'function')
+          ? e.candidate.toJSON()
+          : {
+            candidate: e.candidate.candidate,
+            sdpMid: e.candidate.sdpMid,
+            sdpMLineIndex: e.candidate.sdpMLineIndex,
+            usernameFragment: e.candidate.usernameFragment,
+          };
+
+        console.log('[RTC ICE TX]', {
+          mid: payload.sdpMid,
+          mline: payload.sdpMLineIndex,
+          head: String(payload.candidate).slice(0, 60),
+        });
+
+        sendRtcCandidate(roomId, payload);
+      };
+
+      pc.ontrack = (e) => {
+        const remoteStream = e.streams?.[0];
+        console.log('[RTC ONTRACK]', remoteStream?.getTracks());
+        if (!remoteStream) return;
+
+        setRival(prev => ({
+          ...(prev || {}),
+          stream: remoteStream,
+        }));
+      };
+
+      pcRef.current = pc;
+      const s = localStreamRef.current;
+      if (s) {
+        for (const t of s.getTracks()) {
+          const already = pc.getSenders().some(sender => sender.track === t);
+          if (!already) pc.addTrack(t, s);
+        }
+      }
+      if (!pc) return;
+
+      const hasVideoSender = pc.getSenders().some(s => s.track && s.track.kind === 'video');
+      if (!hasVideoSender && localStreamRef.current) {
+        for (const t of localStreamRef.current.getTracks()) {
+          if (t.kind !== 'video') continue;
+          pc.addTrack(t, localStreamRef.current);
+        }
+      }
+
+
+      const isOfferer = Number(myId) === Number(hostIdRef.current);
+      if (!isOfferer) return;
+      return pc;
+    };
+
+    connectMultiSocket({
+      roomId,
+      replaceHandlers: true,
+
+      // ===================== ROOM_STATE =====================
+      onRoomMessage: (data) => {
+        if (!Array.isArray(data?.players)) return;
+
+        hostIdRef.current = data.hostUserId ?? hostIdRef.current;
+
+        const opp = data.players.find(p => p.userId !== myId);
+        if (!opp) return;
+
+        rivalIdRef.current = opp.userId;
+
+        setRival(prev => ({
+          userId: opp.userId,
+          nickname: opp.nickname,
+          profileUrl: opp.profileImg,
+          score: prev?.score ?? 0,
+          combo: prev?.combo ?? 0,
+          stream: prev?.stream ?? null,
+        }));
+
+        // PC를 먼저 보장한 뒤 offer 시도
+        ensurePc();
+        tryStartRtc();
+      },
+
+      // ===================== SCORE =====================
+      onScoreMessage: (data) => {
+        setRival(prev => {
+          if (!prev) return prev;
+          if (data?.userId === myId) return prev;
+
+          return {
+            ...prev,
+            score: data?.score ?? prev.score,
+            combo: data?.combo ?? prev.combo,
+          };
+        });
+      },
+
+      // ===================== RTC 시그널링 =====================
+      onRtcMessage: async (msg) => {
+        console.log('[RTC RX RAW]', msg);
+
+        const pc = ensurePc();
+        if (!pc) return;
+
+        // 🔥 단일 경로: 시그널 수신 시점에만 트랙 보장
+        const s = localStreamRef.current;
+        if (s) {
+          for (const t of s.getTracks()) {
+            const already = pc.getSenders().some(sender => sender.track === t);
+            if (!already) {
+              pc.addTrack(t, s);
+            }
+          }
+        }
+
+        try {
+          switch (msg.type) {
+            case 'OFFER': {
+              await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
+
+              // ✅ localStream 없으면 answer 만들지 말고 저장만
+              if (!localStreamRef.current) {
+                pendingOfferRef.current = { roomId, offer: msg.offer };
+                break;
+              }
+
+              // ✅ localStream 있으면 트랙 보장 후 answer
+              const s2 = localStreamRef.current;
+              for (const t of s2.getTracks()) {
+                const already = pc.getSenders().some(sender => sender.track === t);
+                if (!already) pc.addTrack(t, s2);
+              }
+
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              sendRtcAnswer(roomId, answer);
+
+              const pending = pendingIceRef.current;
+              pendingIceRef.current = [];
+              for (const c of pending) await pc.addIceCandidate(c);
+
+              break;
+            }
+
+
+            case 'ANSWER': {
+              if (pc.signalingState !== 'have-local-offer') return;
+
+              await pc.setRemoteDescription(
+                new RTCSessionDescription(msg.answer)
+              );
+
+              const pending = pendingIceRef.current;
+              pendingIceRef.current = [];
+              for (const c of pending) {
+                await pc.addIceCandidate(c);
+              }
+              break;
+            }
+
+            case 'CANDIDATE': {
+              const cand = new RTCIceCandidate(msg.candidate);
+
+              if (pc.remoteDescription) {
+                try {
+                  await pc.addIceCandidate(cand);
+                  console.log('[RTC ICE RX OK]', {
+                    mid: cand.sdpMid,
+                    mline: cand.sdpMLineIndex,
+                    head: String(cand.candidate).slice(0, 60),
+                  });
+                } catch (e) {
+                  console.error('[RTC ICE RX FAIL]', msg.candidate, e);
+                }
+              } else {
+                console.log('[RTC ICE RX QUEUED]', {
+                  mid: cand.sdpMid,
+                  mline: cand.sdpMLineIndex,
+                  head: String(cand.candidate).slice(0, 60),
+                });
+                pendingIceRef.current.push(cand);
+              }
+              break;
+            }
+
+            default:
+              break;
+          }
+        } catch (err) {
+          console.error('[RTC SIGNAL ERROR]', msg?.type, err);
+        }
+      },
+    });
+
+    return () => {
+      setMultiSocketHandlers({});
+    };
+  }, [isMulti, loginUser, roomId]);
+
 
 
   useEffect(() => {
@@ -630,12 +898,25 @@ function GamePlay() {
             onState={({ score, combo, diff, currentTime, duration, maxScore }) => {
               if (finished) return;
 
+              comboRef.current = combo;   //
+
               setScore(score);
               setCombo(combo);
               if (diff) setDiff(diff);
 
               setSongProgress(duration > 0 ? Math.min(1, currentTime / duration) : 0);
               setClassProgress(maxScore > 0 ? Math.min(1, score / maxScore) : 0);
+
+              // ===== 멀티일 때만 서버로 점수 전송 =====
+              if (isMulti && roomId) {
+                publishMulti('/app/multi/score', {
+                  roomId,
+                  score,
+                  combo: comboRef.current,
+                  maxCombo: comboRef.current,
+                });
+              }
+
             }}
 
             onFinish={({ score, maxScore, maxCombo, diff: finishDiff }) => {
@@ -661,6 +942,55 @@ function GamePlay() {
                 },
               });
             }}
+            isMulti={isMulti}
+            roomId={roomId}
+            onStreamReady={(stream) => {
+              localStreamRef.current = stream;
+
+              // ✅ PC 없으면 먼저 생성
+              if (!pcRef.current && isMulti && loginUser?.loginUser?.id && roomId) {
+                // ensurePc가 useEffect 내부에 있어서 여기서 못 쓰는 구조라면,
+                // 최소로: connect가 이미 되어있는 상태에서만 이 블록이 돈다고 가정하지 말고
+                // 아래처럼 안전하게 return 하지 않게 "pc가 생긴 뒤에만" answer/offer 처리로 둡니다.
+              }
+
+              const pc = pcRef.current;
+              if (pc) {
+                // ✅ 트랙 보장
+                for (const t of stream.getTracks()) {
+                  const already = pc.getSenders().some(sender => sender.track === t);
+                  if (!already) pc.addTrack(t, stream);
+                }
+
+                // ✅ OFFER를 먼저 받았던 경우: 지금 여기서 answer
+                const pending = pendingOfferRef.current;
+                if (
+                  pending &&
+                  pc.remoteDescription &&
+                  pc.signalingState === 'have-remote-offer'
+                ) {
+                  (async () => {
+                    try {
+                      const answer = await pc.createAnswer();
+                      await pc.setLocalDescription(answer);
+                      sendRtcAnswer(pending.roomId, answer);
+
+                      const ice = pendingIceRef.current;
+                      pendingIceRef.current = [];
+                      for (const c of ice) await pc.addIceCandidate(c);
+
+                      pendingOfferRef.current = null;
+                    } catch (err) {
+                      console.error('[RTC PENDING ANSWER FAIL]', err);
+                    }
+                  })();
+                }
+              }
+
+              // ✅ offerer면 offer 시도
+              tryStartRtc();
+            }}
+
           />
         )}
 

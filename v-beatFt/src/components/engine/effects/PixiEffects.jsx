@@ -19,7 +19,6 @@ function getLaneRightX(lane) {
 
 const LONG_PULSE_INTERVAL_MS = 140;
 const LONG_MISSING_GRACE_MS = 60;
-const TAP_DEDUPE_WINDOW_MS = 80;
 
 let texturesPromise = null;
 
@@ -81,26 +80,40 @@ export default function PixiEffects({
   const texturesRef = useRef(null);
   const initReadyRef = useRef(false);
   const judgeLayerRef = useRef(null);
+
   const longPulseRef = useRef(new Map());
   const effectsRef = useRef(effects || []);
   const aliveRef = useRef(new Map());
   const tapEffectsRef = useRef([]);
   const longStreamRef = useRef(new Map());
   const tapStreamRef = useRef(new Map());
+
   const processedTapSetRef = useRef(new Set());
   const processedTapQueueRef = useRef([]);
   const TAP_KEY_MAX = 1500;
-  const lastTapCreatedAtByLaneRef = useRef(new Map());
+
   const judgeTextsRef = useRef([]);
   const judgeClearedThisBatchRef = useRef(false);
   const consumedEffectIdsRef = useRef(new Set());
-  const comboTextRef = useRef(null);;
-  const lastTickRef = useRef(0);
+
+  const comboTextRef = useRef(null);
+
+  // ✅ 매 프레임 Set 재생성 방지
+  const presentLongKeysRef = useRef(new Set());
+
+  // ✅ tickerFn([])에서 props 최신값 사용
+  const showHitEffectRef = useRef(showHitEffect);
+  const showJudgeTextRef = useRef(showJudgeText);
+  const showComboTextRef = useRef(showComboText);
+  const fpsLimitRef = useRef(fpsLimit);
   const lowEffectRef = useRef(lowEffect);
 
-  useEffect(() => {
-    effectsRef.current = effects || [];
-  }, [effects]);
+  useEffect(() => { effectsRef.current = effects || []; }, [effects]);
+  useEffect(() => { showHitEffectRef.current = showHitEffect; }, [showHitEffect]);
+  useEffect(() => { showJudgeTextRef.current = showJudgeText; }, [showJudgeText]);
+  useEffect(() => { showComboTextRef.current = showComboText; }, [showComboText]);
+  useEffect(() => { fpsLimitRef.current = fpsLimit; }, [fpsLimit]);
+  useEffect(() => { lowEffectRef.current = lowEffect; }, [lowEffect]);
 
   useEffect(() => {
     let mounted = true;
@@ -113,8 +126,6 @@ export default function PixiEffects({
     const longStream = longStreamRef.current;
     const processedTapSet = processedTapSetRef.current;
     const processedTapQueue = processedTapQueueRef.current;
-    const lastTapCreatedAtByLane = lastTapCreatedAtByLaneRef.current;
-
 
     (async () => {
       const textures = await loadEffectTextures();
@@ -127,7 +138,6 @@ export default function PixiEffects({
         preserveDrawingBuffer: true,
       });
 
-
       if (!mounted) {
         try { app.destroy(true); } catch {/* ignore */ }
         return;
@@ -135,8 +145,6 @@ export default function PixiEffects({
 
       onPixiReady?.(app.canvas);
       texturesRef.current = textures;
-      window.__pixiEffectTextures = textures;
-      window.__pixiStreamTexture = textures.laneStream;
 
       appRef.current = app;
       if (containerRef.current) containerRef.current.appendChild(app.canvas);
@@ -147,12 +155,14 @@ export default function PixiEffects({
       judgeLayerRef.current = judgeLayer;
 
       tickerFn = () => {
-
         const now = performance.now();
-
         const currentEffects = effectsRef.current || [];
 
-        if (!showComboText && comboTextRef.current) {
+        // ✅ maxFPS는 runtime 값으로 유지 (props 변경 반영)
+        app.ticker.maxFPS = (lowEffectRef.current ? 30 : (fpsLimitRef.current || 60));
+
+        // ✅ comboText 최신값 반영
+        if (!showComboTextRef.current && comboTextRef.current) {
           app.stage.removeChild(comboTextRef.current.container);
           comboTextRef.current.destroy();
           comboTextRef.current = null;
@@ -166,24 +176,30 @@ export default function PixiEffects({
           }
         }
 
-        for (const effect of currentEffects) {
-          if (effect.type !== 'long') continue;
+        // ✅ presentLongKeys: 재사용(Set.clear) + pulse 처리와 1-pass로 합치기
+        const presentLongKeys = presentLongKeysRef.current;
+        presentLongKeys.clear();
+
+        for (let i = 0; i < currentEffects.length; i++) {
+          const effect = currentEffects[i];
+          if (!effect || effect.type !== 'long') continue;
+
           const key = makeLongKey(effect);
           if (!key) continue;
+
+          presentLongKeys.add(key);
 
           const lastPulse = longPulseRef.current.get(key) ?? 0;
           if (now - lastPulse < LONG_PULSE_INTERVAL_MS) continue;
 
           longPulseRef.current.set(key, now);
 
-          const lane = effect.lane;
-          if (lane == null) continue;
-
-          if (longStreamRef.current.has(key)) {
-            longStreamRef.current.get(key).reset(now);
-          }
+          const stream = longStreamRef.current.get(key);
+          if (stream) stream.reset(now);
         }
-        judgeTextsRef.current = judgeTextsRef.current.filter(inst => {
+
+        // JudgeText 업데이트
+        judgeTextsRef.current = judgeTextsRef.current.filter((inst) => {
           inst.update(now);
           if (inst.dead) {
             judgeLayerRef.current.removeChild(inst.container);
@@ -193,14 +209,9 @@ export default function PixiEffects({
           return true;
         });
 
-        const presentLongKeys = new Set();
-        for (const e of currentEffects) {
-          if (e.type !== 'long') continue;
-          const k = makeLongKey(e);
-          if (k) presentLongKeys.add(k);
-        }
-
-        aliveRef.current.forEach((inst, key) => {
+        // ✅ Map 순회 중 delete 방지(죽은 키를 모아서 처리)
+        const deadKeys = [];
+        alive.forEach((inst, key) => {
           if (presentLongKeys.has(key)) {
             inst.lastSeen = now;
           } else {
@@ -209,22 +220,32 @@ export default function PixiEffects({
               inst.startEnd(now);
             }
           }
-          inst.update(now);
-          if (inst.dead) {
-            app.stage.removeChild(inst.container);
-            inst.destroy();
-            aliveRef.current.delete(key);
 
-            const stream = longStreamRef.current.get(key);
-            if (stream) {
-              app.stage.removeChild(stream.container);
-              stream.destroy();
-              longStreamRef.current.delete(key);
-            }
+          inst.update(now);
+
+          if (inst.dead) {
+            deadKeys.push(key);
           }
         });
 
-        tapEffectsRef.current = tapEffectsRef.current.filter(inst => {
+        for (let i = 0; i < deadKeys.length; i++) {
+          const key = deadKeys[i];
+          const inst = alive.get(key);
+          if (inst) {
+            app.stage.removeChild(inst.container);
+            inst.destroy();
+            alive.delete(key);
+          }
+          const stream = longStream.get(key);
+          if (stream) {
+            app.stage.removeChild(stream.container);
+            stream.destroy();
+            longStream.delete(key);
+          }
+        }
+
+        // tap effects update
+        tapEffectsRef.current = tapEffectsRef.current.filter((inst) => {
           if (inst.dead) return false;
           inst.update(now);
           if (inst.dead) {
@@ -235,40 +256,68 @@ export default function PixiEffects({
           return true;
         });
 
-        tapStreamRef.current.forEach((inst, lane) => {
+        // lane stream update
+        tapStream.forEach((inst, lane) => {
           inst.update(now);
           if (inst.dead) {
             app.stage.removeChild(inst.container);
             inst.destroy();
-            tapStreamRef.current.delete(lane);
+            tapStream.delete(lane);
           }
         });
 
-        longStreamRef.current.forEach((inst) => {
+        longStream.forEach((inst) => {
           inst.update(now);
         });
+
+        // ✅ TAP dedupe 메모리 상한 적용 (무한 증가 방지)
+        // (실제 추가는 아래 effects 처리 useEffect에서 수행하므로, 여기서는 안전장치로만 유지)
+        while (processedTapQueue.length > TAP_KEY_MAX) {
+          const old = processedTapQueue.shift();
+          if (old != null) processedTapSet.delete(old);
+        }
       };
-      app.ticker.maxFPS = fpsLimit || 60;
+
+      app.ticker.maxFPS = (lowEffectRef.current ? 30 : (fpsLimitRef.current || 60));
       app.ticker.add(tickerFn);
     })();
 
     return () => {
       mounted = false;
       initReadyRef.current = false;
+
       const app = appRef.current;
       if (app && tickerFn) {
         try { app.ticker.remove(tickerFn); } catch {/* ignore */ }
       }
-      alive.forEach(inst => { try { inst.destroy(); } catch { /* ignore */ } });
+
+      alive.forEach((inst) => { try { inst.destroy(); } catch {/* ignore */} });
       alive.clear();
-      tapEffects.forEach(inst => { try { inst.destroy(); } catch { /* ignore */ } });
-      tapStream.forEach(inst => { try { inst.destroy(); } catch { /* ignore */ } });
+
+      tapEffects.forEach((inst) => { try { inst.destroy(); } catch {/* ignore */} });
+      tapEffects.length = 0;
+
+      tapStream.forEach((inst) => { try { inst.destroy(); } catch {/* ignore */} });
       tapStream.clear();
-      longStream.forEach(inst => { try { inst.destroy(); } catch { /* ignore */ } });
+
+      longStream.forEach((inst) => { try { inst.destroy(); } catch {/* ignore */} });
       longStream.clear();
-      processedTapSet.clear();  // 여기서 사용
-      processedTapQueue.length = 0;  // 여기서 사용
-      lastTapCreatedAtByLane.clear();  // 여기서 사용
+
+      processedTapSet.clear();
+      processedTapQueue.length = 0;
+
+      longPulseRef.current.clear();
+      presentLongKeysRef.current.clear();
+      judgeTextsRef.current.forEach((inst) => { try { inst.destroy(); } catch {/* ignore */} });
+      judgeTextsRef.current.length = 0;
+      consumedEffectIdsRef.current.clear();
+      judgeClearedThisBatchRef.current = false;
+
+      if (comboTextRef.current) {
+        try { comboTextRef.current.destroy(); } catch {/* ignore */ }
+        comboTextRef.current = null;
+      }
+
       if (app) {
         try {
           app.ticker.stop();
@@ -276,44 +325,49 @@ export default function PixiEffects({
           app.destroy(true);
         } catch {/* ignore */ }
       }
+
       appRef.current = null;
       texturesRef.current = null;
+
       if (container) container.innerHTML = '';
     };
-  }, []);
+  }, []); // ✅ Pixi 앱은 1회 생성 유지
 
   useEffect(() => {
     const app = appRef.current;
     const textures = texturesRef.current;
     if (!initReadyRef.current || !app || !textures) return;
+
     judgeClearedThisBatchRef.current = false;
+
     const { HIT_LINE_Y } = GAME_CONFIG.CANVAS;
     const now = performance.now();
 
-    (effects || []).forEach(effect => {
-      if (effect.id && consumedEffectIdsRef.current.has(effect.id)) return;
+    (effects || []).forEach((effect) => {
+      if (effect?.id && consumedEffectIdsRef.current.has(effect.id)) return;
 
-      const lane = effect.type === 'judge' ? null : effect.lane;
-      if (effect.type !== 'judge' && lane < 0) return;
+      const lane = effect?.type === 'judge' ? null : effect?.lane;
+      if (effect?.type !== 'judge' && (lane == null || lane < 0)) return;
 
-      /* ================= 판정 텍스트 ================= */
+      // ================= 판정 텍스트 =================
       if (effect.type === 'judge') {
-        if (!showJudgeText) {
-          consumedEffectIdsRef.current.add(effect.id);
+        if (!showJudgeTextRef.current) {
+          if (effect.id) consumedEffectIdsRef.current.add(effect.id);
           return;
         }
+
         if (!judgeClearedThisBatchRef.current) {
-          judgeTextsRef.current.forEach(old => {
+          judgeTextsRef.current.forEach((old) => {
             judgeLayerRef.current.removeChild(old.container);
             old.destroy();
           });
           judgeTextsRef.current.length = 0;
           judgeClearedThisBatchRef.current = true;
         }
+
         const inst = new JudgmentText({ text: effect.judgement });
         inst.container.x = GAME_CONFIG.CANVAS.WIDTH / 2;
         inst.container.y = GAME_CONFIG.CANVAS.HEIGHT * 0.65;
-
         inst.container.rotation = 0;
         inst.container.scale.set(1, 1);
         inst.container.skew.set(0, 0);
@@ -321,7 +375,7 @@ export default function PixiEffects({
         judgeLayerRef.current.addChild(inst.container);
         judgeTextsRef.current.push(inst);
 
-        if (showComboText && effect.combo && effect.combo > 1) {
+        if (showComboTextRef.current && effect.combo && effect.combo > 1) {
           if (comboTextRef.current) {
             judgeLayerRef.current.removeChild(comboTextRef.current.container);
             comboTextRef.current.destroy();
@@ -332,35 +386,36 @@ export default function PixiEffects({
           comboTextRef.current = comboInst;
         }
 
-        consumedEffectIdsRef.current.add(effect.id);
+        if (effect.id) consumedEffectIdsRef.current.add(effect.id);
         return;
       }
 
-      /* ================= tap / long 공통 ================= */
+      // ================= tap / long 공통 =================
       const laneLeft = getLaneLeftX(lane);
       const laneRight = getLaneRightX(lane);
-
       const x = applyPerspective((laneLeft + laneRight) / 2, HIT_LINE_Y);
       const streamWidthPx = Math.abs(laneRight - laneLeft);
-      /* ================= TAP ================= */
+
+      // ================= TAP =================
       if (effect.type === 'tap') {
-        if (!showHitEffect) {
-          consumedEffectIdsRef.current.add(effect.id);
+        if (!showHitEffectRef.current) {
+          if (effect.id) consumedEffectIdsRef.current.add(effect.id);
           return;
         }
-        const tapKey = makeTapKey(effect);
-        let allowTap = true;
 
+        const tapKey = makeTapKey(effect);
         if (tapKey) {
-          if (processedTapSetRef.current.has(tapKey)) {
-            allowTap = false;
-          } else {
-            processedTapSetRef.current.add(tapKey);
-            processedTapQueueRef.current.push(tapKey);
+          if (processedTapSetRef.current.has(tapKey)) return;
+
+          processedTapSetRef.current.add(tapKey);
+          processedTapQueueRef.current.push(tapKey);
+
+          // ✅ 상한 유지(무한 증가 방지)
+          while (processedTapQueueRef.current.length > TAP_KEY_MAX) {
+            const old = processedTapQueueRef.current.shift();
+            if (old != null) processedTapSetRef.current.delete(old);
           }
         }
-
-        if (!allowTap) return;
 
         const inst = new LightEffect({ textures, type: 'tap' });
         inst.container.x = x;
@@ -368,16 +423,18 @@ export default function PixiEffects({
         app.stage.addChild(inst.container);
         tapEffectsRef.current.push(inst);
 
-        consumedEffectIdsRef.current.add(effect.id);
+        if (effect.id) consumedEffectIdsRef.current.add(effect.id);
       }
 
-      /* ================= LONG ================= */
+      // ================= LONG =================
       if (effect.type === 'long') {
-        if (!showHitEffect) {
-          consumedEffectIdsRef.current.add(effect.id);
+        if (!showHitEffectRef.current) {
+          if (effect.id) consumedEffectIdsRef.current.add(effect.id);
           return;
         }
+
         const key = makeLongKey(effect);
+        if (!key) return;
 
         if (!aliveRef.current.has(key)) {
           const inst = new LightEffect({
@@ -388,6 +445,7 @@ export default function PixiEffects({
           inst.container.x = x;
           inst.container.y = HIT_LINE_Y;
           inst.lastSeen = now;
+
           app.stage.addChild(inst.container);
           aliveRef.current.set(key, inst);
 
@@ -395,34 +453,22 @@ export default function PixiEffects({
             texture: textures.laneStream,
             laneWidth: streamWidthPx,
           });
-
           stream.container.x = x;
           stream.container.y = HIT_LINE_Y;
+
           app.stage.addChild(stream.container);
           longStreamRef.current.set(key, stream);
-
-          consumedEffectIdsRef.current.add(effect.id);
         }
+
+        if (effect.id) consumedEffectIdsRef.current.add(effect.id);
       }
     });
   }, [effects]);
-
-  useEffect(() => {
-    lowEffectRef.current = lowEffect;
-  }, [lowEffect]);
-
-  useEffect(() => {
-    const app = appRef.current;
-    if (!app) return;
-    app.ticker.maxFPS = (lowEffect ? 30 : (fpsLimit || 60));
-  }, [fpsLimit, lowEffect]);
-
 
   return (
     <div
       ref={containerRef}
       style={{
-
         position: 'absolute',
         top: 0,
         left: 0,
@@ -431,7 +477,6 @@ export default function PixiEffects({
         pointerEvents: 'none',
         zIndex: 20,
       }}
-
     />
   );
 }

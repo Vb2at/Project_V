@@ -24,6 +24,8 @@ let subs = {
   roomClosed: null,
 };
 
+let lastRoomState = null;
+
 let handlers = {
   onConnect: null,
   onDisconnect: null,
@@ -94,9 +96,12 @@ function resubscribeRoomTopics(roomId) {
 
   subs.room = client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
     const data = safeJsonParse(msg.body);
+    if (data?.type === 'ROOM_STATE') {
+      lastRoomState = data;
+    }
+
     handlers.onRoomMessage?.(data, msg);
 
-    // ★ 추가: 멀티 시작 확정 시 GamePlay로 rival 전달
     if (data?.type === 'ROOM_STATE' && data?.started === true) {
       const players = data.players || [];
       const myId = data.myUserId;
@@ -114,6 +119,7 @@ function resubscribeRoomTopics(roomId) {
       );
     }
   });
+
 
   subs.score = client.subscribe(`/topic/multi/room/${roomId}/score`, (msg) => {
     const data = safeJsonParse(msg.body);
@@ -205,6 +211,11 @@ export function setMultiSocketHandlers(next = {}) {
     onStompError: next.onStompError ?? null,
     onWsClose: next.onWsClose ?? null,
   };
+
+  // ★ 추가: 핸들러가 붙는 순간 최신 ROOM_STATE 즉시 재전송
+  if (lastRoomState && handlers.onRoomMessage) {
+    handlers.onRoomMessage(lastRoomState, null);
+  }
 }
 
 /**
@@ -248,6 +259,9 @@ export function connectMultiSocket({
       onStompError: onStompError ?? handlers.onStompError,
       onWsClose: onWsClose ?? handlers.onWsClose,
     };
+    if (lastRoomState && handlers.onRoomMessage) {
+      handlers.onRoomMessage(lastRoomState, null);
+    }
   }
 
   desiredRoomId = roomId ?? desiredRoomId;
@@ -273,6 +287,8 @@ export function disconnectMultiSocket() {
   desiredRoomId = null;
   connected = false;
   pendingPublishes.splice(0);
+
+  lastRoomState = null;
 
   // handlers clear (안전)
   setMultiSocketHandlers({});
@@ -319,10 +335,10 @@ export function sendStart(roomId, headers) {
   return publishMulti('/app/multi/start', { roomId }, headers);
 }
 
-export function sendLeave(roomId, headers) {
-  return publishMulti('/app/multi/leave', { roomId }, headers);
+export function sendLeave(roomId) {
+  console.log('[LEAVE TX]', roomId);   // ← 추가
+  publishMulti('/app/multi/leave', { roomId });
 }
-
 // ===== RTC relay helpers =====
 export function sendRtcOffer(roomId, offer, headers) {
   return publishMulti('/app/multi/rtc/offer', { roomId, offer }, headers);

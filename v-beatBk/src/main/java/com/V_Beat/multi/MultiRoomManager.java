@@ -14,6 +14,7 @@ import com.V_Beat.ai.service.SongService;
 import com.V_Beat.service.UserService;
 
 import lombok.extern.slf4j.Slf4j;
+
 @Slf4j
 @Component
 public class MultiRoomManager {
@@ -156,44 +157,53 @@ public class MultiRoomManager {
 	}
 
 	public synchronized boolean leaveGameByDisconnect(Integer userId) {
-	    long now = System.currentTimeMillis();
+		long now = System.currentTimeMillis();
 
-	    for (MultiRoom room : rooms.values()) {
+		for (MultiRoom room : rooms.values()) {
 
-	        Long startAt = room.getStartAt();
-	        if (startAt == null)
-	            continue;
+			Long startAt = room.getStartAt();
+			if (startAt == null)
+				continue;
 
-	        // ✅ START 이전이면 게임 이탈 아님
-	        if (now < startAt)
-	            continue;
+			// ✅ START 이전이면 게임 이탈 아님
+			if (now < startAt)
+				continue;
 
-	        // ✅ START 직후 유예 구간 (3초)
-	        // 이 구간의 disconnect는 "정상 화면 전환"으로 간주하고 무시
-	        if (now - startAt < 3000) {
-	            log.warn("[DISCONNECT IGNORED] start-transition userId={} roomId={}",
-	                    userId, room.getRoomId());
-	            return true; // handled
-	        }
+			// ✅ START 직후 유예 구간 (3초)
+			// 이 구간의 disconnect는 "정상 화면 전환"으로 간주하고 무시
+			if (now - startAt < 3000) {
+				log.warn("[DISCONNECT IGNORED] start-transition userId={} roomId={}", userId, room.getRoomId());
+				return true; // handled
+			}
 
-	        boolean exists = room.getPlayers().stream()
-	                .anyMatch(p -> p.getUserId().equals(userId));
+			boolean exists = room.getPlayers().stream().anyMatch(p -> p.getUserId().equals(userId));
 
-	        if (!exists)
-	            continue;
+			if (!exists)
+				continue;
 
-	        // ✅ 여기까지 왔다는 건 "실제 게임 중 이탈"
-	        messagingTemplate.convertAndSend(
-	                "/topic/multi/room/" + room.getRoomId(),
-	                Map.of("type", "OPPONENT_LEFT", "userId", userId)
-	        );
+			// ✅ 여기까지 왔다는 건 "실제 게임 중 이탈"
+			messagingTemplate.convertAndSend("/topic/multi/room/" + room.getRoomId(),
+					Map.of("type", "OPPONENT_LEFT", "userId", userId));
 
-	        log.warn("[OPPONENT_LEFT SENT] userId={} roomId={}", userId, room.getRoomId());
-	        return true;
-	    }
+			log.warn("[OPPONENT_LEFT SENT] userId={} roomId={}", userId, room.getRoomId());
+			return true;
+		}
 
-	    return false;
+		return false;
 	}
 
+	public synchronized void applyScore(String roomId, Integer userId, int score, int combo) {
+		MultiRoom room = rooms.get(roomId);
+		if (room == null)
+			return;
+
+		for (MultiPlayer p : room.getPlayers()) {
+			if (p.getUserId().equals(userId)) {
+				p.setScore(score);
+				p.setCombo(combo);
+				return;
+			}
+		}
+	}
 
 }

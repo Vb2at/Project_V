@@ -153,15 +153,6 @@ export default function GameSession({
   }, [propSongId, roomId]);
 
   useEffect(() => {
-    console.log('[COMPOSITE ENTER]', {
-      onStreamReady: !!onStreamReady,
-      started: compositeStartedRef.current,
-      out: !!compositeCanvasRef.current,
-      base: !!baseCanvasRef.current,
-      notes: !!notesCanvasRef.current,
-      fx: !!effectsCanvasRef.current,
-    });
-
     if (!onStreamReady || !isMulti) return;        // mode 체크 제거
     if (compositeStartedRef.current) return;
 
@@ -175,8 +166,8 @@ export default function GameSession({
     compositeStartedRef.current = true;
 
     // ===== 해상도 조절 =====
-    const WIDTH = 1080;
-    const HEIGHT = 1920;
+    const WIDTH = 240;
+    const HEIGHT = 426;
     out.width = WIDTH;
     out.height = HEIGHT;
 
@@ -193,18 +184,15 @@ export default function GameSession({
       if (fx) ctx.drawImage(fx, 0, 0, WIDTH, HEIGHT);
       //localStream 생성/전달
       if (!firstFrameDrawn) {
-        console.log('[STREAM CAPTURE BLOCK ENTER]');
         firstFrameDrawn = true;
 
         requestAnimationFrame(() => {
-          const fps = settings.fps ?? 60;
+          const fps = 20;              // 고정
           const stream = out.captureStream(fps);
 
-          console.log('[STREAM CREATED]', stream, stream.getTracks());
           //localStream 생성 
           if (!sentStreamRef.current) {
             sentStreamRef.current = stream;
-            console.log('[STREAM SENT TO GAMEPLAY]');
             onStreamReady(stream);
           }
         });
@@ -240,7 +228,7 @@ export default function GameSession({
         roomId,
         userId: loginUserId,
         score,
-        combo,
+        combo: comboRef.current,
         maxCombo: maxComboRef.current,
       }),
     });
@@ -607,13 +595,16 @@ export default function GameSession({
     return () => cancelAnimationFrame(rafId);
   }, [effectivePaused]);
 
-  // 🔽 React state는 저주기로만 동기화
   useEffect(() => {
-    const id = setInterval(() => {
-      setCurrentTime(currentTimeRef.current);
-    }, 100);// 20fps (UI 충분)
+    let rafId = null;
 
-    return () => clearInterval(id);
+    const loop = () => {
+      setCurrentTime(currentTimeRef.current);
+      rafId = requestAnimationFrame(loop);
+    };
+
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
   }, []);
 
 
@@ -828,7 +819,6 @@ export default function GameSession({
         usedSetNotes((prev) =>
           prev.map((n) => {
             if (n.lane === laneIndex && n.holding) {
-              setCombo(0);
               setEffects((eff) =>
                 eff.filter((e) => !(e.type === 'long' && e.noteId === `${n.timing}-${n.lane}`))
               );
@@ -1549,12 +1539,14 @@ export default function GameSession({
         <canvas
           ref={compositeCanvasRef}
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
+            position: 'fixed',      // ★ 핵심
+            top: -9999,             // 화면 밖으로 완전히 추방
+            left: -9999,
+            width: 1,
+            height: 1,
             opacity: 0,
             pointerEvents: 'none',
-            zIndex: 9999,
+            zIndex: -9999,
           }}
         />
         {mode === 'edit' && tool === 'delete' && deleteBox && (
@@ -1633,7 +1625,7 @@ export default function GameSession({
                 showJudgeText={settings.judgeText}
                 showComboText={settings.comboText}
                 lowEffect={settings.lowEffect}
-                fpsLimit={30}
+                fpsLimit={60}
                 onPixiReady={(canvas) => {
                   if (!canvas) return;
                   effectsCanvasRef.current = canvas;

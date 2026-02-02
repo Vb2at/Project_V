@@ -43,9 +43,18 @@ export default function RoomLobby() {
   const songTitleRef = useRef(null);
   const toggleReady = () => sendReady(roomId);
   const startGame = () => sendStart(roomId);
+
+
   const leaveRoom = () => {
     sendLeave(roomId);
-    navigate('/main', { replace: true });
+
+    // 서버가 응답하지 않을 때 대비한 안전장치
+    setTimeout(() => {
+      if (!sessionStorage.getItem('roomClosed')) {
+        sessionStorage.setItem('roomClosed', 'true');
+        navigate('/main', { replace: true });
+      }
+    }, 500);
   };
 
   const [myUserId, setMyUserId] = useState(null);
@@ -83,6 +92,8 @@ export default function RoomLobby() {
       },
 
       onRoomClosed: () => {
+        console.log('[ROOM_CLOSED RX]'); 
+        sessionStorage.setItem('roomClosed', 'true'); // 이동 후 alert용 신호
         navigate('/main', { replace: true });
       }
     });

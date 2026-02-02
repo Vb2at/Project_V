@@ -178,6 +178,10 @@ public class MultiSocketController {
 			return;
 		}
 
+		log.info("[SCORE RX SERVER] roomId={} userId={} score={} combo={} maxCombo={}", roomId, userId,
+				payload.getScore(), payload.getCombo(), payload.getMaxCombo());
+		
+		roomManager.applyScore(roomId, userId, payload.getScore(), payload.getCombo());
 		messagingTemplate.convertAndSend("/topic/multi/room/" + roomId + "/score", Map.of("type", "SCORE", "userId",
 				userId, "score", payload.getScore(), "combo", payload.getCombo(), "maxCombo", payload.getMaxCombo()));
 	}
