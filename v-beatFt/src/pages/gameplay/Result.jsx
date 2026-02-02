@@ -1,8 +1,9 @@
 // src/pages/gameplay/Result.jsx
 import { getClassByRatio } from "../../util/scoreClass";
+import axios from 'axios';
 import Background from '../../components/Common/Background';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useEffect} from 'react';
+import { useEffect, useRef } from 'react';
 import {
   playResultEnter,
   startResultBgm,
@@ -83,17 +84,10 @@ function ScoreCard({ title, score, maxScore, maxCombo, grade, glowColor }) {
 export default function Result() {
   const { state } = useLocation();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    playResultEnter();
-    startResultBgm();
-    return () => stopResultBgm();
-  }, []);
-
+  const savedRef = useRef(false);
   const {
     mode = 'single',
     winByLeave = false,
-
     score = 0,
     maxScore = 1,
     maxCombo = 0,
@@ -102,20 +96,44 @@ export default function Result() {
     myScore = score,
     myMaxScore = maxScore,
     myMaxCombo = maxCombo,
-
     rivalScore = 0,
     rivalMaxScore = maxScore,
     rivalMaxCombo = 0,
+    songId,
+    diff,
   } = state ?? {};
 
-  const isMulti = mode === 'multi';
-
-  // ===== 핵심 계산 =====
   const myRatio = myMaxScore > 0 ? myScore / myMaxScore : 0;
   const rivalRatio = rivalMaxScore > 0 ? rivalScore / rivalMaxScore : 0;
 
   const myGrade = getClassByRatio(myRatio);
   const rivalGrade = getClassByRatio(rivalRatio);
+
+  useEffect(() => {
+    playResultEnter();
+    startResultBgm();
+
+    if (!songId || savedRef.current) return; // 이미 저장했으면 무시
+    savedRef.current = true
+
+    if (songId) { // songId 등 필수 값 체크
+      const payload = {
+        songId,
+        diff,
+        score: myScore,
+        accuracy: myMaxScore > 0 ? (myScore / myMaxScore) * 100 : 0,
+        grade: myGrade,
+        maxCombo: myMaxCombo,
+      };
+
+      axios.post('/api/scores', payload)
+        .then(() => console.log('점수 저장 성공'))
+        .catch(err => console.error('점수 저장 실패', err));
+    }
+    return () => stopResultBgm();
+  }, []);
+
+  const isMulti = mode === 'multi';
 
   // ===== 승패 =====
   let multiResultText = 'DRAW';
