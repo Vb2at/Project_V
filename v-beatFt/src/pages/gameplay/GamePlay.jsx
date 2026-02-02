@@ -1,5 +1,5 @@
 // src/pages/multi/GamePlay.jsx
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { statusApi } from '../../api/auth';
 import Header from '../../components/Common/Header';
 import GameSession from '../../components/engine/GameSession';
@@ -8,16 +8,13 @@ import LeftSidebar from './LeftSidebar';
 import RightSidebar from './RightSidebar';
 import HUD from './HUD.jsx';
 import HUDFrame from './HUDFrame.jsx';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import LoadingNoteRain from './LoadingNoteRain';
 import { playCountTick, playCountStart } from '../../components/engine/SFXManager';
 import { playMenuConfirm } from '../../components/engine/SFXManager';
 import Visualizer from '../../components/visualizer/Visualizer';
 import { LOADING_TIPS as TIPS } from '../../constants/LoadingTips';
 import { useSearchParams } from 'react-router-dom';
-import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client/dist/sockjs.min.js';
-
 const DEFAULT_SETTINGS = {
   fps: 60,
   hitEffect: true,
@@ -32,12 +29,10 @@ const DEFAULT_SETTINGS = {
   bgmMuted: false,
   sfxMuted: false,
 };
-
 function GamePlay() {
   const { songId: paramSongId } = useParams();
   const [searchParams] = useSearchParams();
-  const location = useLocation();
-  const lobbyRival = location.state?.rival ?? null;
+  const isMulti = searchParams.get('mode') === 'multi';
   const [settings, setSettings] = useState(() => {
     try {
       const v = localStorage.getItem('userSettings');
@@ -48,24 +43,12 @@ function GamePlay() {
     }
   });
 
-  // ===== 멀티 진입 파라미터 =====
-  const mode = searchParams.get('mode'); // 'multi' | ...
-  const roomId = searchParams.get('roomId'); // 멀티 방 id
-  const isMulti = mode === 'multi' || Boolean(roomId);
-
   // 토큰 파라미터
   const tokenParam = searchParams.get('token');
 
   // ===== songId 결정 =====
   const baseSongId = paramSongId ?? searchParams.get('songId');
 
-  // 멀티: URL에 songId가 없을 수 있으니 room에서 받아올 songId를 따로 관리
-  const [multiSongId, setMultiSongId] = useState(null);
-  const resolvedSongId = isMulti ? (multiSongId ?? baseSongId) : baseSongId;
-
-  // 멀티: (선택) 서버가 startAt을 주면 여기 저장해서 GameSession으로 전달
-  const [multiStartAt, setMultiStartAt] = useState(null);
-  const startAtParam = searchParams.get('startAt');
 
   const [diff, setDiff] = useState('unknown');
   const [score, setScore] = useState(0);
@@ -78,479 +61,39 @@ function GamePlay() {
   const [songProgress, setSongProgress] = useState(0);
   const [classProgress, setClassProgress] = useState(0);
   const [userPaused, setUserPaused] = useState(false);
-  const [rivalResult, setRivalResult] = useState(null);
+  const [rival, setRival] = useState(null);
   const analyserRef = useRef(null);
   const [sessionKey, setSessionKey] = useState(0);
-  // ✅ 오른쪽 사이드바에 들어갈 상대 상태(닉/프사/점수/콤보)
-  const [rival, setRival] = useState(() => ({
-    userId: lobbyRival?.userId ?? null,
-    nickname: lobbyRival?.nickname ?? null,
-    profileUrl: lobbyRival?.profileUrl ?? null,
-    score: 0,
-    combo: 0,
-    stream: null,
-  }));
-  const [localStream, setLocalStream] = useState(null);
-  const [rivalUserId, setRivalUserId] = useState(null);
+
   const MIN_LOADING_TIME = 2500;
   const loadingStartRef = useRef(0);
   const loadingEndRef = useRef(null);
   const HEADER_HEIGHT = 25;
+
   const [loginUser, setLoginUser] = useState(undefined);
-  const enteredRef = useRef(false);
-  const pendingRivalScoreRef = useRef(null);
   const navigate = useNavigate();
+
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
   const [song, setSong] = useState(null);
-  const [myId, setMyId] = useState(null);
-  const peerRef = useRef(null);
-  const myIdRef = useRef(null);
-  const [stompConnected, setStompConnected] = useState(false);
-  // ✅ stomp single instance
-  const stompRef = useRef(null);
-  const pendingIceRef = useRef([]);
-  const pendingOfferRef = useRef(null);
-  const rtcSubRef = useRef(null);
-  const [showExitModal, setShowExitModal] = useState(false);
-  const stompClientRef = stompRef;
-  const pendingIceToSendRef = useRef([]);
-  const [multiPhase, setMultiPhase] = useState('LOBBY');  // 'LOBBY' | 'LOADING' | 'PLAY'
-  const handleStreamReady = useCallback((stream) => {
-    if (!stream) return;
-    setLocalStream(stream); // ✅ 여기까지만
-  }, []);
 
-  const [localReady, setLocalReady] = useState(false);
-  const [rivalReady, setRivalReady] = useState(false);
 
   useEffect(() => {
+    // 준비가 깨지면 카운트다운 즉시 초기화
     if (!ready) {
       setCountdown(null);
-    }
-  }, [ready]);
-
-  useEffect(() => {
-    if (!isMulti) return;
-    if (!ready) return;          // 🔒 로딩 끝
-    if (!multiStartAt) return;   // 🔒 START 수신됨
-
-    setCountdown(3);
-  }, [isMulti, ready, multiStartAt]);
-
-
-  useEffect(() => {
-    if (isMulti) return;   // ✅ 멀티 차단
-    if (!ready) return;
-    if (!loadingDone) return;
-
-    setCountdown(3);
-  }, [isMulti, ready, loadingDone]);
-
-  useEffect(() => {
-    if (!isMulti || !roomId) return;
-    if (!myId) return;
-
-    const client = new Client({
-      webSocketFactory: () =>
-        new SockJS('http://localhost:8080/ws', null, { withCredentials: true }),
-      reconnectDelay: 3000,
-      debug: () => { },
-      onStompError: (frame) => {
-      },
-      onConnect: () => {
-        stompRef.current = client;
-        setStompConnected(true);
-
-        // ================= ROOM_STATE =================
-        client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
-          const data = JSON.parse(msg.body);
-
-          if (data.type === 'ROOM_CLOSED') {
-            if (finished) return;
-            setFinished(true);
-            // RTC 종료
-            if (peerRef.current) {
-              try { peerRef.current.close(); } catch { }
-              peerRef.current = null;
-            }
-
-            setRival(prev => ({ ...prev, stream: null }));
-
-            // 🔥 즉시 게임 종료 + 승리 처리
-            navigate('/game/result', {
-              replace: true,
-              state: {
-                mode: 'multi',
-                winByLeave: true,
-                // ← 판별용 플래그
-                myScore: score,
-                myMaxScore: null,
-                myMaxCombo: combo,
-                rivalScore: rivalResult?.score ?? 0,
-                rivalMaxScore: rivalResult?.maxScore ?? null,
-                rivalMaxCombo: rivalResult?.maxCombo ?? 0,
-              },
-            });
-
-            return;
-          }
-
-
-          if (data.type === 'ALL_READY') {
-            setRivalReady(true);   // ✅ 상대 준비 완료
-            setMultiPhase('PLAY'); // 기존
-          }
-
-          // songId 동기화
-          if (data.songId != null) {
-            setMultiSongId(String(data.songId));
-          } else if (data.song?.id != null) {
-            setMultiSongId(String(data.song.id));
-          }
-
-          if (data.type === 'START' && data.startAt) {
-            setMultiStartAt(data.startAt);
-            setMultiPhase('LOADING');
-          }
-
-          if (!Array.isArray(data.players)) return;
-
-          const other = data.players.find(
-            (p) => String(p.userId) !== String(myId)
-          );
-
-          if (other) {
-            setRivalUserId(other.userId);
-
-            setRival((prev) => ({
-              ...prev,
-              userId: other.userId,
-              nickname: other.nickname ?? prev.nickname ?? null,
-              profileUrl: other.profileImg ?? prev.profileUrl ?? null,
-            }));
-
-            // SCORE 캐시 반영
-            const cached = pendingRivalScoreRef.current;
-            if (cached) {
-              setRival((prev) => {
-                if (!prev?.userId) return prev;
-                if (String(prev.userId) !== String(other.userId)) return prev;
-                return { ...prev, ...cached };
-              });
-              pendingRivalScoreRef.current = null;
-            }
-          }
-        });
-
-        // 🔥 ICE send flush (필수)
-        if (pendingIceToSendRef.current.length > 0) {
-
-          for (const p of pendingIceToSendRef.current) {
-            client.publish({
-              destination: '/app/multi/rtc/candidate',
-              body: JSON.stringify(p),
-            });
-          }
-          pendingIceToSendRef.current = [];
-
-        }
-
-
-        // ================= SCORE =================
-        client.subscribe(`/topic/multi/room/${roomId}/score`, (msg) => {
-          const data = JSON.parse(msg.body);
-
-          if (String(data.userId) === String(myId)) return;
-
-          // ROOM_STATE 전에 오면 캐시
-          pendingRivalScoreRef.current = {
-            score: data.score,
-            combo: data.combo,
-            maxCombo: data.maxCombo,
-          };
-
-          setRival((prev) => {
-            if (!prev?.userId) return prev;
-            if (String(prev.userId) !== String(data.userId)) return prev;
-            return {
-              ...prev,
-              score: data.score,
-              combo: data.combo,
-              maxCombo: data.maxCombo,
-            };
-          });
-        });
-
-        // ================= RTC =================
-        if (rtcSubRef.current) {
-          rtcSubRef.current.unsubscribe();
-          rtcSubRef.current = null;
-        }
-
-        rtcSubRef.current = client.subscribe(
-          `/topic/multi/room/${roomId}/rtc`,
-          async (msg) => {
-            const data = JSON.parse(msg.body);
-
-            if (String(data.userId) === String(myId)) return;
-
-            if (data.type === 'OFFER') {
-              const pc = peerRef.current;
-              if (!pc) {
-                pendingOfferRef.current = data.offer;
-                return;
-              }
-
-              await pc.setRemoteDescription(data.offer);
-
-              for (const c of pendingIceRef.current) {
-                try {
-                  await pc.addIceCandidate(c);
-                } catch { }
-              }
-              pendingIceRef.current = [];
-
-              const answer = await pc.createAnswer();
-              await pc.setLocalDescription(answer);
-
-              stompRef.current.publish({
-                destination: '/app/multi/rtc/answer',
-                body: JSON.stringify({ roomId, answer, userId: myId }),
-              });
-            }
-
-            if (data.type === 'ANSWER') {
-              const pc = peerRef.current;
-              if (!pc) return;
-
-              if (pc.signalingState === 'stable') {
-                return;
-              }
-
-              await pc.setRemoteDescription(data.answer);
-
-              for (const c of pendingIceRef.current) {
-                try {
-                  await pc.addIceCandidate(c);
-                } catch { }
-              }
-              pendingIceRef.current = [];
-            }
-
-            if (data.type === 'CANDIDATE') {
-              const pc = peerRef.current;
-              if (!pc || !pc.remoteDescription) {
-                pendingIceRef.current.push(data.candidate);
-                return;
-              }
-              await pc.addIceCandidate(data.candidate);
-            }
-          }
-        );
-
-        // ================= ENTER =================
-        if (!enteredRef.current) {
-          setTimeout(() => {
-            client.publish({
-              destination: '/app/multi/enter',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ roomId }),
-            });
-
-            client.publish({
-              destination: '/app/multi/ready',
-              body: JSON.stringify({ roomId }),
-            });
-
-            enteredRef.current = true;
-          }, 0);
-        }
-      },
-    });
-
-    client.activate();
-
-    return () => {
-      enteredRef.current = false;
-      client.deactivate();
-    };
-  }, [isMulti, roomId, myId]);
-
-
-  useEffect(() => {
-    if (!isMulti) return;
-    if (!roomId) return;
-    if (!stompConnected) return;
-    if (!localStream) return;
-    if (peerRef.current) return;
-
-
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    });
-
-    peerRef.current = pc;
-
-    /* 1️⃣ addTrack (1회만) */
-    localStream.getTracks().forEach(track => {
-      pc.addTrack(track, localStream);
-    });
-
-    /* 2️⃣ ontrack */
-    pc.ontrack = (e) => {
-      const stream = e.streams[0];
-      if (!stream) return;
-
-      setRival(prev => {
-        if (prev.stream === stream) return prev;
-        return { ...prev, stream };
-      });
-    };
-
-    /* 3️⃣ ICE sender */
-    pc.onicecandidate = (e) => {
-      if (!e.candidate) {
-        return;
-      }
-
-      const payload = { roomId, candidate: e.candidate, userId: myId };
-
-      // STOMP 연결 전이면 버퍼링
-      if (!stompRef.current?.connected) {
-        pendingIceToSendRef.current.push(payload);
-        return;
-      }
-
-      stompRef.current.publish({
-        destination: '/app/multi/rtc/candidate',
-        body: JSON.stringify(payload),
-      });
-    };
-
-
-    /* 4️⃣ stash OFFER / ICE 처리 */
-    (async () => {
-      if (pendingOfferRef.current) {
-        await pc.setRemoteDescription(pendingOfferRef.current);
-        pendingOfferRef.current = null;
-
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-
-        stompRef.current.publish({
-          destination: '/app/multi/rtc/answer',
-          body: JSON.stringify({ roomId, answer, userId: myId }),
-        });
-      }
-      if (peerRef.current) {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        stompRef.current.publish({
-          destination: '/app/multi/rtc/offer',
-          body: JSON.stringify({ roomId, offer, userId: myId }),
-        });
-      }
-    })();
-
-    return () => {
-      try {
-        pc.ontrack = null;
-        pc.onicecandidate = null;
-        pc.onconnectionstatechange = null;
-        pc.oniceconnectionstatechange = null;
-        pc.getSenders?.().forEach(s => {
-          try { pc.removeTrack(s); } catch { }
-        });
-        pc.close();
-      } catch { }
-      peerRef.current = null;
-
-      // ✅ 재시작/재시도 시 잔여물 제거
-      pendingIceRef.current = [];
-      pendingOfferRef.current = null;
-
-      setRival(prev => (prev ? { ...prev, stream: null } : prev));
-    };
-  }, [
-    isMulti,
-    roomId,
-    stompConnected,
-    localStream,
-    rivalUserId,
-    myId,
-  ]);
-
-  useEffect(() => {
-    setLocalStream(null);
-  }, [sessionKey]);
-
-  // ✅ 게임 재시작(sessionKey 변경) 시 WebRTC 상태 완전 초기화
-  useEffect(() => {
-    // 기존 peer 정리
-    if (peerRef.current) {
-      try {
-        peerRef.current.ontrack = null;
-        peerRef.current.onicecandidate = null;
-        peerRef.current.close();
-      } catch { }
-      peerRef.current = null;
+      return;
     }
 
-    // 스트림/RTC 상태 리셋
-    pendingIceRef.current = [];
-    pendingOfferRef.current = null;
-
-    // UI도 리셋 (안 하면 오른쪽 video는 이전 상태로 남을 수 있음)
-    setRival((prev) => ({
-      ...prev,
-      stream: null,
-      score: 0,
-      combo: 0,
-    }));
-  }, [sessionKey]);
-
-
-  useEffect(() => {
-    if (!rivalUserId) return;
-
-    fetch(`/api/user/info?userId=${rivalUserId}`, {
-      credentials: 'include',
-    })
-      .then(res => res.json())
-      .then(data => {
-
-        const u = data?.user ?? data ?? {};
-        setRival(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            nickname: prev.nickname ?? u.nickName ?? u.nickname ?? null,
-            profileUrl: prev.profileUrl ?? u.profileImg ?? u.profileUrl ?? null,
-          };
-        });
-      })
-      .catch(console.error);
-  }, [rivalUserId]);
-
-
-  useEffect(() => {
-    if (!isMulti) return;
-    if (!startAtParam) return;
-
-    const v = Number(startAtParam);
-    if (!Number.isFinite(v)) return;
-
-    setMultiStartAt(v);
-  }, [isMulti, startAtParam]);
+    // 정상 시작 조건
+    if (!finished && loadingDone) {
+      setCountdown(3);
+    }
+  }, [ready, loadingDone, finished]);
 
   useEffect(() => {
     statusApi()
       .then((res) => {
         setLoginUser(res.data);
-
-        const id = String(res.data.loginUser.id);
-        setMyId(id);
-        myIdRef.current = id;
       })
       .catch((err) => {
         console.error('로그인 상태 확인 실패:', err);
@@ -561,7 +104,7 @@ function GamePlay() {
   useEffect(() => {
     if (loginUser === undefined) return;
 
-    if (!isMulti && (!loginUser || loginUser.loginUser.status === 'BLOCKED')) {
+    if (!loginUser || loginUser?.loginUser?.status === 'BLOCKED') {
       alert('이용이 제한된 기능입니다.');
       navigate('/main');
       return;
@@ -569,9 +112,8 @@ function GamePlay() {
 
     const fetchSongByToken = async (token) => {
       try {
-        // 토큰으로 곡 정보 가져오기
         const resSong = await fetch(`/api/songs/info?token=${token}`, {
-          credentials: 'include', // 세션 쿠키 포함
+          credentials: 'include',
         });
         if (!resSong.ok) throw new Error('토큰에 접근이 불가합니다.');
 
@@ -579,9 +121,8 @@ function GamePlay() {
         setSong(fetchedSong);
         setDiff(fetchedSong.diff ?? 'unknown');
 
-        // 오디오 blob 가져오기
         const resAudio = await fetch(`/api/songs/audio?token=${token}`, {
-          credentials: 'include', // 세션 쿠키 포함
+          credentials: 'include',
         });
         if (!resAudio.ok) throw new Error('오디오 접근 불가');
 
@@ -620,10 +161,22 @@ function GamePlay() {
       }
     };
 
-    if (resolvedSongId) {
-      fetchSongById(resolvedSongId);
+    if (baseSongId) {
+      fetchSongById(baseSongId);
     }
-  }, [tokenParam, loginUser]); // ✅ 원본 유지
+  }, [tokenParam, loginUser, baseSongId, navigate]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      console.log('[MULTI START EVENT]', e.detail);
+      if (e.detail?.type === 'MULTI_START') {
+        setRival(e.detail.rival || null);
+      }
+    };
+
+    window.addEventListener('multi:start', handler);
+    return () => window.removeEventListener('multi:start', handler);
+  }, []);
 
   useEffect(() => {
     const sync = () => {
@@ -631,7 +184,7 @@ function GamePlay() {
         const v = localStorage.getItem('userSettings');
         const parsed = v ? JSON.parse(v) : {};
         setSettings((prev) => ({ ...prev, ...DEFAULT_SETTINGS, ...parsed }));
-      } catch { }
+      } catch {/* ignore */ }
     };
 
     window.addEventListener('settings:changed', sync);
@@ -650,13 +203,6 @@ function GamePlay() {
     const onKey = (e) => {
       if (e.code !== 'Escape') return;
 
-      if (isMulti) {
-        // ✅ 멀티에서는 이탈 금지, 모달만
-        setShowExitModal(true);
-        return;
-      }
-
-      // 싱글은 기존 일시정지 유지
       setUserPaused((p) => {
         const next = !p;
         if (p === true && next === false) {
@@ -666,10 +212,10 @@ function GamePlay() {
       });
     };
 
-
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isMulti]);
+  }, []);
+
 
   useEffect(() => {
     if (!loadingDone) return;
@@ -703,18 +249,13 @@ function GamePlay() {
 
     if (countdown === 0) {
       playCountStart();
-
-      // 🔥 멀티/싱글 공통: 카운트다운 종료
       setCountdown(null);
 
-      if (!isMulti) {
-        const t = setTimeout(() => {
-          setUserPaused(true);
-        }, 300);
-        return () => clearTimeout(t);
-      }
+      const t = setTimeout(() => {
+        setUserPaused(true);
+      }, 300);
 
-      return;
+      return () => clearTimeout(t);
     }
 
     playCountTick();
@@ -725,14 +266,10 @@ function GamePlay() {
     return () => clearTimeout(t);
   }, [countdown]);
 
-  const waitingForMultiStart = isMulti && multiStartAt != null && Date.now() < multiStartAt;
-
   const paused =
     countdown !== null ||
-    (!isMulti && userPaused) ||
+    userPaused ||
     !ready;
-
-  const canStartSession = tokenParam ? Boolean(song) : Boolean(resolvedSongId);
 
   return (
     <div
@@ -747,17 +284,25 @@ function GamePlay() {
       <Background />
       <Header />
 
-      <LeftSidebar songId={tokenParam ? song?.id : resolvedSongId} diff={diff} />
-      
+      <LeftSidebar
+        songId={tokenParam ? song?.id : baseSongId}
+        diff={diff}
+      />
       <RightSidebar
         isMulti={isMulti}
         rival={rival}
       />
       <HUDFrame>
-        <HUD score={score} combo={combo} songProgress={songProgress} classProgress={classProgress} />
+        <HUD
+          score={score}
+          combo={combo}
+          songProgress={songProgress}
+          classProgress={classProgress}
+        />
       </HUDFrame>
 
-      {(!ready || (isMulti && !canStartSession)) && (
+
+      {(!ready) && (
         <div
           style={{
             position: 'fixed',
@@ -865,7 +410,7 @@ function GamePlay() {
         </div>
       )}
 
-      {!isMulti && userPaused && (
+      {userPaused && (
         <div
           style={{
             position: 'fixed',
@@ -1023,7 +568,7 @@ function GamePlay() {
                   const isEditorTest = params.get('mode') === 'editorTest';
 
                   if (isEditorTest) {
-                    navigate(`/song/${resolvedSongId}/note/edit?mode=editorTest`, { replace: true });
+                    navigate(`/song/${baseSongId}/note/edit?mode=editorTest`, { replace: true });
                   } else {
                     navigate('/main');
                   }
@@ -1031,89 +576,11 @@ function GamePlay() {
               >
                 나가기
               </button>
+
             </div>
           </div>
         </div>
       )}
-
-      {isMulti && showExitModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.65)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 10000,
-          }}
-        >
-          <div
-            style={{
-              width: 420,
-              padding: 32,
-              borderRadius: 16,
-              background: '#5c5c5cff',
-              boxShadow: '0 0 40px rgba(255,0,0,0.45)',
-              color: '#fff',
-              textAlign: 'center',
-            }}
-          >
-            <h2 style={{ marginBottom: 18 }}>게임을 나가시겠습니까?</h2>
-
-            <div style={{ marginBottom: 28, opacity: 0.8, fontSize: 14 }}>
-              멀티플레이 중 나가면<br />
-              상대방은 자동으로 승리 처리됩니다.
-            </div>
-
-            <div style={{ display: 'flex', gap: 16 }}>
-              <button
-                style={{
-                  flex: 1,
-                  background: '#3a3a3aff',
-                  color: '#ddd',
-                  border: '1px solid #444',
-                  borderRadius: 8,
-                  padding: '10px 0',
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  playMenuConfirm();
-                  setShowExitModal(false);
-                }}
-              >
-                취소
-              </button>
-
-              <button
-                style={{
-                  flex: 1,
-                  background: 'linear-gradient(90deg, #ff3a3ab9, #ff009db0)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 8,
-                  padding: '10px 0',
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  playMenuConfirm();
-
-                  // 🔥 명시적 멀티 이탈
-                  stompRef.current?.publish({
-                    destination: '/app/multi/leave',
-                    body: JSON.stringify({ roomId }),
-                  });
-
-                  navigate('/main', { replace: true });
-                }}
-              >
-                나가기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
 
       <div
         style={{
@@ -1141,32 +608,25 @@ function GamePlay() {
           }}
         />
 
-        {(tokenParam ? Boolean(song) : (!isMulti && resolvedSongId && song) || (isMulti && resolvedSongId)) && (
+        {(tokenParam ? Boolean(song) : Boolean(baseSongId && song)) && (
           <GameSession
             mode="play"
-            songId={tokenParam ? song.id : resolvedSongId}
+            songId={tokenParam ? song.id : baseSongId}
             token={tokenParam}
             analyserRef={analyserRef}
             loginUserId={loginUser?.loginUser?.id}
             key={sessionKey}
             paused={paused}
             fpsLimit={settings.fps}
-            onRivalFinish={(rival) => {
-              setRivalResult(rival);
-            }}
             bgmVolume={(settings.bgmMuted ? 0 : (settings.bgmVolume ?? 100)) / 100}
             sfxVolume={(settings.sfxMuted ? 0 : (settings.sfxVolume ?? 100)) / 100}
             settings={settings}
-            isMulti={isMulti}
-            roomId={roomId}
-            stompClientRef={stompRef}
-            stompConnected={stompConnected}
-            startAt={multiStartAt}
+
             onReady={() => {
               loadingEndRef.current = performance.now();
               setLoadingDone(true);
-              setLocalReady(true);
             }}
+
             onState={({ score, combo, diff, currentTime, duration, maxScore }) => {
               if (finished) return;
 
@@ -1177,59 +637,30 @@ function GamePlay() {
               setSongProgress(duration > 0 ? Math.min(1, currentTime / duration) : 0);
               setClassProgress(maxScore > 0 ? Math.min(1, score / maxScore) : 0);
             }}
+
             onFinish={({ score, maxScore, maxCombo, diff: finishDiff }) => {
               if (finished) return;
               setFinished(true);
 
-              if (isMulti && roomId && stompClientRef.current) {
-                stompClientRef.current.publish({
-                  destination: '/app/multi/end',
-                  body: JSON.stringify({ roomId }),
-                });
-              }
               const params = new URLSearchParams(window.location.search);
               const isEditorTest = params.get('mode') === 'editorTest';
 
               if (isEditorTest) {
-                navigate(`/song/${resolvedSongId}/note/edit?mode=editorTest`, { replace: true });
+                navigate(`/song/${baseSongId}/note/edit?mode=editorTest`, { replace: true });
                 return;
               }
 
-              if (isMulti) {
-                navigate('/game/result', {
-                  replace: true,
-                  state: {
-                    mode: 'multi',
-
-                    // ✅ 닉네임 (이미 GamePlay state에 존재하는 값만 사용)
-                    myNickname: loginUser?.loginUser?.nickName ?? loginUser?.loginUser?.nickname ?? null,
-                    rivalNickname: rival?.nickname ?? null,
-
-                    // ✅ 내 점수
-                    myScore: score,
-                    myMaxScore: maxScore,
-                    myMaxCombo: maxCombo,
-
-                    // ✅ 상대 점수
-                    rivalScore: rivalResult?.score ?? rival?.score ?? 0,
-                    rivalMaxScore: rivalResult?.maxScore ?? maxScore,
-                    rivalMaxCombo: rivalResult?.maxCombo ?? rival?.maxCombo ?? 0,
-                  },
-                });
-              } else {
-                navigate('/game/result', {
-                  state: {
-                    mode: 'single',
-                    score,
-                    maxScore,
-                    maxCombo,
-                    diff: finishDiff ?? diff ?? 'unknown',
-                    songId: resolvedSongId,
-                  },
-                });
-              }
+              navigate('/game/result', {
+                state: {
+                  mode: 'single',
+                  score,
+                  maxScore,
+                  maxCombo,
+                  diff: finishDiff ?? diff ?? 'unknown',
+                  songId: baseSongId,
+                },
+              });
             }}
-            onStreamReady={handleStreamReady}
           />
         )}
 

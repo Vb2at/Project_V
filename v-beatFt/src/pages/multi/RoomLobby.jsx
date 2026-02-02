@@ -3,33 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Header from '../../components/Common/Header';
 import Visualizer from '../../components/visualizer/Visualizer';
-import { getMenuAnalyser, playMenuConfirm } from '../../components/engine/SFXManager';
+import { getMenuAnalyser } from '../../components/engine/SFXManager';
 import Background from '../../components/Common/Background';
-import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client/dist/sockjs.min.js';
-
-function startPing(stomp, onPing) {
-  let timer = null;
-
-  const sub = stomp.subscribe('/user/queue/pong', (msg) => {
-    const { ts } = JSON.parse(msg.body);
-    const ping = Date.now() - ts;
-    onPing(ping);
-  });
-
-  timer = setInterval(() => {
-    stomp.publish({
-      destination: '/app/multi/ping',
-      body: JSON.stringify({ ts: Date.now() }),
-    });
-  }, 2000);
-
-  return () => {
-    clearInterval(timer);
-    sub.unsubscribe();
-  };
-}
-
+import { connectMultiSocket, sendReady, sendStart, sendLeave } from './MultiSocket';
 
 // 프로필 이미지 경로 정리 함수
 function resolveProfileImg(src) {
@@ -64,30 +40,54 @@ export default function RoomLobby() {
   const navigate = useNavigate();
 
   const analyserRef = useRef(null);
-  const stompRef = useRef(null);
-  const opponentRef = useRef(null);
-
-  // ✅ 중복/지연 문제 방지용
-  const closedHandledRef = useRef(false);      // ROOM_CLOSED 한 번만 처리
-  const leavingByButtonRef = useRef(false);    // 나가기 버튼으로 나가는 중(호스트 포함)
+  const songTitleRef = useRef(null);
+  const toggleReady = () => sendReady(roomId);
+  const startGame = () => sendStart(roomId);
+  const leaveRoom = () => {
+    sendLeave(roomId);
+    navigate('/main', { replace: true });
+  };
 
   const [myUserId, setMyUserId] = useState(null);
   const [roomInfo, setRoomInfo] = useState(null);
   const [players, setPlayers] = useState([]);
+  const [isTitleOverflow, setIsTitleOverflow] = useState(false);
 
   const isHost = useMemo(() => {
     if (!roomInfo || myUserId == null) return false;
     return Number(myUserId) === Number(roomInfo.hostUserId);
   }, [roomInfo, myUserId]);
+
   const lengthSec =
     roomInfo?.length ??
     roomInfo?.duration ??
     roomInfo?.lengthSec ??
     null;
-  const songTitleRef = useRef(null);
-  const [isTitleOverflow, setIsTitleOverflow] = useState(false);
-  const [hostPing, setHostPing] = useState(null);
-  const pingBufferRef = useRef([]);
+
+
+  useEffect(() => {
+    connectMultiSocket({
+      roomId,
+
+      onRoomMessage: (data) => {
+        if (data?.type === 'ROOM_STATE') {
+          setPlayers(data.players || []);
+          return;
+        }
+
+        if (data?.type === 'START') {
+          navigate(
+            `/game/play?mode=multi&roomId=${roomId}&songId=${roomInfo.songId}&startAt=${data.startAt}`
+          );
+        }
+      },
+
+      onRoomClosed: () => {
+        navigate('/main', { replace: true });
+      }
+    });
+  }, [roomId, roomInfo?.songId, navigate]);
+
 
   useEffect(() => {
     if (document.getElementById('vb-marquee-style')) return;
@@ -147,101 +147,6 @@ export default function RoomLobby() {
     setIsTitleOverflow(el.scrollWidth > el.clientWidth);
   }, [roomInfo?.songTitle]);
 
-  /* =========================
-     STOMP
-  ========================= */
-  useEffect(() => {
-    if (!roomId || !roomInfo) return;
-
-    closedHandledRef.current = false;
-    leavingByButtonRef.current = false;
-
-    const client = new Client({
-      webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
-      reconnectDelay: 3000,
-      debug: () => { },
-
-      onConnect: () => {
-
-        client.publish({
-          destination: '/app/multi/enter',
-          body: JSON.stringify({ roomId }),
-        });
-
-        const stopPing = startPing(client, (ping) => {
-          const buf = pingBufferRef.current;
-          buf.push(ping);
-          if (buf.length > 5) buf.shift();
-
-          const avg =
-            Math.round(buf.reduce((a, b) => a + b, 0) / buf.length);
-
-          setHostPing(avg);
-        });
-        client.__stopPing = stopPing;
-
-        const subRoom = client.subscribe(`/topic/multi/room/${roomId}`, (msg) => {
-          const data = JSON.parse(msg.body);
-
-          if (data.type === 'ROOM_STATE') {
-            setPlayers(data.players || []);
-            return;
-          }
-
-          if (data.type === 'START') {
-            playMenuConfirm();
-
-            const op = opponentRef.current;
-
-            navigate(
-              `/game/play?mode=multi&roomId=${roomId}&songId=${roomInfo.songId}&startAt=${data.startAt}`,
-              {
-                state: {
-                  rival: op
-                    ? {
-                      userId: op.userId,
-                      nickname: op.nickname,
-                      profileUrl: op.profileImg,
-                    }
-                    : null,
-                },
-              }
-            );
-          }
-
-        });
-
-        const subClosed = client.subscribe('/user/queue/room-closed', () => {
-          if (closedHandledRef.current) return;
-          closedHandledRef.current = true;
-
-          sessionStorage.setItem('roomClosed', '1');
-          sessionStorage.setItem('roomClosedRoomId', String(roomId));
-          sessionStorage.setItem('roomClosedTs', String(Date.now()));
-
-          navigate('/main', { replace: true });
-        });
-
-        client.__vbeatSubs = { subRoom, subClosed };
-      },
-    });
-
-    client.activate();
-    stompRef.current = client;
-
-    return () => {
-      try {
-        client.__stopPing?.();
-        const subs = client.__vbeatSubs;
-        subs?.subRoom?.unsubscribe?.();
-        subs?.subClosed?.unsubscribe?.();
-      } catch { }
-
-      stompRef.current = null;
-      client.deactivate();
-    };
-  }, [roomId, roomInfo, navigate]);
-
 
   /* =========================
      Visualizer
@@ -257,8 +162,6 @@ export default function RoomLobby() {
     return () => clearInterval(id);
   }, []);
 
-  if (!roomInfo) return null;
-
   const me =
     myUserId != null
       ? players.find(p => Number(p.userId) === Number(myUserId)) || null
@@ -269,51 +172,9 @@ export default function RoomLobby() {
       ? players.find(p => Number(p.userId) !== Number(myUserId)) || null
       : null;
 
-  opponentRef.current = opponent;
+  const coverSrc = roomInfo?.coverPath || '';
 
-  const toggleReady = () => {
-    stompRef.current?.publish({
-      destination: '/app/multi/ready',
-      body: JSON.stringify({ roomId }),
-    });
-  };
-
-  const startGame = () => {
-    stompRef.current?.publish({
-      destination: '/app/multi/start',
-      body: JSON.stringify({ roomId }),
-    });
-  };
-
-  const leaveRoom = () => {
-    leavingByButtonRef.current = true;
-
-    // ✅ 방장/상대 모두 leave는 서버에 전송
-    stompRef.current?.publish({
-      destination: '/app/multi/leave',
-      body: JSON.stringify({ roomId }),
-    });
-
-    // ✅ 상대: 그냥 즉시 메인으로 나가기
-    if (!isHost) {
-      navigate('/main');
-      return;
-    }
-
-    // ✅ 방장: 방을 폭파시키는 주체이므로,
-    // '방 종료' 플래그를 여기서 먼저 찍고 메인으로 이동
-    // (ROOM_CLOSED 메시지를 기다리면 MainOverlay/RoomLobby 중복 처리로 2번 뜰 수 있음)
-    if (!closedHandledRef.current) {
-      closedHandledRef.current = true;
-      sessionStorage.setItem('roomClosed', '1');
-      sessionStorage.setItem('roomClosedRoomId', String(roomId));
-      sessionStorage.setItem('roomClosedTs', String(Date.now()));
-    }
-
-    navigate('/main', { replace: true });
-  };
-
-  const coverSrc = roomInfo.coverPath || '';
+  if (!roomInfo) return null;
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -336,8 +197,8 @@ export default function RoomLobby() {
         <div style={{
           width: '75%',
           height: '65%',
-          background: 'rgba(10,20,30,0.55)',     // 투명도 ↓
-          backdropFilter: 'blur(10px)',          // ✅ 여기만 블러
+          background: 'rgba(10,20,30,0.55)',
+          backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
           border: '2px solid rgba(90,234,255,0.6)',
           borderRadius: 18,
@@ -350,9 +211,12 @@ export default function RoomLobby() {
             <div style={{ fontSize: 18, fontWeight: 600 }}>{roomInfo.roomName}</div>
             <div style={{ opacity: 0.7 }}>{players.length} / {roomInfo.maxPlayers}</div>
             <div style={{ marginLeft: 'auto' }}>
+
+              {/* ★ 수정: 에러 방지를 위해 onClick만 삭제 (버튼 외형은 유지) */}
               <button style={neonBtnDanger} onClick={leaveRoom}>
                 나가기
               </button>
+
             </div>
           </div>
 
@@ -396,18 +260,11 @@ export default function RoomLobby() {
               <div style={ghostMeta}>
                 LENGTH {formatTime(lengthSec)}
               </div>
-              {hostPing != null && (
-                <div style={{ fontSize: 11, opacity: 0.8 }}>
-                  HOST PING {hostPing} ms
-                </div>
-              )}
               <div style={ghostRoomId}>Room ID: {roomId}</div>
             </div>
 
             <PlayerCard title="상대방" player={opponent} hostUserId={roomInfo.hostUserId} />
-
           </div>
-
           <div style={{ display: 'flex', justifyContent: 'center', gap: 20 }}>
             <button
               onClick={toggleReady}
@@ -422,40 +279,20 @@ export default function RoomLobby() {
             >
               {me?.ready ? 'NOT READY' : 'READY'}
             </button>
-
             {isHost && me?.ready && opponent?.ready && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {hostPing != null && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      letterSpacing: '0.1em',
-                      color: PING_COLOR(hostPing),
-                    }}
-                  >
-                    PING {hostPing}ms
-                  </div>
-                )}
-
-                <button
-                  onClick={startGame}
-                  style={neonBtnActive}
-                >
+                <button onClick={startGame} style={neonBtnActive}>
                   START
                 </button>
               </div>
             )}
           </div>
-
         </div>
       </div>
-
       <Visualizer size="game" preset="menu" analyserRef={analyserRef} active />
     </div>
   );
 }
-
 /* ===== Player Card ===== */
 function PlayerCard({ title, player, hostUserId }) {
   const waiting = !player;

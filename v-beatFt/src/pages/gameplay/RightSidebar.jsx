@@ -1,70 +1,68 @@
 // src/pages/multi/RightSidebar.jsx
-import { useMemo, useEffect, useRef, useState } from 'react';
+import { useMemo, useEffect, useRef} from 'react';
 
 const HEADER_HEIGHT = 64;
 const SIDEBAR_WIDTH = 300;
 
-export default function RightSidebar({ isMulti, rival, singleInfo }) {
+/* ===== util ===== */
+function resolveProfileImg(src) {
+  if (!src) return null;
+  if (src.startsWith('http')) return src;
+  if (!src.startsWith('/')) return `http://localhost:8080/${src}`;
+  return `http://localhost:8080${src}`;
+}
+
+export default function RightSidebar({ isMulti, rival, opponentLeft, singleInfo }) {
   const videoRef = useRef(null);
-  const [profileBg, setProfileBg] = useState(null);
 
-  // ===== 멀티 플레이 UI =====
-  if (isMulti) {
-    if (!rival) return null;
+  /* ===== memo (항상 호출) ===== */
+  const memo = useMemo(() => {
+    if (!isMulti || !rival) return null;
 
-    const { nickname, profileUrl, score, combo } = useMemo(
-      () => ({
-        nickname: rival?.nickname ?? 'OPPONENT',
-        profileUrl: resolveProfileImg(rival?.profileUrl),
-        score: rival?.score ?? 0,
-        combo: rival?.combo ?? 0,
-      }),
-      [rival]
-    );
+    return {
+      nickname: rival.nickname ?? 'OPPONENT',
+      profileUrl: resolveProfileImg(rival.profileUrl),
+      score: rival.score ?? 0,
+      combo: rival.combo ?? 0,
+    };
+  }, [isMulti, rival]);
 
-    // 프로필 이미지 url 관련 함수
-    function resolveProfileImg(src) {
-      if (!src) return null;
+  /* ===== video stream ===== */
+  useEffect(() => {
+    if (!isMulti || !rival) return;
 
-      if (src.startsWith('http')) return src;
+    const video = videoRef.current;
+    if (!video) return;
 
-      if (!src.startsWith('/')) {
-        return `http://localhost:8080/${src}`;
-      }
-
-      return `http://localhost:8080${src}`;
+    const stream = rival.stream;
+    if (!stream) {
+      video.srcObject = null;
+      return;
     }
 
-    useEffect(() => {
-      if (!profileUrl) {
-        setProfileBg(null);
-        return;
-      }
+    video.muted = true;
+    video.playsInline = true;
+    video.srcObject = stream;
+    video.play().catch(() => { });
 
-      const img = new Image();
-      img.src = profileUrl;
+    return () => {
+      video.srcObject = null;
+    };
+  }, [isMulti, rival?.stream]);
 
-      img.onload = () => setProfileBg(profileUrl);
-      img.onerror = () => setProfileBg(null);
-    }, [profileUrl]);
+  /* ===== MULTI UI ===== */
+  if (isMulti) {
+    if (!memo) return null;
 
-    useEffect(() => {
-      const video = videoRef.current;
-      const stream = rival?.stream;
-
-      video.onloadedmetadata = () => { };
-      video.muted = true;
-      video.playsInline = true;
-      video.srcObject = stream;
-      video.play().catch(() => { });
-      return () => { video.onloadedmetadata = null; };
-    }, [rival?.stream]);
+    const { nickname, profileUrl, score, combo } = memo;
 
     return (
       <div style={styles.sidebar}>
         <div style={styles.neonLine} />
+
         <div style={styles.rivalView}>
           <div style={styles.rivalTitle}>MATCH VIEW</div>
+
           <div style={styles.frameBox}>
             <video
               ref={videoRef}
@@ -77,10 +75,18 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
                 height: '100%',
                 objectFit: 'contain',
                 background: '#222',
+                opacity: opponentLeft ? 0.25 : 1,
               }}
             />
+
+            {opponentLeft && (
+              <div style={styles.opponentLeftOverlay}>
+                OPPONENT LEFT
+              </div>
+            )}
           </div>
         </div>
+
         <div style={styles.rivalInfo}>
           <div style={styles.profileBlock}>
             <div
@@ -94,8 +100,10 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
             >
               {!profileUrl && 'PROFILE'}
             </div>
-            <div style={styles.nickname}>NICK:  {nickname}</div>
+
+            <div style={styles.nickname}>NICK: {nickname}</div>
           </div>
+
           <div style={styles.scoreBlock}>
             <InfoRow label="SCORE: " value={score} color="#5aeaff" />
             <InfoRow label="COMBO: " value={combo} color="#ff8cff" />
@@ -105,13 +113,14 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
     );
   }
 
-  // ===== 싱글 플레이 UI =====
-  const { modeLabel, playerName, diffLabel } = singleInfo ?? {};
+  /* ===== SINGLE UI ===== */
+  const { modeLabel } = singleInfo ?? {};
   const logoUrl = '/public/images/teamlogo.png';
 
   return (
     <div style={styles.sidebar}>
       <div style={styles.neonLine} />
+
       <div style={styles.singleView}>
         <div style={styles.rivalTitle}>{modeLabel ?? 'SINGLE PLAY'}</div>
         <div style={styles.frameBox}>
@@ -121,7 +130,6 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
         </div>
       </div>
 
-      {/* ===== RIVAL INFO ===== */}
       <div style={styles.singleInfo}>
         <div style={styles.systemWrap}>
           <div style={styles.systemTitle}>[ SYSTEM MONITOR ]</div>
@@ -138,6 +146,7 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
   );
 }
 
+/* ===== components ===== */
 function InfoRow({ label, value, color }) {
   return (
     <div style={styles.infoRow}>
@@ -147,6 +156,7 @@ function InfoRow({ label, value, color }) {
   );
 }
 
+/* ===== styles (기존 그대로) ===== */
 const styles = {
   sidebar: {
     position: 'fixed',
@@ -178,7 +188,6 @@ const styles = {
     border: '1px solid rgba(90,234,255,0.55)',
     background: 'rgba(0,0,0,0.35)',
     padding: 10,
-    height: '100%',
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
@@ -200,17 +209,6 @@ const styles = {
     aspectRatio: '9 / 16',
     minHeight: 200,
   },
-  logoBox: {
-    width: '100%',
-    height: '100%',
-    background: '#111',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoImg: {
-    objectFit: 'contain',
-  },
   rivalInfo: {
     flex: 4,
     borderRadius: 14,
@@ -220,11 +218,8 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: 14,
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
-
+    alignItems: 'center',
   },
-  profileRow: { display: 'flex', alignItems: 'center', gap: 12 },
   profileImg: {
     width: 120,
     height: 120,
@@ -234,9 +229,16 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: 10,
+
+    alignSelf: 'flex-start', // ← 이미지 “만” 왼쪽 정렬
   },
-  profileFallback: { background: 'linear-gradient(135deg, #2a2f3a, #111)' },
-  nickname: { fontSize: 14, fontWeight: 700 },
+  profileFallback: {
+    background: 'linear-gradient(135deg, #2a2f3a, #111)',
+  },
+  nickname: {
+    fontSize: 14,
+    fontWeight: 700,
+  },
   infoRow: {
     display: 'flex',
     justifyContent: 'center',
@@ -245,21 +247,17 @@ const styles = {
   infoLabel: {
     opacity: 0.8,
     fontFamily: 'monospace',
-    textAlign: 'center',
   },
   infoValue: {
     fontWeight: 700,
     fontFamily: 'monospace',
-    textAlign: 'center',
   },
-
   profileBlock: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: 6,
   },
-
   scoreBlock: {
     marginTop: 8,
     display: 'flex',
@@ -267,8 +265,6 @@ const styles = {
     gap: 6,
     alignItems: 'center',
   },
-  // styles 하단에 추가
-
   singleView: {
     flex: 6,
     borderRadius: 14,
@@ -279,7 +275,6 @@ const styles = {
     flexDirection: 'column',
     gap: 8,
   },
-
   singleInfo: {
     flex: 4,
     borderRadius: 14,
@@ -287,61 +282,40 @@ const styles = {
     background: 'rgba(0,0,0,0.35)',
     padding: 14,
     display: 'flex',
-    flexDirection: 'column',
-    gap: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
   systemWrap: {
     width: '100%',
-    marginTop: 14,
-    padding: '14px 14px',
-    boxSizing: 'border-box',
-
     fontFamily: 'monospace',
-    textAlign: 'left',
-
-    /* 네온 튜브 판넬 */
     background: 'rgba(5, 10, 15, 0.85)',
     borderRadius: 6,
     border: '1px solid rgba(0,255,255,0.25)',
-
-    boxShadow: `
-    inset 0 0 20px rgba(0,255,255,0.08),
-    0 0 14px rgba(0,255,255,0.12)
-  `,
+    padding: 14,
   },
-
   systemTitle: {
     fontSize: 12,
     letterSpacing: '0.22em',
     marginBottom: 10,
-
     color: '#bfffff',
-
-    /* 네온 사인 핵심 */
-    textShadow: `
-    0 0 2px rgba(255,255,255,0.9),
-    0 0 6px rgba(0,255,255,0.9),
-    0 0 14px rgba(0,255,255,0.8),
-    0 0 24px rgba(0,180,255,0.6)
-  `,
   },
-
   systemRow: {
     fontSize: 12,
     lineHeight: '1.6',
     letterSpacing: '0.06em',
-
     color: '#eaffff',
-
-    /* 네온 튜브 글자 */
-    textShadow: `
-    0 0 2px rgba(255,255,255,0.8),
-    0 0 6px rgba(0,255,255,0.7),
-    0 0 12px rgba(0,200,255,0.6)
-  `,
   },
-
-
+  opponentLeftOverlay: {
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 16,
+    letterSpacing: '0.18em',
+    fontWeight: 700,
+    color: '#ff6b6b',
+    background: 'rgba(0,0,0,0.45)',
+    pointerEvents: 'none',
+  },
 };

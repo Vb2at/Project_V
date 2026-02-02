@@ -2,7 +2,7 @@
 import { getClassByRatio } from "../../util/scoreClass";
 import Background from '../../components/Common/Background';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useRef } from 'react';
+import { useEffect} from 'react';
 import {
   playResultEnter,
   startResultBgm,
@@ -83,7 +83,6 @@ function ScoreCard({ title, score, maxScore, maxCombo, grade, glowColor }) {
 export default function Result() {
   const { state } = useLocation();
   const navigate = useNavigate();
-  const sentRef = useRef(false);
 
   useEffect(() => {
     playResultEnter();

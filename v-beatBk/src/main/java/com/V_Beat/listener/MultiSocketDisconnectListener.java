@@ -8,36 +8,43 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import com.V_Beat.multi.MultiRoomManager;
 
 import lombok.extern.slf4j.Slf4j;
+
 @Slf4j
 @Component
 public class MultiSocketDisconnectListener {
 
-    private final MultiRoomManager roomManager;
+	private final MultiRoomManager roomManager;
 
-    public MultiSocketDisconnectListener(MultiRoomManager roomManager) {
-        this.roomManager = roomManager;
-    }
+	public MultiSocketDisconnectListener(MultiRoomManager roomManager) {
+		this.roomManager = roomManager;
+	}
 
-    @EventListener
-    public void onDisconnect(SessionDisconnectEvent event) {
+	@EventListener
+	public void onDisconnect(SessionDisconnectEvent event) {
 
-        log.warn("[DISCONNECT EVENT] fired");
+		log.warn("[DISCONNECT EVENT] fired");
 
-        StompHeaderAccessor acc = StompHeaderAccessor.wrap(event.getMessage());
-        log.warn("[DISCONNECT] accessor user={}", acc.getUser());
+		StompHeaderAccessor acc = StompHeaderAccessor.wrap(event.getMessage());
+		log.warn("[DISCONNECT] accessor user={}", acc.getUser());
 
-        if (acc.getUser() == null) return;
+		if (acc.getUser() == null)
+			return;
 
-        Integer userId;
-        try {
-            userId = Integer.parseInt(acc.getUser().getName());
-        } catch (Exception e) {
-            return;
-        }
+		Integer userId;
+		try {
+			userId = Integer.parseInt(acc.getUser().getName());
+		} catch (Exception e) {
+			return;
+		}
 
-        log.warn("[DISCONNECT] userId={}", userId);
+		log.warn("[DISCONNECT] userId={}", userId);
 
-        roomManager.leaveByDisconnect(userId);
-    }
+		boolean handledInGame = roomManager.leaveGameByDisconnect(userId);
+
+		if (!handledInGame) {
+			roomManager.leaveByDisconnect(userId);
+		}
+		
+	}
 
 }

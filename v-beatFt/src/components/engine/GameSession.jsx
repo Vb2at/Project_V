@@ -147,16 +147,22 @@ export default function GameSession({
     return Math.max(1, calcMaxScore(usedNotes));
   }, [usedNotes, calcMaxScore]);
 
-  const lastSendRef = useRef(0);
-  const lastFrameSendRef = useRef(0);
-
   useEffect(() => {
     compositeStartedRef.current = false;
     sentStreamRef.current = null;
   }, [propSongId, roomId]);
 
   useEffect(() => {
-    if (!onStreamReady) return;          // mode 체크 제거
+    console.log('[COMPOSITE ENTER]', {
+      onStreamReady: !!onStreamReady,
+      started: compositeStartedRef.current,
+      out: !!compositeCanvasRef.current,
+      base: !!baseCanvasRef.current,
+      notes: !!notesCanvasRef.current,
+      fx: !!effectsCanvasRef.current,
+    });
+
+    if (!onStreamReady || !isMulti) return;        // mode 체크 제거
     if (compositeStartedRef.current) return;
 
     const out = compositeCanvasRef.current;
@@ -182,23 +188,27 @@ export default function GameSession({
     const loop = () => {
       ctx.clearRect(0, 0, out.width, out.height);
 
-      const yOffset = 40;
       ctx.drawImage(base, 0, 0, WIDTH, HEIGHT);
       ctx.drawImage(notes, 0, 0, WIDTH, HEIGHT);
       if (fx) ctx.drawImage(fx, 0, 0, WIDTH, HEIGHT);
-
+      //localStream 생성/전달
       if (!firstFrameDrawn) {
+        console.log('[STREAM CAPTURE BLOCK ENTER]');
         firstFrameDrawn = true;
+
         requestAnimationFrame(() => {
-          const fps = settings.fps ?? 60; // GamePlay에서 전달
+          const fps = settings.fps ?? 60;
           const stream = out.captureStream(fps);
+
+          console.log('[STREAM CREATED]', stream, stream.getTracks());
+          //localStream 생성 
           if (!sentStreamRef.current) {
             sentStreamRef.current = stream;
+            console.log('[STREAM SENT TO GAMEPLAY]');
             onStreamReady(stream);
           }
         });
       }
-
       compositeRafRef.current = requestAnimationFrame(loop);
     };
 
@@ -213,7 +223,7 @@ export default function GameSession({
       compositeStartedRef.current = false;
       sentStreamRef.current = null;
     };
-  }, [canvasReadyTick, settings.fps]);
+  }, [canvasReadyTick, settings.fps, onStreamReady]);
 
   useEffect(() => {
     if (!isMulti) return;
@@ -234,7 +244,7 @@ export default function GameSession({
         maxCombo: maxComboRef.current,
       }),
     });
-  }, [score, combo, isMulti, roomId, loginUserId, stompConnected]);
+  }, [score, combo, isMulti, roomId, loginUserId, stompConnected, stompClientRef]);
 
   useEffect(() => {
     onRivalFinishRef.current = onRivalFinish;
@@ -306,7 +316,7 @@ export default function GameSession({
     if (!audioRef.current) return;
     if (!Number.isFinite(bgmVolume)) return;
 
-    // eslint-disable-next-line react-hooks/immutability
+    //  eslint-disable-next-line react-hooks/immutability
     audioRef.current.volume = bgmVolume;
   }, [bgmVolume, mode, effectivePaused]);
 
@@ -578,11 +588,7 @@ export default function GameSession({
     Promise.resolve().then(() => {
       loadSongById(songId);
     });
-  }, [songId, loadSongById]);
-
-  const lastTimeRef = useRef(0);
-
-  const lastRenderTimeRef = useRef(0);
+  }, [songId, loadSongById]);;
 
   useEffect(() => {
     let rafId = null;
@@ -591,23 +597,25 @@ export default function GameSession({
       if (!effectivePaused) {
         const audio = audioRef.current;
         if (audio && !audio.paused) {
-          const newTime = audio.currentTime * 1000;
-          currentTimeRef.current = newTime;
-        }
-
-        // ✅ 16ms 이상 변했을 때만 state 업데이트
-        if (Math.abs(currentTimeRef.current - lastRenderTimeRef.current) >= 16) {
-          lastRenderTimeRef.current = currentTimeRef.current;
-          setCurrentTime(currentTimeRef.current);
+          currentTimeRef.current = audio.currentTime * 1000;
         }
       }
-
-      rafId = requestAnimationFrame(loop);
+      if (!effectivePaused) rafId = requestAnimationFrame(loop);
     };
 
-    rafId = requestAnimationFrame(loop);
+    if (!effectivePaused) rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
   }, [effectivePaused]);
+
+  // 🔽 React state는 저주기로만 동기화
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCurrentTime(currentTimeRef.current);
+    }, 100);// 20fps (UI 충분)
+
+    return () => clearInterval(id);
+  }, []);
+
 
   useEffect(() => {
     if (mode === 'edit') return;
@@ -672,7 +680,7 @@ export default function GameSession({
         if (missOccurred) setCombo(0);
         return missOccurred ? newNotes : prev;
       });
-    }, 50);
+    }, 100);
 
     return () => clearInterval(interval);
   }, [paused, mode, usedSetNotes, effectivePaused]);
@@ -835,6 +843,13 @@ export default function GameSession({
     const ih = new InputHandler(handleKeyPress, handleKeyRelease);
     return () => ih.destroy();
   }, [pressedKeys, paused, sfxVolume, mode, usedSetNotes, effectivePaused]);
+
+  useEffect(() => {
+    if (effects.length > 200) {
+      setEffects(e => e.slice(-100));
+    }
+  }, [effects]);
+
 
   const SCALE = 0.8;
 
@@ -1430,8 +1445,6 @@ export default function GameSession({
     const { lane, timing: tStartRaw } = dragStartRef.current;
     const MIN_PREVIEW_MS = 400;
 
-    const now = currentTimeRef.current;
-
     const tStart = Math.min(tStartRaw, tEndRaw);
     const tEnd = Math.max(tStartRaw, tEndRaw);
 
@@ -1442,7 +1455,7 @@ export default function GameSession({
 
     const newStart = Math.round(start);
     const newEnd = Math.round(end);
-    
+
     pushUndo(notesRef.current);
 
     usedSetNotes(prev => {
@@ -1589,7 +1602,12 @@ export default function GameSession({
           }}
         />
         <PixiNotes
-          notes={usedNotes ?? []}
+          notes={(usedNotes ?? []).filter((n) => {
+            if (n.type === 'long') {
+              return currentTime < (n.endTime || n.timing) + 2000;
+            }
+            return !n.hit || currentTime < n.timing + 500;
+          })}
           currentTime={currentTime}
           speed={speed}
           selectedNoteIds={selectedNoteIds}
@@ -1615,7 +1633,7 @@ export default function GameSession({
                 showJudgeText={settings.judgeText}
                 showComboText={settings.comboText}
                 lowEffect={settings.lowEffect}
-                fpsLimit={settings.fps}
+                fpsLimit={30}
                 onPixiReady={(canvas) => {
                   if (!canvas) return;
                   effectsCanvasRef.current = canvas;
