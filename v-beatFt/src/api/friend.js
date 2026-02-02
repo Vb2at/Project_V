@@ -29,7 +29,16 @@ async function req(url, options = {}) {
 }
 
 /** 친구 목록 */
-export const fetchFriendList = () => req(`${BASE}/list`);
+export const fetchFriendList = async () => {
+  const res = await fetch(`${BASE}/list`, {
+    method: 'GET',
+    credentials: 'include', // ✅ 세션 쿠키 포함
+  });
+
+  if (!res.ok) throw new Error('Failed to fetch friend list');
+
+  return res.json();
+};
 
 /** 받은 친구 요청 목록 */
 export const fetchFriendRequests = () => req(`${BASE}/requests`);

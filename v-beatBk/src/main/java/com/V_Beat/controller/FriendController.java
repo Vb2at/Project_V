@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.V_Beat.dto.FriendDto;
@@ -63,11 +64,17 @@ public class FriendController {
 
     // 친구 목록
     @GetMapping("/list")
-    public Object list(HttpSession session) {
+    public ResponseEntity<?> list(HttpSession session) {
         Integer myId = getLoginUserId(session);
-        if (myId == null) return "needLogin";
-        List<FriendDto> list = friendService.getFriendList(myId);
-        return list;
+        if (myId == null) return ResponseEntity.status(401).body("needLogin");
+
+        try {
+            List<FriendDto> list = friendService.getFriendList(myId);
+            return ResponseEntity.ok(list);
+        } catch (Exception e) {
+            e.printStackTrace(); // 콘솔 로그로 500 원인 확인
+            return ResponseEntity.status(500).body("serverError");
+        }
     }
 
     // 수락 (id = FriendRequest.id)

@@ -234,6 +234,7 @@ export default function Friends({ onClickMessage }) {
         {friends.length === 0 && <Empty>친구 없음</Empty>}
         {friends.map((u) => {
           const nick = u.otherNickName ?? u.nickName ?? u.nick;
+          const isAdmin = u.role === 'ADMIN';
 
           return (
             <Row key={u.otherUserId ?? u.id}>
@@ -255,7 +256,10 @@ export default function Friends({ onClickMessage }) {
                   쪽지
                 </BtnSub>
 
-                <BtnSub onClick={() => handleDelete(u.otherUserId ?? u.id)}>
+                <BtnSub onClick={() => handleDelete(u.otherUserId ?? u.id)}
+                  disabled={isAdmin}
+                  style={{ opacity: isAdmin ? 0.5 : 1, cursor: isAdmin ? 'not-allowed' : 'pointer' }}
+                  >
                   삭제
                 </BtnSub>
               </div>

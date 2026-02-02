@@ -61,4 +61,16 @@ public interface MessageDao {
         LIMIT 100
         """)
     List<Message> getMessages(@Param("channelId") int channelId);
+
+    //회원가입 시 환영메세지 발송
+    @Insert("""
+    		INSERT INTO private_message
+    			(from_user_id, to_user_id, title, content, reg_date)
+    		VALUES (#{fromUserId}, #{toUserId}, #{title}, #{content}, NOW())
+    			
+    		""")
+	void insertMessage(@Param("fromUserId") int fromUserId, 
+            		   @Param("toUserId") int toUserId, 
+            		   @Param("title") String title, 
+            		   @Param("content") String content);
 }

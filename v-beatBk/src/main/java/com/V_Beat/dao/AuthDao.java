@@ -2,6 +2,7 @@ package com.V_Beat.dao;
 
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -36,6 +37,7 @@ public interface AuthDao {
             login_type = #{loginType},
             reg_date = NOW()
     """)
+    @Options(useGeneratedKeys = true, keyProperty = "id")
     void join(User user);
 
     // 소셜로 가입 (kakao, google) 비번 null 허용
