@@ -30,6 +30,7 @@ public class ScoreController {
     public ResponseEntity<?> save(@RequestBody Score req, HttpSession session) {
         //세션 userId 안전 추출 (Long / Integer 모두 대응)
         Object v = session.getAttribute("loginUserId");
+        System.out.println("loginUserId in session = " + v);
         Long loginUserId = null;
 
         if (v instanceof Long) {
@@ -42,7 +43,7 @@ public class ScoreController {
              return ResponseEntity.status(401).build();
          }
 
-        scoreService.save(req, loginUserId);
+        this.scoreService.save(req, loginUserId);
         return ResponseEntity.ok().build();
     }
     

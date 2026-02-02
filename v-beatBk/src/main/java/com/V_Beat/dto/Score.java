@@ -1,6 +1,7 @@
 package com.V_Beat.dto;
 
-import java.time.LocalDate;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -13,9 +14,9 @@ public class Score {
 	private Long songId;
 	private String diff;
 	private int score;
-	private Double accuracy;
+	private BigDecimal accuracy;
 	private String grade;
 	private int maxCombo;
-	private LocalDate regDate;
+	private LocalDateTime regDate;
 	private String title;
 }

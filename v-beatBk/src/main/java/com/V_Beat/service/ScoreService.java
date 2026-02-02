@@ -26,5 +26,4 @@ public class ScoreService {
 	public List<Score> findByUserId(Integer userId) {
 		return this.scoreDao.findByUserId(userId);
 	}
-
 }
