@@ -21,6 +21,38 @@ export default function SongEditor() {
         BLOCKED: '차단됨',
     };
 
+
+    const handleRequestPublic = async () => {
+        if (!window.confirm('전체 공개 심사를 신청하시겠습니까?')) return;
+
+        try {
+            setLoading(true);
+
+            const form = new FormData();
+            form.append('title', title);
+            form.append('artist', artist);
+            form.append('visibility', 'PUBLIC'); // 🔥 핵심
+            if (coverFile) form.append('cover', coverFile);
+
+            await axios.post(
+                `/api/songs/${songId}/update`,
+                form,
+                { withCredentials: true }
+            );
+
+            alert('심사 요청이 접수되었습니다.');
+            navigate('/main', { replace: true });
+
+        } catch (e) {
+            console.error(e);
+            alert('심사 요청 실패');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+
     const VISIBILITY_COLOR = {
         PRIVATE: '#aaa',
         UNLISTED: '#5aeaff',
@@ -64,6 +96,14 @@ export default function SongEditor() {
     const [coverPreview, setCoverPreview] = useState(null);
     const [loading, setLoading] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
+
+    const canRequestPublic =
+        !fromPublicUpload &&
+        visibility === 'PRIVATE';
+
+    const disableRequestPublic =
+        visibility === 'PENDING';
+
     //public선택 시 저장 버튼 숨김
     const hideSave = fromPublicUpload || visibility === 'PENDING';
 
@@ -297,7 +337,22 @@ export default function SongEditor() {
                                     background: 'rgba(90,234,255,0.25)',
                                     margin: '12px 0 8px',
                                 }}
+
                             />
+                            {canRequestPublic && (
+                                <button
+                                    className="neon-btn"
+                                    style={{
+                                        ...editorBtn,
+                                        opacity: disableRequestPublic ? 0.5 : 1,
+                                        cursor: disableRequestPublic ? 'not-allowed' : 'pointer',
+                                    }}
+                                    disabled={disableRequestPublic}
+                                    onClick={handleRequestPublic}
+                                >
+                                    {disableRequestPublic ? '심사 진행 중' : '전체 공개 신청'}
+                                </button>
+                            )}
 
                             {!hideSave && visibility !== 'PENDING' && (
                                 <button

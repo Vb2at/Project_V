@@ -123,8 +123,16 @@ export default function RightSidebar({ isMulti, rival, singleInfo }) {
 
       {/* ===== RIVAL INFO ===== */}
       <div style={styles.singleInfo}>
-        <div style={styles.nickname}>{playerName ?? 'PLAYER'}</div>
-        <div style={{ opacity: 0.7 }}>{diffLabel}</div>
+        <div style={styles.systemWrap}>
+          <div style={styles.systemTitle}>[ SYSTEM MONITOR ]</div>
+          <div style={styles.systemRow}>DATA: EMPTY</div>
+          <div style={styles.systemRow}>SESSION: LOCAL</div>
+          <div style={styles.systemRow}>LINK: OFF</div>
+          <div style={styles.systemRow}>MODE: SINGLE</div>
+          <div style={styles.systemRow}>AUDIO: OK</div>
+          <div style={styles.systemRow}>VISUALIZER: ACTIVE</div>
+          <div style={styles.systemRow}>STATE: STANDBY</div>
+        </div>
       </div>
     </div>
   );
@@ -284,5 +292,56 @@ const styles = {
     justifyContent: 'center',
     alignItems: 'center',
   },
+  systemWrap: {
+    width: '100%',
+    marginTop: 14,
+    padding: '14px 14px',
+    boxSizing: 'border-box',
+
+    fontFamily: 'monospace',
+    textAlign: 'left',
+
+    /* 네온 튜브 판넬 */
+    background: 'rgba(5, 10, 15, 0.85)',
+    borderRadius: 6,
+    border: '1px solid rgba(0,255,255,0.25)',
+
+    boxShadow: `
+    inset 0 0 20px rgba(0,255,255,0.08),
+    0 0 14px rgba(0,255,255,0.12)
+  `,
+  },
+
+  systemTitle: {
+    fontSize: 12,
+    letterSpacing: '0.22em',
+    marginBottom: 10,
+
+    color: '#bfffff',
+
+    /* 네온 사인 핵심 */
+    textShadow: `
+    0 0 2px rgba(255,255,255,0.9),
+    0 0 6px rgba(0,255,255,0.9),
+    0 0 14px rgba(0,255,255,0.8),
+    0 0 24px rgba(0,180,255,0.6)
+  `,
+  },
+
+  systemRow: {
+    fontSize: 12,
+    lineHeight: '1.6',
+    letterSpacing: '0.06em',
+
+    color: '#eaffff',
+
+    /* 네온 튜브 글자 */
+    textShadow: `
+    0 0 2px rgba(255,255,255,0.8),
+    0 0 6px rgba(0,255,255,0.7),
+    0 0 12px rgba(0,200,255,0.6)
+  `,
+  },
+
 
 };

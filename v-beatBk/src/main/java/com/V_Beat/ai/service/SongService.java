@@ -60,62 +60,71 @@ public class SongService {
 		return song != null && "PUBLIC".equals(song.getVisibility());
 	}
 
-	@Transactional
-	public void updateSongInfo(Long songId, int loginUserId, String title, String artist, String visibility,
-			MultipartFile cover) {
+@Transactional
+public void updateSongInfo(
+        Long songId,
+        int loginUserId,
+        String title,
+        String artist,
+        String visibility,
+        MultipartFile cover
+) {
 
-		Song song = songDao.getSong(songId);
-		if (song == null) {
-			throw new RuntimeException("song not found");
-		}
+    Song song = songDao.getSong(songId);
+    if (song == null) {
+        throw new RuntimeException("song not found");
+    }
 
-		if (song.getUserId() != loginUserId) {
-			throw new RuntimeException("no permission");
-		}
+    if (song.getUserId() != loginUserId) {
+        throw new RuntimeException("no permission");
+    }
 
-		if (!VISIBILITY_ALLOWED.contains(visibility)) {
-			throw new IllegalArgumentException("invalid visibility");
-		}
+    String coverPath = null;
 
-		String coverPath = null;
+    if (cover != null && !cover.isEmpty()) {
+        try {
+            String uploadDir = "upload/cover/";
+            Files.createDirectories(Paths.get(uploadDir));
 
-		if (cover != null && !cover.isEmpty()) {
-			try {
-				String uploadDir = "upload/cover/";
-				Files.createDirectories(Paths.get(uploadDir));
+            String fileName = UUID.randomUUID() + "_" + cover.getOriginalFilename();
+            Path savePath = Paths.get(uploadDir, fileName);
 
-				String fileName = UUID.randomUUID() + "_" + cover.getOriginalFilename();
-				Path savePath = Paths.get(uploadDir, fileName);
+            cover.transferTo(savePath.toFile());
+            coverPath = savePath.toString();
+        } catch (IOException e) {
+            throw new RuntimeException("커버 이미지 저장 실패", e);
+        }
+    }
 
-				cover.transferTo(savePath.toFile());
-				coverPath = savePath.toString();
+    // 제목 / 아티스트 / 커버 업데이트
+    if (coverPath != null) {
+        songDao.updateSongWithCover(songId, title, artist, coverPath);
+    } else {
+        songDao.updateSong(songId, title, artist);
+    }
 
-			} catch (IOException e) {
-				throw new RuntimeException("커버 이미지 저장 실패", e);
-			}
-		}
+    // ===== 공개 상태 처리 =====
+    String v = (visibility == null) ? "PRIVATE" : visibility.trim().toUpperCase();
+    String saveVisibility;
+    String shareToken = song.getShareToken();
 
-		// 제목 아티스트 커버만 수정
-		if (coverPath != null) {
-			songDao.updateSongWithCover(songId, title, artist, coverPath);
-		} else {
-			songDao.updateSong(songId, title, artist);
-		}
+    if ("PRIVATE".equals(v)) {
+        saveVisibility = "PRIVATE";
+        shareToken = null;
+    } else if ("PUBLIC".equals(v)) {
+        // 🔥 공개 요청은 즉시 공개가 아니라 심사 대기
+        saveVisibility = "PENDING";
+    } else if ("UNLISTED".equals(v)) {
+        saveVisibility = "UNLISTED";
+        if (shareToken == null) {
+            shareToken = UUID.randomUUID().toString().replace("-", "");
+        }
+    } else {
+        throw new IllegalArgumentException("invalid visibility");
+    }
 
-		// 공개범위 토큰 수정
-		String shareToken = song.getShareToken();
-
-		if ("UNLISTED".equals(visibility)) {
-			if (shareToken == null) {
-				shareToken = UUID.randomUUID().toString().replace("-", "");
-			}
-		} else {
-			// PRIVATE
-			shareToken = null;
-		}
-
-		this.songDao.updateVisibilityAndToken(songId, visibility, shareToken);
-	}
+    songDao.updateVisibilityAndToken(songId, saveVisibility, shareToken);
+}
 
 	@Transactional(readOnly = true)
 	public List<Song> getPendingSongs(boolean isAdmin) {
@@ -167,7 +176,16 @@ public class SongService {
 			return this.songDao.findByUserId(userId);
 		}
 
-		return this.songDao.getMySongs(userId, visibility);
+		List<MySong> all = this.songDao.getMySongs(userId);
+
+		if (visibility == null || "ALL".equalsIgnoreCase(visibility)) {
+		    return all;
+		}
+
+		String v = visibility.toUpperCase();
+		return all.stream()
+		        .filter(s -> v.equals(s.getVisibility()))
+		        .toList();
 	}
 
 	@Transactional

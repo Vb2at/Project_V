@@ -126,27 +126,18 @@ public interface SongDao {
 
 	// 본인 업로드 곡 조회
 	@Select("""
-			SELECT 
-			    id AS id,
-			    title AS title,
-			    artist AS artist,
-			    visibility AS visibility,
-			    cover_path AS coverPath,
-			    diff AS diff
-			FROM song
-			WHERE user_id = #{userId}
-			  <if test="visibility != 'ALL'">
-			    AND (
-			        visibility = #{visibility}
-			        <if test="visibility == 'UNLISTED'>
-			            OR (visibility = 'PRIVATE' AND share_token IS NOT NULL)
-			        </if>
-			    )
-			  </if>
-			ORDER BY create_date DESC
-			</script>
-			""")
-		List<MySong> getMySongs(int userId, String visibility);
+		    SELECT 
+		        id AS id,
+		        title AS title,
+		        artist AS artist,
+		        visibility AS visibility,
+		        cover_path AS coverPath,
+		        diff AS diff
+		    FROM song
+		    WHERE user_id = #{userId}
+		    ORDER BY create_date DESC
+		""")
+		List<MySong> getMySongs(@Param("userId") int userId);
 
 	// 유저 아이디로 업로드 곡 조회 (전체 목록)
 	@Select("""
