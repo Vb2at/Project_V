@@ -97,19 +97,32 @@ public interface FriendDao {
 
     // 친구 목록
     @Select("""
-        SELECT
-          CASE WHEN fr.from_user_id = #{myId} THEN u2.id ELSE u1.id END AS otherUserId,
-          CASE WHEN fr.from_user_id = #{myId} THEN u2.nickName ELSE u1.nickName END AS otherNickName,
-          CASE WHEN fr.from_user_id = #{myId} THEN u2.email ELSE u1.email END AS otherEmail,
-          CASE WHEN fr.from_user_id = #{myId} THEN u2.profile_img ELSE u1.profile_img END AS otherProfileImg
-        FROM FriendRequest fr
-        JOIN `user` u1 ON fr.from_user_id = u1.id
-        JOIN `user` u2 ON fr.to_user_id   = u2.id
-        WHERE fr.`status` = 1
-          AND (fr.from_user_id = #{myId} OR fr.to_user_id = #{myId})
-        ORDER BY fr.id DESC
-    """)
-    List<FriendDto> findFriends(@Param("myId") int myId);
+    	    SELECT 
+    	        CASE WHEN fr.from_user_id = #{myId} THEN u2.id ELSE u1.id END AS otherUserId,
+    	        CASE WHEN fr.from_user_id = #{myId} THEN u2.nickName ELSE u1.nickName END AS otherNickName,
+    	        CASE WHEN fr.from_user_id = #{myId} THEN u2.email ELSE u1.email END AS otherEmail,
+    	        CASE WHEN fr.from_user_id = #{myId} THEN u2.profile_img ELSE u1.profile_img END AS otherProfileImg,
+    	        CASE WHEN fr.from_user_id = #{myId} THEN u2.role ELSE u1.role END AS role
+    	    FROM FriendRequest fr
+    	    JOIN `user` u1 ON fr.from_user_id = u1.id
+    	    JOIN `user` u2 ON fr.to_user_id = u2.id
+    	    WHERE fr.`status` = 1
+    	      AND (fr.from_user_id = #{myId} OR fr.to_user_id = #{myId})
+
+    	    UNION
+
+    	    -- 관리자 정보를 무조건 추가 (자신이 관리자가 아닐 때만)
+    	    SELECT 
+    	        id AS otherUserId,
+    	        nickName AS otherNickName,
+    	        email AS otherEmail,
+    	        profile_img AS otherProfileImg,
+    	        `role` AS role
+    	    FROM `user`
+    	    WHERE `role` = 'ADMIN'
+    	      AND id != #{myId}
+    	""")
+    	List<FriendDto> findFriends(@Param("myId") int myId);
 
     // 수락(받은 사람만 가능)
     @Update("""
@@ -163,4 +176,21 @@ public interface FriendDao {
     """)
     int deleteFriend(@Param("myId") int myId,
                      @Param("targetId") int targetId);
+
+    //사용자에게 관리자 기본 친구로 등록
+    @Insert("""
+    		INSERT INTO friendrequest (from_user_id, to_user_id, status)
+    		VALUES (#{fromUserId}, #{toUserId}, #{status})
+    		ON DUPLICATE KEY UPDATE status = VALUES(status)
+    		""")
+	void addFriend(FriendRequestDto fr);
+
+    //관리자 아이디 조회
+    @Select("""
+    		SELECT id, nickName, `role` 
+    		FROM `user`
+    		WHERE `role` = 'ADMIN'
+    		LIMIT 1
+    		""")
+	UserLiteDto findAdminUser();
 }

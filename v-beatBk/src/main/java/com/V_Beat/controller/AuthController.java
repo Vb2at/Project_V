@@ -10,11 +10,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.V_Beat.dao.FriendDao;
+import com.V_Beat.dao.MessageDao;
 import com.V_Beat.dao.UserDao;
 import com.V_Beat.dto.CheckReq;
 import com.V_Beat.dto.User;
+import com.V_Beat.dto.UserLiteDto;
 import com.V_Beat.service.AuthService;
 import com.V_Beat.service.EmailService;
+import com.V_Beat.service.FriendService;
 import com.V_Beat.service.ProfanityFilterService; // ✅ 추가
 import com.V_Beat.service.VerificationService;
 
@@ -29,6 +33,8 @@ public class AuthController {
     private final UserDao userDao;
     private final EmailService emailService;
     private final VerificationService verificationService;
+    private final FriendDao friendDao;
+    private final MessageDao messageDao;
 
     //닉네임 AJAX 체크용(최종 방어는 AuthService/UserService에서 하지만 UX 일관성 위해 컨트롤러에서도 체크)
     private final ProfanityFilterService profanityFilterService;
@@ -37,12 +43,15 @@ public class AuthController {
                           EmailService emailService,
                           VerificationService verificationService,
                           UserDao userDao,
-                          ProfanityFilterService profanityFilterService) {
+                          ProfanityFilterService profanityFilterService,
+                         FriendDao friendDao, MessageDao messageDao) {
         this.authService = authService;
         this.emailService = emailService;
         this.verificationService = verificationService;
         this.userDao = userDao;
         this.profanityFilterService = profanityFilterService;
+        this.friendDao = friendDao;
+        this.messageDao = messageDao;
     }
 
     //비밀번호 입력 검증(AJAX)
@@ -250,7 +259,21 @@ public class AuthController {
 
             // 회원가입 (여기서도 AuthService 내부에서 닉네임 검증 수행)
             this.authService.join(user);
-
+            
+            // 관리자 정보 조회 및 환영 메세지 발송
+            UserLiteDto admin = this.friendDao.findAdminUser();
+            if (admin != null && user.getId() != 0) {
+            	String title = "V-Beat 가입을 환영합니다!";
+            	String content = String.format(
+            			"안녕하세요 %s님!\n\n" + 
+            			"V-Beat 가입을 진심으로 환영합니다.\n\n" + 
+            			"즐거운 게임 플레이 환경을 제공할 수 있도록 노력하겠습니다. 감사합니다.\n\n" + 
+            			"- VBEAT 관리자 -", user.getNickName()
+            			);
+            	
+            	// 메세지 테이블에 데이터 삽입
+            	this.messageDao.insertMessage(admin.getId(), user.getId(), title, content);
+            }
             // 인증 정보 삭제
             this.verificationService.removeVerification(email);
 

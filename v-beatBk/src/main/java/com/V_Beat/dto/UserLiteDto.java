@@ -11,4 +11,5 @@ public class UserLiteDto {
     private int id;
     private String email;
     private String nickName;
+    private String role;
 }

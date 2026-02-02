@@ -44,7 +44,6 @@ function RequireGuest({ isLogin, children }) {
 
   useEffect(() => {
     if (isLogin === true && !alertDone) {
-      alert("로그아웃 후 이용 가능한 서비스입니다.");
       setAlertDone(true);
     }
   }, [isLogin, alertDone]);

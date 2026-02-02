@@ -13,4 +13,5 @@ public class FriendDto {
     private String otherEmail;
     private boolean online;
     private String otherProfileImg;
+    private String role;
 }

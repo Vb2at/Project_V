@@ -27,10 +27,8 @@ public class FriendService {
         this.onlineUserService = onlineUserService;
     }
 
-    // =========================
     // ✅ WS 개인 알림 전송 (/user/queue/friend)
     // - Friends.jsx 같은 "친구 화면" 실시간 갱신용
-    // =========================
     private void sendToUser(int toUserId, FriendEvent event) {
 
         // ✅ 서버 로그로 "진짜 쐈는지" 확인 (디버깅용)
@@ -46,11 +44,9 @@ public class FriendService {
         );
     }
 
-    // =========================
     // ✅ WS 통합 알림 전송 (/user/queue/notify)
     // - MyPage.jsx가 구독중인 "통합 알림" 채널
     // - 어제 방식 그대로: type/event/data 형태로 쏨
-    // =========================
     private void sendNotify(int toUserId, String event, Map<String, Object> data) {
 
         Map<String, Object> payload = Map.of(
@@ -72,18 +68,16 @@ public class FriendService {
         );
     }
 
-    // =========================
     // ✅ 친구 요청
-    // =========================
     public String sendFriendRequest(int myId, String keyword) {
         if (myId == 0) return "needLogin";
         if (keyword == null || keyword.trim().isEmpty()) return "emp";
 
-        UserLiteDto target = friendDao.searchUser(keyword.trim());
+        UserLiteDto target = this.friendDao.searchUser(keyword.trim());
         if (target == null) return "notFound";
         if (target.getId() == myId) return "self";
 
-        FriendRequestDto rel = friendDao.findFriendRelation(myId, target.getId());
+        FriendRequestDto rel = this.friendDao.findFriendRelation(myId, target.getId());
         if (rel != null) {
             if (rel.getStatus() == 1) return "alreadyFriend";
             if (rel.getFromUserId() == myId) return "alreadyRequested";
@@ -122,11 +116,9 @@ public class FriendService {
         return "success";
     }
 
-    // =========================
     // ✅ 친구 목록 + 온라인 상태
-    // =========================
     public List<FriendDto> getFriendList(int myId) {
-        List<FriendDto> friends = friendDao.findFriends(myId);
+        List<FriendDto> friends = this.friendDao.findFriends(myId);
 
         for (FriendDto f : friends) {
             boolean isOnline = onlineUserService.getOnlineUsers().contains(f.getOtherUserId());
@@ -135,9 +127,7 @@ public class FriendService {
         return friends;
     }
 
-    // =========================
     // ✅ 받은/보낸 요청 목록
-    // =========================
     public List<FriendRequestDto> getReceivedFriendRequests(int myId) {
         return friendDao.findReceivedFriendRequests(myId);
     }
@@ -146,11 +136,9 @@ public class FriendService {
         return friendDao.findSentFriendRequests(myId);
     }
 
-    // =========================
     // ✅ 친구 요청 수락
-    // =========================
     public String acceptFriendRequest(int myId, int requestId) {
-        Integer requesterId = friendDao.findRequesterId(myId, requestId);
+        Integer requesterId = this.friendDao.findRequesterId(myId, requestId);
         if (requesterId == null) return "fail";
 
         int ok = friendDao.acceptFriendRequest(myId, requestId);
@@ -185,25 +173,24 @@ public class FriendService {
         return "success";
     }
 
-    // =========================
     // ✅ 친구 요청 거절
-    // =========================
     public String rejectFriendRequest(int myId, int requestId) {
-        return friendDao.rejectFriendRequest(myId, requestId) == 1 ? "success" : "fail";
+        return this.friendDao.rejectFriendRequest(myId, requestId) == 1 ? "success" : "fail";
     }
 
-    // =========================
     // ✅ 친구 요청 취소(보낸 쪽)
-    // =========================
     public String cancelFriendRequest(int myId, int requestId) {
-        return friendDao.cancelFriendRequest(myId, requestId) == 1 ? "success" : "fail";
+        return this.friendDao.cancelFriendRequest(myId, requestId) == 1 ? "success" : "fail";
     }
 
-    // =========================
     // ✅ 친구 삭제
-    // =========================
     public String deleteFriend(int myId, int targetId) {
-        int ok = friendDao.deleteFriend(myId, targetId);
+    	//관리자 삭제 불가
+    	UserLiteDto targetUser = this.friendDao.findUserLiteById(targetId);
+    	if (targetUser != null && "ADMIN".equals(targetUser.getRole())) {
+    		return "관리자는 친구 삭제가 불가능합니다.";
+    	}
+        int ok = this.friendDao.deleteFriend(myId, targetId);
         if (ok != 1) return "fail";
 
         // ✅ 1) Friends 페이지 실시간 갱신용 (기존 유지)
@@ -229,4 +216,13 @@ public class FriendService {
 
         return "success";
     }
+
+    //사용자에게 관리자 기본 친구로 등록
+	public void addFriend(int fromUserId, int toUserId) {
+		FriendRequestDto fr = new FriendRequestDto();
+		fr.setFromUserId(fromUserId);
+		fr.setToUserId(toUserId);
+		fr.setStatus((byte)1);
+		this.friendDao.addFriend(fr);
+	}
 }
