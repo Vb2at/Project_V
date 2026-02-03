@@ -3,7 +3,6 @@ import { useMemo, useEffect, useRef } from 'react';
 const HEADER_HEIGHT = 64;
 const SIDEBAR_WIDTH = 300;
 
-/* ===== util ===== */
 function resolveProfileImg(src) {
   if (!src) return null;
   if (src.startsWith('http')) return src;
@@ -11,9 +10,14 @@ function resolveProfileImg(src) {
   return `http://localhost:8080${src}`;
 }
 
-export default function RightSidebar({ isMulti, rival, opponentLeft, singleInfo }) {
+export default function RightSidebar({
+  isMulti,
+  rival,
+  opponentLeft,
+  singleInfo,
+  myLocalStream,
+}) {
   const videoRef = useRef(null);
-
   const memo = useMemo(() => {
     if (!isMulti) return null;
     return {
@@ -21,51 +25,35 @@ export default function RightSidebar({ isMulti, rival, opponentLeft, singleInfo 
       profileUrl: resolveProfileImg(rival?.profileUrl),
       score: rival?.score ?? 0,
       combo: rival?.combo ?? 0,
+      stream: rival?.stream ?? null,
     };
   }, [isMulti, rival]);
 
-  /* ===== video stream ===== */
   useEffect(() => {
     if (!isMulti) return;
 
     const video = videoRef.current;
-    if (!video) return;
+    const stream = memo?.stream;
 
-    const stream = rival?.stream;
-    if (!stream) {
-      video.srcObject = null;
+    if (!video || !stream) {
+      if (video) video.srcObject = null;
       return;
     }
 
-    const track = stream.getVideoTracks()[0];
-    if (!track) {
-      video.srcObject = null;
-      return;
-    }
-
-    const forced = new MediaStream([track]);
+    console.log('[RIVAL STREAM APPLY]', stream.id);
 
     video.muted = true;
     video.playsInline = true;
     video.autoplay = true;
-    video.srcObject = forced;
 
-    const playNow = () => {
-      video.play().catch(() => { });
-    };
+    // 🔥 핵심: 절대 null로 초기화하지 않음
+    video.srcObject = stream;
 
-    video.addEventListener('loadedmetadata', playNow);
-    playNow();
-
-    return () => {
-      video.removeEventListener('loadedmetadata', playNow);
-      video.srcObject = null;
-    };
-  }, [isMulti, rival?.stream]);
+    video.play().catch(() => { });
+  }, [isMulti, memo?.stream]);
 
   if (isMulti) {
     if (!memo) return null;
-
     const { nickname, profileUrl, score, combo } = memo;
 
     return (
@@ -81,20 +69,11 @@ export default function RightSidebar({ isMulti, rival, opponentLeft, singleInfo 
               autoPlay
               playsInline
               muted
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',   // 프레임 꽉 채우기
-                background: '#000',
-                zIndex: 0,            // frameBox 내부 레이어
-                pointerEvents: 'none',
-              }}
+              preload="auto"
+              controls={false}
+              disablePictureInPicture
+              style={styles.video}
             />
-
-
             {opponentLeft && (
               <div style={styles.opponentLeftOverlay}>
                 OPPONENT LEFT
@@ -161,7 +140,6 @@ export default function RightSidebar({ isMulti, rival, opponentLeft, singleInfo 
   );
 }
 
-/* ===== components ===== */
 function InfoRow({ label, value, color }) {
   return (
     <div style={styles.infoRow}>
@@ -171,7 +149,9 @@ function InfoRow({ label, value, color }) {
   );
 }
 
-/* ===== styles ===== */
+/* ==============================
+   스타일 (기존 그대로 유지)
+============================== */
 const styles = {
   sidebar: {
     position: 'fixed',
@@ -219,19 +199,35 @@ const styles = {
 
   frameBox: {
     position: 'relative',
-    isolation: 'isolate',      // ★ 핵심: 내부 레이어 격리
+    isolation: 'isolate',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 10,
     overflow: 'hidden',
-    background: '#000',
-    border: '1px solid rgba(90,234,255,0.35)',
+    background: '#111',   // ← 완전 검정 → 살짝 회색
+    border: '2px solid #5aeaff', // ← 두껍게
     margin: '0 auto',
     width: '100%',
     aspectRatio: '9 / 16',
     minHeight: 200,
   },
+
+  video: {
+    position: 'absolute',
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    background: '#000',
+
+    /* ===== 반드시 추가 ===== */
+    zIndex: 99999,
+    opacity: 1,
+    visibility: 'visible',
+    pointerEvents: 'none',
+  },
+
 
   rivalInfo: {
     flex: 4,
@@ -354,5 +350,6 @@ const styles = {
     color: '#ff6b6b',
     background: 'rgba(0,0,0,0.45)',
     pointerEvents: 'none',
+    zIndex: 2,
   },
 };

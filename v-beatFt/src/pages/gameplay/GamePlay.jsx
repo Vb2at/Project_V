@@ -105,13 +105,17 @@ function GamePlay() {
     if (!isOfferer) return;
 
     // 이미 협상 중이면 중단
-    if (pc.signalingState !== 'stable') return;
-    if (pc.localDescription) return;
+
+    if (rtcStartedRef.current) return;
+    if (pc.signalingState !== 'stable' || pc.localDescription) return;
+
 
     try {
+      rtcStartedRef.current = true;
+      console.log('[RTC OFFER TX - BEFORE]');
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      console.log('[RTC OFFER TX]');
+      console.log('[RTC OFFER TX - DONE]', offer.type);
       sendRtcOffer(roomId, offer);
     } catch (err) {
       console.error('[RTC OFFER FAIL]', err);
@@ -119,9 +123,69 @@ function GamePlay() {
   };
 
 
+
   const multiConnectedRef = useRef(false);
   const roomId = searchParams.get('roomId');
+  const ensurePc = () => {
+    if (pcRef.current) return pcRef.current;
 
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    });
+
+    pc.onconnectionstatechange = () => console.log('[RTC conn]', pc.connectionState);
+    pc.onsignalingstatechange = () => console.log('[RTC sig]', pc.signalingState);
+    pc.oniceconnectionstatechange = () => console.log('[RTC ice]', pc.iceConnectionState);
+
+    pc.onicecandidate = (e) => {
+      if (!e.candidate) return;
+
+      const payload = (typeof e.candidate.toJSON === 'function')
+        ? e.candidate.toJSON()
+        : {
+          candidate: e.candidate.candidate,
+          sdpMid: e.candidate.sdpMid,
+          sdpMLineIndex: e.candidate.sdpMLineIndex,
+          usernameFragment: e.candidate.usernameFragment,
+        };
+      sendRtcCandidate(roomId, payload);
+    };
+
+    pc.ontrack = (e) => {
+      console.log('[RTC ONTRACK EVENT]', e.streams);
+      const remoteStream = e.streams?.[0];
+      console.log('[RTC ONTRACK STREAM]', remoteStream, remoteStream?.getTracks());
+      if (!remoteStream) return;
+
+      setRival(prev => ({
+        ...(prev || {}),
+        stream: remoteStream,
+      }));
+    };
+
+    pcRef.current = pc;
+    const s = localStreamRef.current;
+    if (s) {
+      for (const t of s.getTracks()) {
+        const already = pc.getSenders().some(sender => sender.track === t);
+        if (!already) pc.addTrack(t, s);
+      }
+    }
+    if (!pc) return;
+
+    const hasVideoSender = pc.getSenders().some(s => s.track && s.track.kind === 'video');
+    if (!hasVideoSender && localStreamRef.current) {
+      for (const t of localStreamRef.current.getTracks()) {
+        if (t.kind !== 'video') continue;
+        pc.addTrack(t, localStreamRef.current);
+      }
+    }
+
+
+    const isOfferer = Number(myId) === Number(hostIdRef.current);
+    if (!isOfferer) return;
+    return pc;
+  };
   // 멀티 연결
   useEffect(() => {
     if (!isMulti) return;
@@ -131,73 +195,6 @@ function GamePlay() {
     const myId = loginUser.loginUser.id;
 
     // ===================== 단일 PC 생성 경로 =====================
-    const ensurePc = () => {
-      if (pcRef.current) return pcRef.current;
-
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-      });
-
-      pc.onconnectionstatechange = () => console.log('[RTC conn]', pc.connectionState);
-      pc.onsignalingstatechange = () => console.log('[RTC sig]', pc.signalingState);
-      pc.oniceconnectionstatechange = () => console.log('[RTC ice]', pc.iceConnectionState);
-
-      pc.onicecandidate = (e) => {
-        if (!e.candidate) return;
-
-        const payload = (typeof e.candidate.toJSON === 'function')
-          ? e.candidate.toJSON()
-          : {
-            candidate: e.candidate.candidate,
-            sdpMid: e.candidate.sdpMid,
-            sdpMLineIndex: e.candidate.sdpMLineIndex,
-            usernameFragment: e.candidate.usernameFragment,
-          };
-
-        console.log('[RTC ICE TX]', {
-          mid: payload.sdpMid,
-          mline: payload.sdpMLineIndex,
-          head: String(payload.candidate).slice(0, 60),
-        });
-
-        sendRtcCandidate(roomId, payload);
-      };
-
-      pc.ontrack = (e) => {
-        const remoteStream = e.streams?.[0];
-        console.log('[RTC ONTRACK]', remoteStream?.getTracks());
-        if (!remoteStream) return;
-
-        setRival(prev => ({
-          ...(prev || {}),
-          stream: remoteStream,
-        }));
-      };
-
-      pcRef.current = pc;
-      const s = localStreamRef.current;
-      if (s) {
-        for (const t of s.getTracks()) {
-          const already = pc.getSenders().some(sender => sender.track === t);
-          if (!already) pc.addTrack(t, s);
-        }
-      }
-      if (!pc) return;
-
-      const hasVideoSender = pc.getSenders().some(s => s.track && s.track.kind === 'video');
-      if (!hasVideoSender && localStreamRef.current) {
-        for (const t of localStreamRef.current.getTracks()) {
-          if (t.kind !== 'video') continue;
-          pc.addTrack(t, localStreamRef.current);
-        }
-      }
-
-
-      const isOfferer = Number(myId) === Number(hostIdRef.current);
-      if (!isOfferer) return;
-      return pc;
-    };
-
     connectMultiSocket({
       roomId,
       replaceHandlers: true,
@@ -217,33 +214,36 @@ function GamePlay() {
           userId: opp.userId,
           nickname: opp.nickname,
           profileUrl: opp.profileImg,
+
+          // ★★★ 여기 유지가 핵심 ★★★
           score: prev?.score ?? 0,
           combo: prev?.combo ?? 0,
-          stream: prev?.stream ?? null,
+          stream: prev?.stream,   // ← 절대 초기화 금지
         }));
 
-        // PC를 먼저 보장한 뒤 offer 시도
         ensurePc();
         tryStartRtc();
       },
+
 
       // ===================== SCORE =====================
       onScoreMessage: (data) => {
         setRival(prev => {
           if (!prev) return prev;
-          if (data?.userId === myId) return prev;
-
           return {
             ...prev,
-            score: data?.score ?? prev.score,
-            combo: data?.combo ?? prev.combo,
+            score: data.score,
+            combo: data.combo,
+            // ★ 절대 건드리지 말 것
+            stream: prev.stream,
           };
         });
       },
 
       // ===================== RTC 시그널링 =====================
       onRtcMessage: async (msg) => {
-        console.log('[RTC RX RAW]', msg);
+
+        if (msg?.userId != null && Number(msg.userId) === Number(myId)) return;
 
         const pc = ensurePc();
         if (!pc) return;
@@ -438,7 +438,11 @@ function GamePlay() {
     const handler = (e) => {
       console.log('[MULTI START EVENT]', e.detail);
       if (e.detail?.type === 'MULTI_START') {
-        setRival(e.detail.rival || null);
+        setRival(prev => ({
+          ...(prev || {}),
+          ...(e.detail.rival || {}),
+          stream: prev?.stream ?? null,   // ★ 상대 스트림 절대 유지
+        }));
       }
     };
 
@@ -473,17 +477,19 @@ function GamePlay() {
 
       setUserPaused((p) => {
         const next = !p;
-        if (p === true && next === false) {
+
+        // 🔥 멀티에서는 재개 시 카운트다운 복귀를 하지 않음
+        if (!isMulti && p === true && next === false) {
           setCountdown(3);
         }
+
         return next;
       });
     };
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
+  }, [isMulti]);
 
   useEffect(() => {
     if (!loadingDone) return;
@@ -536,7 +542,7 @@ function GamePlay() {
 
   const paused =
     countdown !== null ||
-    userPaused ||
+    (!isMulti && userPaused) ||   // 🔥 멀티면 ESC로 게임 정지 안 함
     !ready;
 
   return (
@@ -559,6 +565,7 @@ function GamePlay() {
       <RightSidebar
         isMulti={isMulti}
         rival={rival}
+        myLocalStream={localStreamRef.current}
       />
       <HUDFrame>
         <HUD
@@ -678,12 +685,14 @@ function GamePlay() {
         </div>
       )}
 
-      {userPaused && (
+      {!isMulti && userPaused && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.65)',
+            background: isMulti
+              ? 'transparent'
+              : 'rgba(0,0,0,0.65)',
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
@@ -777,7 +786,6 @@ function GamePlay() {
                 >
                   {settings.sfxMuted ? 'OFF' : 'ON'}
                 </button>
-
                 <input
                   type="range"
                   min={0}
@@ -797,31 +805,39 @@ function GamePlay() {
                 />
               </div>
             </div>
+            <div
+              style={{
+                display: 'flex',
+                gap: 16,
+                justifyContent: isMulti ? 'center' : 'space-between', // 🔥 핵심
+              }}
+            >
+              {/* 멀티에서는 다시시작 완전 제거 */}
+              {!isMulti && (
+                <button
+                  style={{
+                    flex: 1,
+                    background: 'linear-gradient(90deg, #ff3a3ab9, #ff009db0)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '10px 0',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    playMenuConfirm();
+                    setSessionKey((k) => k + 1);
+                    setUserPaused(false);
+                    setCountdown(3);
+                  }}
+                >
+                  다시시작
+                </button>
+              )}
 
-            <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
               <button
                 style={{
-                  flex: 1,
-                  background: 'linear-gradient(90deg, #ff3a3ab9, #ff009db0)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 8,
-                  padding: '10px 0',
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  playMenuConfirm();
-                  setSessionKey((k) => k + 1);
-                  setUserPaused(false);
-                  setCountdown(3);
-                }}
-              >
-                다시시작
-              </button>
-
-              <button
-                style={{
-                  flex: 1,
+                  flex: isMulti ? 0.6 : 1,   // 멀티일 때 버튼 크기 축소 + 중앙 배치
                   background: '#3a3a3aff',
                   color: '#ddd',
                   border: '1px solid #444',
@@ -844,7 +860,6 @@ function GamePlay() {
               >
                 나가기
               </button>
-
             </div>
           </div>
         </div>
@@ -883,6 +898,7 @@ function GamePlay() {
             token={tokenParam}
             analyserRef={analyserRef}
             loginUserId={loginUser?.loginUser?.id}
+            roomHostId={hostIdRef.current}
             key={sessionKey}
             paused={paused}
             fpsLimit={settings.fps}
@@ -898,7 +914,7 @@ function GamePlay() {
             onState={({ score, combo, diff, currentTime, duration, maxScore }) => {
               if (finished) return;
 
-              comboRef.current = combo;   //
+              comboRef.current = combo;
 
               setScore(score);
               setCombo(combo);
@@ -907,7 +923,6 @@ function GamePlay() {
               setSongProgress(duration > 0 ? Math.min(1, currentTime / duration) : 0);
               setClassProgress(maxScore > 0 ? Math.min(1, score / maxScore) : 0);
 
-              // ===== 멀티일 때만 서버로 점수 전송 =====
               if (isMulti && roomId) {
                 publishMulti('/app/multi/score', {
                   roomId,
@@ -916,7 +931,6 @@ function GamePlay() {
                   maxCombo: comboRef.current,
                 });
               }
-
             }}
 
             onFinish={({ score, maxScore, maxCombo, diff: finishDiff }) => {
@@ -933,66 +947,70 @@ function GamePlay() {
 
               navigate('/game/result', {
                 state: {
-                  mode: 'single',
-                  score,
-                  maxScore,
-                  maxCombo,
+                  mode: isMulti ? 'multi' : 'single',   // ✅ 핵심 수정
+
+                  // --- 내 기록 ---
+                  myNickname: loginUser?.loginUser?.nickname ?? 'ME',
+                  myScore: score,
+                  myMaxScore: maxScore,
+                  myMaxCombo: maxCombo,
+
+                  // --- 상대 기록 (현재 RightSidebar 기준 데이터) ---
+                  rivalNickname: rival?.nickname ?? 'RIVAL',
+                  rivalScore: rival?.score ?? 0,
+                  rivalMaxScore: maxScore,
+                  rivalMaxCombo: rival?.combo ?? 0,
+
                   diff: finishDiff ?? diff ?? 'unknown',
                   songId: baseSongId,
                 },
               });
             }}
+
             isMulti={isMulti}
             roomId={roomId}
+
             onStreamReady={(stream) => {
               localStreamRef.current = stream;
 
-              // ✅ PC 없으면 먼저 생성
-              if (!pcRef.current && isMulti && loginUser?.loginUser?.id && roomId) {
-                // ensurePc가 useEffect 내부에 있어서 여기서 못 쓰는 구조라면,
-                // 최소로: connect가 이미 되어있는 상태에서만 이 블록이 돈다고 가정하지 말고
-                // 아래처럼 안전하게 return 하지 않게 "pc가 생긴 뒤에만" answer/offer 처리로 둡니다.
+              // ✅ (1) 반드시 기존 PC를 가져온다 (ensurePc 기준 단일 PC 유지)
+              const pc = ensurePc();
+              if (!pc) return;
+
+              // ✅ (2) 트랙을 '여기서 한 번만' 보장
+              for (const t of stream.getTracks()) {
+                const already = pc.getSenders().some(s => s.track === t);
+                if (!already) pc.addTrack(t, stream);
               }
 
-              const pc = pcRef.current;
-              if (pc) {
-                // ✅ 트랙 보장
-                for (const t of stream.getTracks()) {
-                  const already = pc.getSenders().some(sender => sender.track === t);
-                  if (!already) pc.addTrack(t, stream);
-                }
+              // ✅ (3) 혹시 대기 중이던 OFFER가 있으면 여기서 처리
+              const pending = pendingOfferRef.current;
+              if (pending && pc.remoteDescription && pc.signalingState === 'have-remote-offer') {
+                (async () => {
+                  try {
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    sendRtcAnswer(pending.roomId, answer);
 
-                // ✅ OFFER를 먼저 받았던 경우: 지금 여기서 answer
-                const pending = pendingOfferRef.current;
-                if (
-                  pending &&
-                  pc.remoteDescription &&
-                  pc.signalingState === 'have-remote-offer'
-                ) {
-                  (async () => {
-                    try {
-                      const answer = await pc.createAnswer();
-                      await pc.setLocalDescription(answer);
-                      sendRtcAnswer(pending.roomId, answer);
-
-                      const ice = pendingIceRef.current;
-                      pendingIceRef.current = [];
-                      for (const c of ice) await pc.addIceCandidate(c);
-
-                      pendingOfferRef.current = null;
-                    } catch (err) {
-                      console.error('[RTC PENDING ANSWER FAIL]', err);
+                    for (const c of pendingIceRef.current) {
+                      await pc.addIceCandidate(c);
                     }
-                  })();
-                }
+                    pendingIceRef.current = [];
+                    pendingOfferRef.current = null;
+                  } catch (err) {
+                    console.error('[RTC PENDING ANSWER FAIL]', err);
+                  }
+                })();
               }
 
-              // ✅ offerer면 offer 시도
+              // ✅ (4) offerer면 반드시 여기서 시작
               tryStartRtc();
             }}
 
+
           />
         )}
+
 
         {settings.visualizer && <Visualizer active={!paused} size="game" analyserRef={analyserRef} />}
 

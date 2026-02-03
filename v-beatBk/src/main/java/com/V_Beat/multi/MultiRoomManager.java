@@ -111,10 +111,21 @@ public class MultiRoomManager {
 		if (isHostLeaving || room.getPlayers().isEmpty()) {
 
 			// 남아있는 플레이어들에게만 ROOM_CLOSED 전송
+			// 1) 남아 있는 플레이어들에게 전송
 			for (MultiPlayer p : room.getPlayers()) {
-				messagingTemplate.convertAndSendToUser(String.valueOf(p.getUserId()), "/queue/room-closed",
-						Map.of("roomId", roomId));
+			    messagingTemplate.convertAndSendToUser(
+			        String.valueOf(p.getUserId()),
+			        "/queue/room-closed",
+			        Map.of("roomId", roomId)
+			    );
 			}
+
+			// ★★★ 추가: 방장 본인에게도 명확히 전송 ★★★
+			messagingTemplate.convertAndSendToUser(
+			    String.valueOf(userId),
+			    "/queue/room-closed",
+			    Map.of("roomId", roomId)
+			);
 
 			closedRooms.add(roomId);
 			rooms.remove(roomId);
@@ -182,10 +193,13 @@ public class MultiRoomManager {
 				continue;
 
 			// ✅ 여기까지 왔다는 건 "실제 게임 중 이탈"
-			messagingTemplate.convertAndSend("/topic/multi/room/" + room.getRoomId(),
-					Map.of("type", "OPPONENT_LEFT", "userId", userId));
+			String roomId = room.getRoomId();
 
-			log.warn("[OPPONENT_LEFT SENT] userId={} roomId={}", userId, room.getRoomId());
+			log.warn("[GAME LEAVE → ROOM EXPLODE] userId={} roomId={}", userId, roomId);
+
+			// ★ 핵심: 알림만 보내지 말고 실제 방 삭제 경로로 보낸다
+			leaveRoom(roomId, userId);
+
 			return true;
 		}
 

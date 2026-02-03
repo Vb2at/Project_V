@@ -124,6 +124,33 @@ public class MultiSocketController {
 
 		log.info("[MULTI READY] roomId={} userId={}", roomId, userId);
 	}
+	
+	/* ========================= LEAVE ========================= */
+	@MessageMapping("/leave")
+	public void leave(@Payload Map<String, Object> payload, Principal principal) {
+
+	    if (principal == null || payload == null) return;
+
+	    String roomId = (String) payload.get("roomId");
+	    if (roomId == null) return;
+
+	    Integer userId;
+	    try {
+	        userId = Integer.parseInt(principal.getName());
+	    } catch (Exception e) {
+	        return;
+	    }
+
+	    log.info("[LEAVE RX] roomId={} userId={}", roomId, userId);
+
+	    boolean exploded = roomManager.leaveRoom(roomId, userId);
+
+	    // 방이 폭파된 경우 명시 로그
+	    if (exploded) {
+	        log.warn("[ROOM EXPLODED] roomId={} by host={}", roomId, userId);
+	    }
+	}
+
 
 	/* ========================= START ========================= */
 	@MessageMapping("/start")

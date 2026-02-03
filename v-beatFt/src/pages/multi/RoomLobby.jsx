@@ -38,23 +38,23 @@ function sanitizeTitle(t) {
 export default function RoomLobby() {
   const { roomId } = useParams();
   const navigate = useNavigate();
-
+  const startedRef = useRef(false);
   const analyserRef = useRef(null);
   const songTitleRef = useRef(null);
   const toggleReady = () => sendReady(roomId);
   const startGame = () => sendStart(roomId);
 
-
   const leaveRoom = () => {
+    console.log('[LOBBY LEAVE CLICK]', roomId);
+
     sendLeave(roomId);
 
-    // 서버가 응답하지 않을 때 대비한 안전장치
+    // ★ 중요: 방장/비방장 구분 없이 프론트는 즉시 무효화
+    sessionStorage.setItem('roomClosed', 'true');
+
     setTimeout(() => {
-      if (!sessionStorage.getItem('roomClosed')) {
-        sessionStorage.setItem('roomClosed', 'true');
-        navigate('/main', { replace: true });
-      }
-    }, 500);
+      navigate('/main', { replace: true });
+    }, 300);
   };
 
   const [myUserId, setMyUserId] = useState(null);
@@ -85,6 +85,10 @@ export default function RoomLobby() {
         }
 
         if (data?.type === 'START') {
+          startedRef.current = true;   // ★ 핵심 플래그
+
+          sessionStorage.setItem('roomClosed', 'true');
+
           navigate(
             `/game/play?mode=multi&roomId=${roomId}&songId=${roomInfo.songId}&startAt=${data.startAt}`
           );
@@ -92,8 +96,12 @@ export default function RoomLobby() {
       },
 
       onRoomClosed: () => {
-        console.log('[ROOM_CLOSED RX]'); 
-        sessionStorage.setItem('roomClosed', 'true'); // 이동 후 alert용 신호
+        console.log('[ROOM_CLOSED RX]');
+
+        sessionStorage.setItem('roomClosed', 'true');
+
+        alert('방이 종료되었습니다.'); // ← 선택 추가
+
         navigate('/main', { replace: true });
       }
     });
@@ -158,6 +166,16 @@ export default function RoomLobby() {
     setIsTitleOverflow(el.scrollWidth > el.clientWidth);
   }, [roomInfo?.songTitle]);
 
+  // ★ 추가: 컴포넌트 종료 시 자동 leave
+  useEffect(() => {
+    return () => {
+      // ★ 게임 시작 이동이면 leave를 보내지 않음
+      if (isHost && !startedRef.current) {
+        sendLeave(roomId);
+        sessionStorage.setItem('roomClosed', 'true');
+      }
+    };
+  }, [isHost, roomId]);
 
   /* =========================
      Visualizer

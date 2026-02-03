@@ -1,4 +1,3 @@
-// src/pages/gameplay/Result.jsx
 import { getClassByRatio } from "../../util/scoreClass";
 import axios from 'axios';
 import Background from '../../components/Common/Background';
@@ -85,12 +84,17 @@ export default function Result() {
   const { state } = useLocation();
   const navigate = useNavigate();
   const savedRef = useRef(false);
+
   const {
     mode = 'single',
     winByLeave = false,
+
+    // 싱글용
     score = 0,
     maxScore = 1,
     maxCombo = 0,
+
+    // 멀티용
     myNickname = 'ME',
     rivalNickname = 'RIVAL',
     myScore = score,
@@ -99,9 +103,12 @@ export default function Result() {
     rivalScore = 0,
     rivalMaxScore = maxScore,
     rivalMaxCombo = 0,
+
     songId,
     diff,
   } = state ?? {};
+
+  const isMulti = mode === 'multi';
 
   const myRatio = myMaxScore > 0 ? myScore / myMaxScore : 0;
   const rivalRatio = rivalMaxScore > 0 ? rivalScore / rivalMaxScore : 0;
@@ -109,33 +116,35 @@ export default function Result() {
   const myGrade = getClassByRatio(myRatio);
   const rivalGrade = getClassByRatio(rivalRatio);
 
+  // ===== BGM + 점수 저장 =====
   useEffect(() => {
     playResultEnter();
     startResultBgm();
 
-    if (!songId || savedRef.current) return; // 이미 저장했으면 무시
-    savedRef.current = true
+    // 이미 저장했으면 중단
+    if (!songId || savedRef.current) return;
+    savedRef.current = true;
 
-    if (songId) { // songId 등 필수 값 체크
-      const payload = {
-        songId,
-        diff,
-        score: myScore,
-        accuracy: myMaxScore > 0 ? (myScore / myMaxScore) * 100 : 0,
-        grade: myGrade,
-        maxCombo: myMaxCombo,
-      };
+    // 🔥 **핵심: 멀티에서는 점수 저장 안 함**
+    if (isMulti) return;
 
-      axios.post('/api/scores', payload)
-        .then(() => console.log('점수 저장 성공'))
-        .catch(err => console.error('점수 저장 실패', err));
-    }
+    const payload = {
+      songId,
+      diff,
+      score: myScore,
+      accuracy: myMaxScore > 0 ? (myScore / myMaxScore) * 100 : 0,
+      grade: myGrade,
+      maxCombo: myMaxCombo,
+    };
+
+    axios.post('/api/scores', payload)
+      .then(() => console.log('점수 저장 성공'))
+      .catch(err => console.error('점수 저장 실패', err));
+
     return () => stopResultBgm();
   }, []);
 
-  const isMulti = mode === 'multi';
-
-  // ===== 승패 =====
+  // ===== 승패 판정 =====
   let multiResultText = 'DRAW';
   if (winByLeave || myScore > rivalScore) multiResultText = 'WIN';
   else if (myScore < rivalScore) multiResultText = 'LOSE';

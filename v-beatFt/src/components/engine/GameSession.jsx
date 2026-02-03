@@ -103,6 +103,8 @@ export default function GameSession({
     if (combo >= 20) return 2;
     return 1;
   };
+  const TARGET_FPS = 30;
+  const FRAME_MS = 1000 / TARGET_FPS;
 
   const onStateRef = useRef(onState);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -148,12 +150,19 @@ export default function GameSession({
   }, [usedNotes, calcMaxScore]);
 
   useEffect(() => {
+    if (!isMulti) {
+      if (compositeRafRef.current) {
+        cancelAnimationFrame(compositeRafRef.current);
+        compositeRafRef.current = null;
+      }
+      return;
+    }
     compositeStartedRef.current = false;
     sentStreamRef.current = null;
-  }, [propSongId, roomId]);
+  }, [propSongId, roomId, isMulti]);
 
   useEffect(() => {
-    if (!onStreamReady || !isMulti) return;        // mode 체크 제거
+    if (!onStreamReady || !isMulti) return;
     if (compositeStartedRef.current) return;
 
     const out = compositeCanvasRef.current;
@@ -162,45 +171,44 @@ export default function GameSession({
     const fx = effectsCanvasRef.current;
 
     if (!out || !base || !notes) return;
-
     compositeStartedRef.current = true;
 
     // ===== 해상도 조절 =====
-    const WIDTH = 240;
-    const HEIGHT = 426;
+    const WIDTH = 480;
+    const HEIGHT = 853;  // 9:16 비율 유지
     out.width = WIDTH;
     out.height = HEIGHT;
 
     const ctx = out.getContext('2d');
     if (!ctx) return;
 
-    let firstFrameDrawn = false;
 
-    const loop = () => {
-      ctx.clearRect(0, 0, out.width, out.height);
+    let lastTs = 0;
 
-      ctx.drawImage(base, 0, 0, WIDTH, HEIGHT);
-      ctx.drawImage(notes, 0, 0, WIDTH, HEIGHT);
-      if (fx) ctx.drawImage(fx, 0, 0, WIDTH, HEIGHT);
-      //localStream 생성/전달
-      if (!firstFrameDrawn) {
-        firstFrameDrawn = true;
-
-        requestAnimationFrame(() => {
-          const fps = 20;              // 고정
-          const stream = out.captureStream(fps);
-
-          //localStream 생성 
-          if (!sentStreamRef.current) {
-            sentStreamRef.current = stream;
-            onStreamReady(stream);
-          }
-        });
+    const rafTick = (ts) => {
+      if (ts - lastTs < FRAME_MS) {
+        compositeRafRef.current = requestAnimationFrame(rafTick);
+        return;
       }
-      compositeRafRef.current = requestAnimationFrame(loop);
+      lastTs = ts;
+
+      ctx.clearRect(0, 0, out.width, out.height);
+      if (base) ctx.drawImage(base, 0, 0, WIDTH, HEIGHT);
+      if (notes) ctx.drawImage(notes, 0, 0, WIDTH, HEIGHT);
+      if (fx) ctx.drawImage(fx, 0, 0, WIDTH, HEIGHT);
+
+      compositeRafRef.current = requestAnimationFrame(rafTick);
     };
 
-    compositeRafRef.current = requestAnimationFrame(loop);
+    compositeRafRef.current = requestAnimationFrame(rafTick);
+
+    setTimeout(() => {
+      const stream = out.captureStream(30);
+      onStreamReady?.(stream);
+      console.log('[COMPOSITE TRACKS]', stream.getTracks());
+      console.log('[COMPOSITE VIDEO TRACK]', stream.getVideoTracks()[0]);
+      sentStreamRef.current = stream;
+    }, 50);
 
     return () => {
       if (compositeRafRef.current) {
@@ -211,7 +219,7 @@ export default function GameSession({
       compositeStartedRef.current = false;
       sentStreamRef.current = null;
     };
-  }, [canvasReadyTick, settings.fps, onStreamReady]);
+  }, [canvasReadyTick, isMulti, roomId]);
 
   useEffect(() => {
     if (!isMulti) return;
@@ -1536,19 +1544,19 @@ export default function GameSession({
           transformOrigin: 'top left',
         }}
       >
-        <canvas
-          ref={compositeCanvasRef}
-          style={{
-            position: 'fixed',      // ★ 핵심
-            top: -9999,             // 화면 밖으로 완전히 추방
-            left: -9999,
-            width: 1,
-            height: 1,
-            opacity: 0,
-            pointerEvents: 'none',
-            zIndex: -9999,
-          }}
-        />
+ <canvas
+  ref={compositeCanvasRef}
+  style={{
+    position: 'fixed',
+    top: '-9999px',      // ★ 화면 밖으로 완전 추방
+    left: '-9999px',
+    width: 1,
+    height: 1,
+    opacity: 0,
+    pointerEvents: 'none',
+    zIndex: -9999,
+  }}
+/>
         {mode === 'edit' && tool === 'delete' && deleteBox && (
           <div
             style={{

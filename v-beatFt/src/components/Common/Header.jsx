@@ -417,7 +417,7 @@ export default function Header({ onLogout = () => { } }) {
                   navigate('/main');
                 }}
               >
-                메인페이지
+                홈으로
               </button>
 
               {status && !isBlockUser && (

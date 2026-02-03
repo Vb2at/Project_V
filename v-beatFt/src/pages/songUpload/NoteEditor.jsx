@@ -366,7 +366,15 @@ export default function NoteEditor() {
                             DELETE
                         </button>
                     </div>
-
+                    {/* ===== 뒤로가기 버튼 ===== */}
+                    <div style={{ marginTop: 50 }}>
+                        <button
+                            style={secondaryBtn}
+                            onClick={() => navigate(-1)}
+                        >
+                            뒤로가기
+                        </button>
+                    </div>
                     <div style={{ height: 10 }} />
                 </div>
             </div>
@@ -412,7 +420,7 @@ const editorRightWrap = {
     zIndex: 60,
     padding: '18px 14px',
     boxSizing: 'border-box',
-     background: 'rgba(10,20,30,0.45)',
+    background: 'rgba(10,20,30,0.45)',
     borderLeft: '1px solid rgba(255,255,255,0.08)',
     backdropFilter: 'blur(10px)',
 };
