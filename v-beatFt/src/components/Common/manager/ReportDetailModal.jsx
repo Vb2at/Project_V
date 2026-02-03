@@ -98,20 +98,26 @@ export default function ReportDetailModal({ report, onClose, onAction, onRefresh
                     <section style={section}>
                         <span style={sectionTitle}>신고 처리</span>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            {ACTIONS.map((a) => (
-                                <button
-                                    key={a.key}
-                                    onClick={() => setAction(a.key)}
-                                    style={{
-                                        ...actionBtn,
-                                        ...(action === a.key
-                                            ? actionBtnActive
-                                            : {}),
-                                    }}
-                                >
-                                    {a.label}
-                                </button>
-                            ))}
+                            {ACTIONS
+                                .filter(a => {
+                                    // 사용자 신고일 경우 "삭제" 액션 숨김
+                                    if (report.targetType === 'USER' && a.key === 'DELETE_CONTENT') {
+                                        return false;
+                                    }
+                                    return true;
+                                })
+                                .map((a) => (
+                                    <button
+                                        key={a.key}
+                                        onClick={() => setAction(a.key)}
+                                        style={{
+                                            ...actionBtn,
+                                            ...(action === a.key ? actionBtnActive : {}),
+                                        }}
+                                    >
+                                        {a.label}
+                                    </button>
+                                ))}
                         </div>
 
                         <textarea
