@@ -1226,10 +1226,9 @@ export default function MainOverlay({
                     padding: 12,
                     borderRadius: 12,
                     background: 'rgba(0,0,0,0.25)',
-
                     flex: 1,
-                    minHeight: 0,            // ⭐ 중요
-                    overflowY: 'auto',       // 스크롤 활성
+                    minHeight: 0,
+                    overflowY: 'auto',
                   }}
                 >
                   {multiRooms.length === 0 && (
@@ -1238,76 +1237,93 @@ export default function MainOverlay({
                     </div>
                   )}
 
-                  {filteredMultiRooms.map((r) => (
-                    <div
-                      key={r.roomId ?? r.id}
-                      onClick={async () => {
-                        playMenuConfirm();
-                        const roomId = r.roomId ?? r.id;
-                        navigate(`/multi/room/${roomId}`);
-                        try {
+                  {filteredMultiRooms.map((r) => {
+                    const isFull = (r.players?.length ?? 0) >= r.maxPlayers;
+
+                    return (
+                      <div
+                        key={r.roomId ?? r.id}
+                        onClick={() => {
+                          if (isFull) {
+                            alert("정원이 모두 찼습니다.");
+                            return;
+                          }
+                          playMenuConfirm();
                           const roomId = r.roomId ?? r.id;
-
                           navigate(`/multi/room/${roomId}`);
-                        } catch (e) {
-                          alert(e.message || '방 입장 중 오류 발생');
-                        }
-                      }}
-                      style={{
-                        position: 'relative', // ⭐ 필수
-                        padding: 14,
-                        borderRadius: 12,
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        marginBottom: 10,
-                        cursor: 'pointer',
-                        background: 'linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.25))',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 6,
-                      }}
-                    >
-                      {/* 상단: 방 이름 + 잠금 */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ fontWeight: 700, fontSize: 20, letterSpacing: '0.02em' }}>
-                          {r.roomName}
-                        </div>
-                      </div>
+                        }}
+                        style={{
+                          position: 'relative',
+                          padding: 14,
+                          borderRadius: 12,
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          marginBottom: 10,
 
-                      {/* 곡 정보 */}
-                      <div style={{ fontSize: 18, opacity: 0.7 }}>
-                        🎵 {r.songTitle}
-                      </div>
+                          /* ===== 핵심: 시각 + 클릭 제어 ===== */
+                          cursor: isFull ? 'not-allowed' : 'pointer',
+                          opacity: isFull ? 0.55 : 1,
+                          filter: isFull ? 'grayscale(100%)' : 'none',
+                          pointerEvents: 'auto', // 카드 자체는 항상 이벤트 수신
 
-                      {/* 하단: 인원 */}
-                      <div style={{ display: 'flex', gap: 10, fontSize: 15, opacity: 0.75 }}>
-                        <span>{(r.players?.length ?? 0)} / {r.maxPlayers} 명</span>
-                      </div>
-                      {/* 호스트 핑 */}
-                      {r.hostUserId && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            right: 16,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            fontSize: 11,
-                            padding: '4px 8px',
-                            borderRadius: 8,
-                            background: 'rgba(90,234,255,0.18)',
-                            border: '1px solid rgba(90,234,255,0.6)',
-                            color: '#5aeaff',
-                            fontWeight: 700,
-                            letterSpacing: '0.1em',
-                            pointerEvents: 'none',
-                          }}
-                        >
-                          PING {typeof r.hostPing === 'number' ? `${r.hostPing}ms` : '--'}
+                          background: isFull
+                            ? 'rgba(50,50,50,0.55)'
+                            : 'linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.25))',
+
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                        }}
+                      >
+                        {/* 상단: 방 이름 */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ fontWeight: 700, fontSize: 20, letterSpacing: '0.02em' }}>
+                            {r.roomName}
+                          </div>
+                          {isFull && (
+                            <span style={{ color: '#ff6b6b', fontSize: 13 }}>• FULL</span>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+
+                        {/* 곡 정보 */}
+                        <div style={{ fontSize: 18, opacity: 0.7 }}>
+                          🎵 {r.songTitle}
+                        </div>
+
+                        {/* 하단: 인원 */}
+                        <div style={{ display: 'flex', gap: 10, fontSize: 15, opacity: 0.75 }}>
+                          <span>
+                            {(r.players?.length ?? 0)} / {r.maxPlayers} 명
+                          </span>
+                        </div>
+
+                        {/* 호스트 핑 */}
+                        {r.hostUserId && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              right: 16,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              fontSize: 11,
+                              padding: '4px 8px',
+                              borderRadius: 8,
+                              background: 'rgba(90,234,255,0.18)',
+                              border: '1px solid rgba(90,234,255,0.6)',
+                              color: '#5aeaff',
+                              fontWeight: 700,
+                              letterSpacing: '0.1em',
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            PING {typeof r.hostPing === 'number' ? `${r.hostPing}ms` : '--'}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
+
 
 
             </div>

@@ -170,7 +170,7 @@ export default function RoomLobby() {
   useEffect(() => {
     return () => {
       // ★ 게임 시작 이동이면 leave를 보내지 않음
-      if (isHost && !startedRef.current) {
+      if (isHost && !startedRef.current && players.length <= 1) {
         sendLeave(roomId);
         sessionStorage.setItem('roomClosed', 'true');
       }

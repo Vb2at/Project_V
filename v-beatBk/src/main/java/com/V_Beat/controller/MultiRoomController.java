@@ -1,4 +1,3 @@
-// src/main/java/com/V_Beat/controller/MultiRoomController.java
 package com.V_Beat.controller;
 
 import java.util.HashMap;
@@ -57,7 +56,6 @@ public class MultiRoomController {
         req.setLengthSec(parseDurationToSec(song.getDuration()));
         req.setCoverPath("/api/songs/" + song.getId() + "/cover");
 
-        // ✅ MultiRoomManager 시그니처와 정확히 일치
         MultiRoom room = roomManager.createRoom(req, user.getId());
 
         res.put("ok", true);
@@ -104,7 +102,7 @@ public class MultiRoomController {
         return res;
     }
 
-    /* ===== 방 입장 ===== */
+    /* ===== 방 입장 (정원 초과 차단 포함) ===== */
     @PostMapping("/rooms/{roomId}/join")
     public Map<String, Object> joinRoom(
         @PathVariable String roomId,
@@ -118,7 +116,19 @@ public class MultiRoomController {
             return res;
         }
 
-        // ✅ MultiRoomManager.joinRoom(String, Integer)
+        MultiRoom room = roomManager.getRoom(roomId);
+        if (room == null) {
+            res.put("ok", false);
+            return res;
+        }
+
+        // ★★★ 서버 기준 정원 초과 차단 ★★★
+        if (room.getPlayers().size() >= room.getMaxPlayers()) {
+            res.put("ok", false);
+            res.put("reason", "ROOM_FULL");
+            return res;
+        }
+
         boolean ok = roomManager.joinRoom(roomId, user.getId());
 
         res.put("ok", ok);

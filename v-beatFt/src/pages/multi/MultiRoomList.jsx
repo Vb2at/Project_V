@@ -1,4 +1,4 @@
-// src/pages/multi/MultiRoomList.jsx (경로는 프로젝트에 맞춰 유지)
+// src/pages/multi/MultiRoomList.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../components/Common/Header";
@@ -29,9 +29,8 @@ export default function MultiRoomList() {
       const res = await fetch("/api/multi/rooms", { credentials: "include" });
       if (!res.ok) throw new Error("rooms fetch failed");
       const data = await res.json();
-      if (!data?.ok) throw new Error(data?.message || "rooms fetch failed");
       setRooms(Array.isArray(data.rooms) ? data.rooms : []);
-    } catch (e) {
+    } catch {
       setRooms([]);
     } finally {
       setLoading(false);
@@ -52,23 +51,41 @@ export default function MultiRoomList() {
     });
 
     client.activate();
-
     return () => client.deactivate();
   }, []);
 
   const goRoom = async (roomId) => {
+    const room = rooms.find(r => r.roomId === roomId);
+    if (!room || room.players?.length >= room.maxPlayers) {
+      alert("정원이 모두 찼습니다.");
+      await loadRooms();
+      return;
+    }
+
+    setLoading(true);
+
     try {
       const joinRes = await fetch(`/api/multi/rooms/${roomId}/join`, {
         method: "POST",
         credentials: "include",
       });
-      if (!joinRes.ok) throw new Error("join failed");
-      const joinData = await joinRes.json();
-      if (!joinData?.ok) throw new Error(joinData?.message || "join failed");
+
+      const data = await joinRes.json();
+
+      if (!data?.ok) {
+        if (data?.reason === "ROOM_FULL") {
+          alert("정원이 모두 찼습니다.");
+          await loadRooms();
+          return;
+        }
+        throw new Error("join failed");
+      }
 
       navigate(`/multi/room/${roomId}`);
-    } catch (e) {
+    } catch {
       alert("방 입장에 실패했습니다.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -91,7 +108,6 @@ export default function MultiRoomList() {
             gap: 12,
           }}
         >
-          {/* 🔵 멀티 컨트롤 바 */}
           <div
             style={{
               height: 42,
@@ -106,35 +122,8 @@ export default function MultiRoomList() {
             <button onClick={loadRooms} disabled={loading}>
               {loading ? "로딩..." : "새로고침"}
             </button>
-            <button
-              onClick={async () => {
-                try {
-                  const res = await fetch("/api/multi/rooms", {
-                    method: "POST",
-                    credentials: "include",
-                    headers: {
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                      roomName: "테스트 방",
-                      songId: 1,
-                      isPrivate: false,
-                    }),
-                  });
-
-                  if (!res.ok) throw new Error("create failed");
-
-                  await loadRooms(); // 🔴 중요
-                } catch (e) {
-                  alert("방 생성 실패");
-                }
-              }}
-            >
-              방 만들기
-            </button>
           </div>
 
-          {/* 🟡 방 리스트 영역 */}
           <div
             style={{
               flex: 1,
@@ -153,10 +142,19 @@ export default function MultiRoomList() {
               </div>
             ) : (
               rooms.map((r) => {
+                const isFull = (r.players?.length ?? 0) >= r.maxPlayers;
                 const title = sanitizeTitle(r.songTitle);
+
                 return (
                   <div
                     key={r.roomId}
+                    onClick={() => {
+                      if (isFull) {
+                        alert("정원이 모두 찼습니다.");
+                        return;
+                      }
+                      goRoom(r.roomId);
+                    }}
                     style={{
                       border: "1px solid rgba(90,234,255,0.45)",
                       borderRadius: 12,
@@ -164,7 +162,17 @@ export default function MultiRoomList() {
                       display: "flex",
                       alignItems: "center",
                       gap: 12,
-                      background: "rgba(10,20,30,0.55)",
+
+                      /* ==== 핵심 시각 처리 ==== */
+                      background: isFull
+                        ? "rgba(60,60,60,0.7)"
+                        : "rgba(10,20,30,0.55)",
+                      opacity: isFull ? 0.55 : 1,
+                      filter: isFull ? "grayscale(100%)" : "none",
+
+                      /* ==== 핵심 클릭/커서 처리 ==== */
+                      cursor: isFull ? "not-allowed" : "pointer",
+                      pointerEvents: "auto",
                     }}
                   >
                     <div
@@ -201,17 +209,10 @@ export default function MultiRoomList() {
                       </div>
                       <div style={{ opacity: 0.75, marginTop: 2 }}>
                         {r.players?.length ?? 0} / {r.maxPlayers}
+                        {isFull && " · FULL"}
                         {r.isPrivate ? " · PRIVATE" : ""}
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => goRoom(r.roomId)}
-                      disabled={r.players?.length >= r.maxPlayers}
-                      style={{ padding: "8px 14px" }}
-                    >
-                      입장
-                    </button>
                   </div>
                 );
               })
@@ -219,7 +220,6 @@ export default function MultiRoomList() {
           </div>
         </div>
 
-        {/* 🔴 오른쪽 패널 */}
         <div
           style={{
             position: "absolute",
