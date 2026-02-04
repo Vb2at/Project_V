@@ -19,7 +19,6 @@ const GRADE_STYLE = {
   F: { color: '#ff6b6b', glow: 'rgba(255,107,107,0.9)' },
 };
 
-// ===== 공용 카드 =====
 function ScoreCard({ title, score, maxScore, maxCombo, grade, glowColor }) {
   const ratio = maxScore > 0 ? score / maxScore : 0;
   const gradeStyle = GRADE_STYLE[grade] ?? GRADE_STYLE.F;
@@ -81,73 +80,87 @@ function ScoreCard({ title, score, maxScore, maxCombo, grade, glowColor }) {
 }
 
 export default function Result() {
-  const { state } = useLocation();
+  const location = useLocation();
   const navigate = useNavigate();
   const savedRef = useRef(false);
 
-  const {
-    mode = 'single',
-    winByLeave = false,
+  const state = location.state ?? {};
+  const isMulti = state.mode === 'multi';
 
-    // 싱글용
-    score = 0,
-    maxScore = 1,
-    maxCombo = 0,
+  // ---------- 정규화 ----------
+  const myScore = state.myScore ?? 0;
+  const rivalScore = state.rivalScore ?? 0;
 
-    // 멀티용
-    myNickname = 'ME',
-    rivalNickname = 'RIVAL',
-    myScore = score,
-    myMaxScore = maxScore,
-    myMaxCombo = maxCombo,
-    rivalScore = 0,
-    rivalMaxScore = maxScore,
-    rivalMaxCombo = 0,
+  const myMaxScore = state.myMaxScore ?? 1;
+  const rivalMaxScore = state.rivalMaxScore ?? 1;
 
-    songId,
-    diff,
-  } = state ?? {};
+  const myMaxCombo = state.myMaxCombo ?? 0;
+  const rivalMaxCombo = state.rivalMaxCombo ?? 0;
 
-  const isMulti = mode === 'multi';
+  const myNick = state.myNickname ?? 'ME';
+  const rivalNick = state.rivalNickname ?? 'RIVAL';
 
-  const myRatio = myMaxScore > 0 ? myScore / myMaxScore : 0;
-  const rivalRatio = rivalMaxScore > 0 ? rivalScore / rivalMaxScore : 0;
+  const songId = state.songId;
+  const diff = state.diff;
+  const winByLeave = !!state.winByLeave;
+
+  // ============================
+  // ★★★ 핵심: 항상 ME = 왼쪽, 상대 = 오른쪽 ★★★
+  // ============================
+  const LEFT = {
+    nickname: myNick,
+    score: myScore,
+    maxScore: myMaxScore,
+    maxCombo: myMaxCombo,
+  };
+
+  const RIGHT = {
+    nickname: rivalNick,
+    score: rivalScore,
+    maxScore: rivalMaxScore,
+    maxCombo: rivalMaxCombo,
+  };
+
+  const myRatio = LEFT.maxScore > 0 ? LEFT.score / LEFT.maxScore : 0;
+  const rivalRatio = RIGHT.maxScore > 0 ? RIGHT.score / RIGHT.maxScore : 0;
 
   const myGrade = getClassByRatio(myRatio);
   const rivalGrade = getClassByRatio(rivalRatio);
 
-  // ===== BGM + 점수 저장 =====
+  // ---------- BGM + 싱글 점수 저장 ----------
   useEffect(() => {
     playResultEnter();
     startResultBgm();
 
-    // 이미 저장했으면 중단
-    if (!songId || savedRef.current) return;
-    savedRef.current = true;
+    if (songId && !savedRef.current) {
+      savedRef.current = true;
 
-    // 🔥 **핵심: 멀티에서는 점수 저장 안 함**
-    if (isMulti) return;
+      if (!isMulti) {
+        const payload = {
+          songId,
+          diff,
+          score: LEFT.score,
+          accuracy:
+            LEFT.maxScore > 0
+              ? (LEFT.score / LEFT.maxScore) * 100
+              : 0,
+          grade: myGrade,
+          maxCombo: LEFT.maxCombo,
+        };
 
-    const payload = {
-      songId,
-      diff,
-      score: myScore,
-      accuracy: myMaxScore > 0 ? (myScore / myMaxScore) * 100 : 0,
-      grade: myGrade,
-      maxCombo: myMaxCombo,
-    };
-
-    axios.post('/api/scores', payload)
-      .then(() => console.log('점수 저장 성공'))
-      .catch(err => console.error('점수 저장 실패', err));
+        axios.post('/api/scores', payload).catch(err =>
+          console.error('점수 저장 실패', err)
+        );
+      }
+    }
 
     return () => stopResultBgm();
   }, []);
 
-  // ===== 승패 판정 =====
+  // ---------- 승패 판정 ----------
   let multiResultText = 'DRAW';
-  if (winByLeave || myScore > rivalScore) multiResultText = 'WIN';
-  else if (myScore < rivalScore) multiResultText = 'LOSE';
+  if (winByLeave || LEFT.score > RIGHT.score) multiResultText = 'WIN';
+  else if (LEFT.score < RIGHT.score) multiResultText = 'LOSE';
 
   const resultColor =
     multiResultText === 'WIN'
@@ -170,7 +183,6 @@ export default function Result() {
         }}
       >
         <div style={{ textAlign: 'center' }}>
-
           {isMulti && (
             <>
               <div
@@ -192,18 +204,18 @@ export default function Result() {
 
               <div style={{ display: 'flex', gap: 48 }}>
                 <ScoreCard
-                  title={myNickname}
-                  score={myScore}
-                  maxScore={myMaxScore}
-                  maxCombo={myMaxCombo}
+                  title={LEFT.nickname}
+                  score={LEFT.score}
+                  maxScore={LEFT.maxScore}
+                  maxCombo={LEFT.maxCombo}
                   grade={myGrade}
                 />
 
                 <ScoreCard
-                  title={rivalNickname}
-                  score={rivalScore}
-                  maxScore={rivalMaxScore}
-                  maxCombo={rivalMaxCombo}
+                  title={RIGHT.nickname}
+                  score={RIGHT.score}
+                  maxScore={RIGHT.maxScore}
+                  maxCombo={RIGHT.maxCombo}
                   grade={rivalGrade}
                   glowColor="rgba(90,234,255,0.45)"
                 />
@@ -214,17 +226,25 @@ export default function Result() {
           {!isMulti && (
             <ScoreCard
               title="S C O R E"
-              score={score}
-              maxScore={maxScore}
-              maxCombo={maxCombo}
+              score={LEFT.score}
+              maxScore={LEFT.maxScore}
+              maxCombo={LEFT.maxCombo}
               grade={myGrade}
             />
           )}
 
-          <div style={{ marginTop: 32, display: 'flex', gap: 16, justifyContent: 'center' }}>
+          <div
+            style={{
+              marginTop: 32,
+              display: 'flex',
+              gap: 16,
+              justifyContent: 'center',
+            }}
+          >
             <button
               onClick={() => {
                 playMenuConfirm();
+                stopResultBgm();
                 navigate('/main');
               }}
               style={btnStyle}

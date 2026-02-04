@@ -186,12 +186,13 @@ export default function LandingPage() {
               {/* Buttons */}
               <div style={{ display: "flex", gap: 20, marginTop: 10, marginLeft: 50, }}>
                 <button
-                  onClick={() => navigate("/main")}
+                  onClick={() => navigate("/start", { state: { next: "/main" } })}
                   className="rounded-xl bg-cyan-400 text-black font-semibold hover:bg-cyan-300 transition"
                   style={{ padding: "14px 48px", fontSize: 16 }}
                 >
                   PLAY NOW
                 </button>
+
 
                 <button
                   onClick={() => {

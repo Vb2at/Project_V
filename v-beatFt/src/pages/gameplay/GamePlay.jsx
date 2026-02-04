@@ -72,6 +72,7 @@ function GamePlay() {
   const analyserRef = useRef(null);
   const [sessionKey, setSessionKey] = useState(0);
   const comboRef = useRef(0);
+  const myMaxComboRef = useRef(0);
   const MIN_LOADING_TIME = 2500;
   const loadingStartRef = useRef(0);
   const loadingEndRef = useRef(null);
@@ -86,7 +87,10 @@ function GamePlay() {
   const myId = loginUser?.loginUser?.id ?? null;
   const navigate = useNavigate();
   const pendingOfferRef = useRef(null); // { roomId, offer }
-
+  const rivalScoreRef = useRef(0);
+  const rivalComboRef = useRef(0);
+  const rivalMaxComboRef = useRef(0);
+  const rivalMaxScoreRef = useRef(0);
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
   const [song, setSong] = useState(null);
 
@@ -205,7 +209,7 @@ function GamePlay() {
 
         hostIdRef.current = data.hostUserId ?? hostIdRef.current;
 
-        const opp = data.players.find(p => p.userId !== myId);
+        const opp = data.players.find(p => Number(p.userId) !== Number(myId));
         if (!opp) return;
 
         rivalIdRef.current = opp.userId;
@@ -228,16 +232,29 @@ function GamePlay() {
 
       // ===================== SCORE =====================
       onScoreMessage: (data) => {
+        rivalScoreRef.current = data.score ?? 0;
+        rivalComboRef.current = data.combo ?? 0;
+        rivalMaxComboRef.current = data.maxCombo ?? rivalMaxComboRef.current;
+        rivalMaxScoreRef.current = data.maxScore ?? rivalMaxScoreRef.current;
+
+
         setRival(prev => {
           if (!prev) return prev;
           return {
             ...prev,
             score: data.score,
             combo: data.combo,
-            // ★ 절대 건드리지 말 것
+            scoreFromServer: data.score,
+            comboFromServer: data.combo,
+            maxComboFromServer: rivalMaxComboRef.current,
             stream: prev.stream,
           };
         });
+        rivalMaxScoreRef.current = Math.max(
+          rivalMaxScoreRef.current,
+          data.maxScore ?? 0
+        );
+
       },
 
       // ===================== RTC 시그널링 =====================
@@ -685,7 +702,7 @@ function GamePlay() {
         </div>
       )}
 
-      {!isMulti && userPaused && (
+      {userPaused && (
         <div
           style={{
             position: 'fixed',
@@ -911,7 +928,7 @@ function GamePlay() {
               setLoadingDone(true);
             }}
 
-            onState={({ score, combo, diff, currentTime, duration, maxScore }) => {
+            onState={({ score, combo, diff, currentTime, duration, maxScore, maxCombo }) => {
               if (finished) return;
 
               comboRef.current = combo;
@@ -924,47 +941,19 @@ function GamePlay() {
               setClassProgress(maxScore > 0 ? Math.min(1, score / maxScore) : 0);
 
               if (isMulti && roomId) {
+                myMaxComboRef.current = Math.max(
+                  myMaxComboRef.current,
+                  comboRef.current
+                );
+
                 publishMulti('/app/multi/score', {
                   roomId,
                   score,
                   combo: comboRef.current,
-                  maxCombo: comboRef.current,
+                  maxCombo: myMaxComboRef.current,
+                  maxScore,
                 });
               }
-            }}
-
-            onFinish={({ score, maxScore, maxCombo, diff: finishDiff }) => {
-              if (finished) return;
-              setFinished(true);
-
-              const params = new URLSearchParams(window.location.search);
-              const isEditorTest = params.get('mode') === 'editorTest';
-
-              if (isEditorTest) {
-                navigate(`/song/${baseSongId}/note/edit?mode=editorTest`, { replace: true });
-                return;
-              }
-
-              navigate('/game/result', {
-                state: {
-                  mode: isMulti ? 'multi' : 'single',   // ✅ 핵심 수정
-
-                  // --- 내 기록 ---
-                  myNickname: loginUser?.loginUser?.nickname ?? 'ME',
-                  myScore: score,
-                  myMaxScore: maxScore,
-                  myMaxCombo: maxCombo,
-
-                  // --- 상대 기록 (현재 RightSidebar 기준 데이터) ---
-                  rivalNickname: rival?.nickname ?? 'RIVAL',
-                  rivalScore: rival?.score ?? 0,
-                  rivalMaxScore: maxScore,
-                  rivalMaxCombo: rival?.combo ?? 0,
-
-                  diff: finishDiff ?? diff ?? 'unknown',
-                  songId: baseSongId,
-                },
-              });
             }}
 
             isMulti={isMulti}
@@ -1006,7 +995,33 @@ function GamePlay() {
               // ✅ (4) offerer면 반드시 여기서 시작
               tryStartRtc();
             }}
+            onFinish={({ score, maxScore, maxCombo, diff }) => {
+              setFinished(true);
 
+              navigate('/game/result', {
+                state: {
+                  mode: isMulti ? 'multi' : 'single',
+
+                  viewer: String(myId) === String(hostIdRef.current) ? 'host' : 'guest', // ✅ 추가
+
+                  myNickname: loginUser?.loginUser?.nickname ?? 'ME',
+                  myScore: score,
+                  myMaxScore: maxScore,
+                  myMaxCombo: myMaxComboRef.current,
+
+                  rivalNickname: rival?.nickname ?? 'RIVAL',
+                  rivalScore: rivalScoreRef.current ?? 0,
+                  rivalMaxScore: Math.max(rivalMaxScoreRef.current, maxScore),
+                  rivalMaxCombo: rivalMaxComboRef.current ?? 0,
+
+                  diff: diff ?? 'unknown',
+                  songId: baseSongId,
+                  winByLeave: false,
+                },
+              });
+
+
+            }}
 
           />
         )}
