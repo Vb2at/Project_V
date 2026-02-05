@@ -155,7 +155,7 @@ function AppInner() {
       <Routes>
         <Route path="/join" element={<RequireGuest isLogin={isLogin}><Join /></RequireGuest>} />
         <Route path="/re-password" element={<RequireGuest isLogin={isLogin}><RePw /></RequireGuest>} />
-        <Route path="/start" element={<RequireGuest isLogin={isLogin}><StartPage /></RequireGuest>} />
+        <Route path="/start" element={<StartPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/main" element={<MainPage onLogout={handleLogout} />} />
         <Route path="/multi/room/:roomId" element={<RequireAuth isLogin={isLogin}><RoomLobby /></RequireAuth>} />

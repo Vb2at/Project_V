@@ -90,12 +90,14 @@ function GamePlay() {
   const rivalScoreRef = useRef(0);
   const rivalComboRef = useRef(0);
   const rivalMaxComboRef = useRef(0);
-  const rivalMaxScoreRef = useRef(0);
+  const rivalMaxScoreRef = useRef(1); 
   const iAmLeavingRef = useRef(false);
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
   const [song, setSong] = useState(null);
   const [opponentLeft, setOpponentLeft] = useState(false);
   const [rivalScore, setRivalScore] = useState(0);
+  const [rivalMaxScore, setRivalMaxScore] = useState(0);
+  const [rivalMaxCombo, setRivalMaxCombo] = useState(0);
 
   const tryStartRtc = async () => {
     if (!isMulti) return;
@@ -323,15 +325,25 @@ function GamePlay() {
 
       // ===================== SCORE =====================
       onScoreMessage: (data) => {
-        console.log('[SCORE RX]', data.score);
+        const isMine = data?.userId != null && Number(data.userId) === Number(myId);
+        if (isMine) return;
         rivalScoreRef.current = data.score ?? 0;
         rivalComboRef.current = data.combo ?? 0;
-        rivalMaxComboRef.current = data.maxCombo ?? rivalMaxComboRef.current;
-        rivalMaxScoreRef.current = data.maxScore ?? rivalMaxScoreRef.current;
+
+        rivalMaxComboRef.current = Math.max(
+          rivalMaxComboRef.current,
+          data.maxCombo ?? data.combo ?? 0
+        );
+
+        rivalMaxScoreRef.current = Math.max(
+          rivalMaxScoreRef.current,
+          data.maxScore ?? 0
+        );
 
         setRivalScore(data.score ?? 0);
+        setRivalMaxScore(rivalMaxScoreRef.current);
+        setRivalMaxCombo(rivalMaxComboRef.current);
 
-        // combo가 정말 바뀐 경우에만 갱신
         setRival(prev => {
           if (!prev) return prev;
           if (prev.combo === data.combo) return prev;
@@ -1106,12 +1118,15 @@ function GamePlay() {
             }}
             onFinish={({ score, maxScore, maxCombo, diff }) => {
               setFinished(true);
-
+              rivalMaxComboRef.current = Math.max(
+                rivalMaxComboRef.current,
+                rivalComboRef.current ?? 0
+              );
               navigate('/game/result', {
                 state: {
                   mode: isMulti ? 'multi' : 'single',
 
-                  viewer: String(myId) === String(hostIdRef.current) ? 'host' : 'guest', // ✅ 추가
+                  viewer: 'me',
 
                   myNickname: loginUser?.loginUser?.nickname ?? 'ME',
                   myScore: score,
@@ -1119,10 +1134,9 @@ function GamePlay() {
                   myMaxCombo: myMaxComboRef.current,
 
                   rivalNickname: rival?.nickname ?? 'RIVAL',
-                  rivalScore: rivalScoreRef.current ?? 0,
-                  rivalMaxScore: rivalMaxScoreRef.current,
-                  rivalMaxCombo: rivalMaxComboRef.current ?? 0,
-
+                  rivalScore: rivalScore ?? 0,
+                  rivalMaxScore: rivalMaxScoreRef.current || 1, 
+                  rivalMaxCombo: rivalMaxComboRef.current,
                   diff: diff ?? 'unknown',
                   songId: baseSongId,
                   winByLeave: false,

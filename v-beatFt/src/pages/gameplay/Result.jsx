@@ -19,8 +19,9 @@ const GRADE_STYLE = {
   F: { color: '#ff6b6b', glow: 'rgba(255,107,107,0.9)' },
 };
 
-function ScoreCard({ title, score, maxScore, maxCombo, grade, glowColor }) {
-  const ratio = maxScore > 0 ? score / maxScore : 0;
+// ──────────────── ★ 수정 1: baseMaxScore를 받도록 추가 ★ ────────────────
+function ScoreCard({ title, score, maxScore, maxCombo, grade, glowColor, baseMaxScore }) {
+  const ratio = baseMaxScore > 0 ? score / baseMaxScore : 0;   // ← 통일 기준 사용
   const gradeStyle = GRADE_STYLE[grade] ?? GRADE_STYLE.F;
 
   return (
@@ -87,7 +88,6 @@ export default function Result() {
   const state = location.state ?? {};
   const isMulti = state.mode === 'multi';
 
-  // ---------- 정규화 ----------
   const myScore = state.myScore ?? 0;
   const rivalScore = state.rivalScore ?? 0;
 
@@ -104,30 +104,31 @@ export default function Result() {
   const diff = state.diff;
   const winByLeave = !!state.winByLeave;
 
-  // ============================
-  // ★★★ 핵심: 항상 ME = 왼쪽, 상대 = 오른쪽 ★★★
-  // ============================
+  const isGuest = state.viewer === 'guest';
+
   const LEFT = {
-    nickname: myNick,
-    score: myScore,
-    maxScore: myMaxScore,
-    maxCombo: myMaxCombo,
+    nickname: isGuest ? rivalNick : myNick,
+    score: isGuest ? rivalScore : myScore,
+    maxScore: isGuest ? rivalMaxScore : myMaxScore,
+    maxCombo: isGuest ? rivalMaxCombo : myMaxCombo,
   };
 
   const RIGHT = {
-    nickname: rivalNick,
-    score: rivalScore,
-    maxScore: rivalMaxScore,
-    maxCombo: rivalMaxCombo,
+    nickname: isGuest ? myNick : rivalNick,
+    score: isGuest ? myScore : rivalScore,
+    maxScore: isGuest ? myMaxScore : rivalMaxScore,
+    maxCombo: isGuest ? myMaxCombo : rivalMaxCombo,
   };
 
-  const myRatio = LEFT.maxScore > 0 ? LEFT.score / LEFT.maxScore : 0;
-  const rivalRatio = RIGHT.maxScore > 0 ? RIGHT.score / RIGHT.maxScore : 0;
+  // ──────────────── ★ 수정 2: 공통 기준 확정 ★ ────────────────
+  const baseMaxScore = LEFT.maxScore;   // ← 두 카드의 “유일 기준”
 
-  const myGrade = getClassByRatio(myRatio);
-  const rivalGrade = getClassByRatio(rivalRatio);
+  const leftRatio = baseMaxScore > 0 ? LEFT.score / baseMaxScore : 0;
+  const rightRatio = baseMaxScore > 0 ? RIGHT.score / baseMaxScore : 0;
 
-  // ---------- BGM + 싱글 점수 저장 ----------
+  const leftGrade = getClassByRatio(leftRatio);
+  const rightGrade = getClassByRatio(rightRatio);
+
   useEffect(() => {
     playResultEnter();
     startResultBgm();
@@ -144,7 +145,7 @@ export default function Result() {
             LEFT.maxScore > 0
               ? (LEFT.score / LEFT.maxScore) * 100
               : 0,
-          grade: myGrade,
+          grade: leftGrade,
           maxCombo: LEFT.maxCombo,
         };
 
@@ -157,7 +158,6 @@ export default function Result() {
     return () => stopResultBgm();
   }, []);
 
-  // ---------- 승패 판정 ----------
   let multiResultText = 'DRAW';
   if (winByLeave || LEFT.score > RIGHT.score) multiResultText = 'WIN';
   else if (LEFT.score < RIGHT.score) multiResultText = 'LOSE';
@@ -208,7 +208,8 @@ export default function Result() {
                   score={LEFT.score}
                   maxScore={LEFT.maxScore}
                   maxCombo={LEFT.maxCombo}
-                  grade={myGrade}
+                  grade={leftGrade}
+                  baseMaxScore={baseMaxScore}   // ← 통일 기준 전달
                 />
 
                 <ScoreCard
@@ -216,8 +217,9 @@ export default function Result() {
                   score={RIGHT.score}
                   maxScore={RIGHT.maxScore}
                   maxCombo={RIGHT.maxCombo}
-                  grade={rivalGrade}
+                  grade={rightGrade}
                   glowColor="rgba(90,234,255,0.45)"
+                  baseMaxScore={baseMaxScore}   // ← 통일 기준 전달
                 />
               </div>
             </>
@@ -229,7 +231,8 @@ export default function Result() {
               score={LEFT.score}
               maxScore={LEFT.maxScore}
               maxCombo={LEFT.maxCombo}
-              grade={myGrade}
+              grade={leftGrade}
+              baseMaxScore={LEFT.maxScore}
             />
           )}
 
@@ -245,7 +248,8 @@ export default function Result() {
               onClick={() => {
                 playMenuConfirm();
                 stopResultBgm();
-                navigate('/main');
+                window.__ALLOW_LEAVE__ = true;
+                window.location.href = '/main';
               }}
               style={btnStyle}
             >

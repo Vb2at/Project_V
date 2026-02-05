@@ -23,6 +23,8 @@ export default function RefreshGuard() {
   // ① 새로고침 감지
   useEffect(() => {
     const onBeforeUnload = (e) => {
+      if (window.__ALLOW_LEAVE__) return; 
+      
       const path = location.pathname;
 
       const isAllowed = ALLOWED_PATHS.some(p => path === p);
