@@ -36,17 +36,20 @@ public class MultiRoomController {
         User user = (User) session.getAttribute("loginUser");
         if (user == null) {
             res.put("ok", false);
+            res.put("reason", "LOGIN_REQUIRED");
             return res;
         }
 
         if (req.getSongId() == null) {
             res.put("ok", false);
+            res.put("reason", "INVALID_REQUEST");
             return res;
         }
 
         Song song = songService.getSong(req.getSongId().longValue());
         if (song == null) {
             res.put("ok", false);
+            res.put("reason", "SONG_NOT_FOUND");
             return res;
         }
 
@@ -75,6 +78,7 @@ public class MultiRoomController {
         MultiRoom room = roomManager.getRoom(roomId);
         if (room == null) {
             res.put("ok", false);
+            res.put("reason", "ROOM_NOT_FOUND");
             return res;
         }
 
@@ -113,12 +117,14 @@ public class MultiRoomController {
         User user = (User) session.getAttribute("loginUser");
         if (user == null) {
             res.put("ok", false);
+            res.put("reason", "LOGIN_REQUIRED");
             return res;
         }
 
         MultiRoom room = roomManager.getRoom(roomId);
         if (room == null) {
             res.put("ok", false);
+            res.put("reason", "ROOM_NOT_FOUND");
             return res;
         }
 
@@ -130,8 +136,13 @@ public class MultiRoomController {
         }
 
         boolean ok = roomManager.joinRoom(roomId, user.getId());
+        if (!ok) {
+            res.put("ok", false);
+            res.put("reason", "JOIN_FAILED");
+            return res;
+        }
 
-        res.put("ok", ok);
+        res.put("ok", true);
         return res;
     }
 

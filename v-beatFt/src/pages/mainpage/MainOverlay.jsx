@@ -10,6 +10,7 @@ import Visualizer from '../../components/visualizer/Visualizer';
 import UserProfileModal from "../../components/Common/UserProfileModal";
 import UserReportModal from "../../components/Common/UserReportModal";
 import PasswordChangeModal from '../../components/Common/PasswordChangeModal';
+import { connectMultiSocket } from '../multi/MultiSocket';
 
 const formatDuration = (sec) => {
   const n = Number(sec);
@@ -54,12 +55,11 @@ export default function MainOverlay({
 
   useEffect(() => {
     const flag = sessionStorage.getItem('roomClosed');
-    if (flag === '1') {
+    if (flag === 'true') {   // ✅ 기준 통일
       sessionStorage.removeItem('roomClosed');
       alert('방이 종료되었습니다.');
     }
   }, []);
-
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -509,6 +509,27 @@ export default function MainOverlay({
       alive = false;
     };
   }, [selectedSong?.id, selectedSong?.diff, selectedSong]);
+
+  useEffect(() => {
+    const lastRoomId = sessionStorage.getItem('lastRoomId');
+
+    if (!lastRoomId) return;
+
+    connectMultiSocket({
+      roomId: lastRoomId,
+
+      onRoomClosed: (msg) => {
+        console.log('[ROOM_CLOSED RX - MAIN]', msg);
+
+        sessionStorage.setItem('roomClosed', 'true');
+
+        navigate('/main', { replace: true });
+      },
+      replaceHandlers: true
+    });
+
+  }, []);
+
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>

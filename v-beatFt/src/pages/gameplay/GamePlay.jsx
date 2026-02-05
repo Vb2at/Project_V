@@ -93,6 +93,7 @@ function GamePlay() {
   const rivalMaxScoreRef = useRef(0);
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
   const [song, setSong] = useState(null);
+  const [opponentLeft, setOpponentLeft] = useState(false);
 
   const tryStartRtc = async () => {
     if (!isMulti) return;
@@ -354,6 +355,11 @@ function GamePlay() {
         }
       },
     });
+
+    onRoomClosed: () => {
+      console.log('[ROOM_CLOSED RX - GAME]');
+      setOpponentLeft(true);   // ← 핵심
+    }
 
     return () => {
       setMultiSocketHandlers({});

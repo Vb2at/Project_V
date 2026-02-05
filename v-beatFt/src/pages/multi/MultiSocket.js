@@ -76,7 +76,8 @@ function unsubscribeAllRoomTopics() {
   try { subs.score?.unsubscribe?.(); } catch { }
   try { subs.rtc?.unsubscribe?.(); } catch { }
   try { subs.leave?.unsubscribe?.(); } catch { }
-
+  try { subs.roomClosed?.unsubscribe?.(); } catch { }
+  subs.roomClosed = null;
   subs.room = null;
   subs.score = null;
   subs.rtc = null;
@@ -106,38 +107,51 @@ function resubscribeRoomTopics(roomId) {
       const players = data.players || [];
       const myId = data.myUserId;
 
-      const rival = players.find(p => Number(p.userId) !== Number(myId)) || null;
+      const rival =
+        players.find(p => Number(p.userId) !== Number(myId)) || null;
 
       window.dispatchEvent(
         new CustomEvent('multi:start', {
-          detail: {
-            type: 'MULTI_START',
-            roomId,
-            rival,
-          },
+          detail: { type: 'MULTI_START', roomId, rival },
         })
       );
     }
   });
 
+  subs.score = client.subscribe(
+    `/topic/multi/room/${roomId}/score`,
+    (msg) => {
+      const data = safeJsonParse(msg.body);
+      handlers.onScoreMessage?.(data, msg);
+    }
+  );
 
-  subs.score = client.subscribe(`/topic/multi/room/${roomId}/score`, (msg) => {
-    const data = safeJsonParse(msg.body);
-    handlers.onScoreMessage?.(data, msg);
-  });
+  subs.rtc = client.subscribe(
+    `/topic/multi/room/${roomId}/rtc`,
+    (msg) => {
+      const data = safeJsonParse(msg.body);
+      handlers.onRtcMessage?.(data, msg);
+    }
+  );
 
-  subs.rtc = client.subscribe(`/topic/multi/room/${roomId}/rtc`, (msg) => {
-    const data = safeJsonParse(msg.body);
-    handlers.onRtcMessage?.(data, msg);
-  });
+  subs.leave = client.subscribe(
+    `/topic/multi/room/${roomId}/leave`,
+    (msg) => {
+      const data = safeJsonParse(msg.body);
+      handlers.onLeaveMessage?.(data, msg);
+    }
+  );
 
-  subs.leave = client.subscribe(`/topic/multi/room/${roomId}/leave`, (msg) => {
-    const data = safeJsonParse(msg.body);
-    handlers.onLeaveMessage?.(data, msg);
-  });
-
-  log('resubscribeRoomTopics', roomId);
+  // ★★★ 핵심 추가: 방 폭파는 공용 토픽 기준으로 처리 ★★★
+  subs.roomClosed = client.subscribe(
+    `/topic/multi/room/${roomId}/closed`,
+    (msg) => {
+      const data = safeJsonParse(msg.body);
+      handlers.onRoomClosed?.(data, msg);
+    }
+  );
 }
+
 
 function ensureUserQueueSub() {
   if (!client || !connected) return;

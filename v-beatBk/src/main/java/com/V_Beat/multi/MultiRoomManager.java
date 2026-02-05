@@ -1,6 +1,8 @@
 package com.V_Beat.multi;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -56,7 +58,7 @@ public class MultiRoomManager {
 		room.setLengthSec(lengthSec);
 
 		room.setPrivate(Boolean.TRUE.equals(req.isPrivate()));
-		room.setMaxPlayers(req.getMaxPlayers() > 0 ? req.getMaxPlayers() : 2);
+		room.setMaxPlayers(req.getMaxPlayers() >= 2 ? req.getMaxPlayers() : 2);
 
 		room.getPlayers().add(new MultiPlayer(hostUserId, user.getNickName(), user.getProfileImg(), false));
 
@@ -76,67 +78,95 @@ public class MultiRoomManager {
 
 	/* ===== 방 입장 ===== */
 	public synchronized boolean joinRoom(String roomId, Integer userId) {
-		if (closedRooms.contains(roomId))
-			return false;
+	    if (closedRooms.contains(roomId))
+	        return false;
 
-		MultiRoom room = rooms.get(roomId);
-		if (room == null || room.isFull())
-			return false;
+	    MultiRoom room = rooms.get(roomId);
+	    if (room == null || room.isFull())
+	        return false;
 
-		boolean exists = room.getPlayers().stream().anyMatch(p -> p.getUserId().equals(userId));
+	    // ✅ 게임 진행 중(START 이후) 입장 차단
+	    Long startAt = room.getStartAt();
+	    if (startAt != null && System.currentTimeMillis() >= startAt) {
+	        return false;
+	    }
 
-		if (!exists) {
-			var user = userService.findById(userId);
-			if (user == null)
-				return false;
+	    boolean exists = room.getPlayers().stream().anyMatch(p -> p.getUserId().equals(userId));
 
-			room.getPlayers().add(new MultiPlayer(userId, user.getNickName(), user.getProfileImg(), false));
-		}
+	    if (!exists) {
+	        var user = userService.findById(userId);
+	        if (user == null)
+	            return false;
 
-		broadcastRoom(room);
-		broadcastRoomList();
-		return true;
+	        room.getPlayers().add(new MultiPlayer(userId, user.getNickName(), user.getProfileImg(), false));
+	    }
+
+	    broadcastRoom(room);
+	    broadcastRoomList();
+	    return true;
 	}
+
 
 	/* ===== 방 퇴장 ===== */
 	public synchronized boolean leaveRoom(String roomId, Integer userId) {
-		MultiRoom room = rooms.get(roomId);
-		if (room == null)
-			return false;
+	    MultiRoom room = rooms.get(roomId);
+	    if (room == null)
+	        return false;
 
-		boolean isHostLeaving = room.getHostUserId() != null && room.getHostUserId().equals(userId);
+	    boolean isHostLeaving =
+	        room.getHostUserId() != null && room.getHostUserId().equals(userId);
 
-		room.getPlayers().removeIf(p -> p.getUserId().equals(userId));
+	    // ★★★ 핵심: 알림을 위해 제거 전 목록을 보존 ★★★
+	    List<MultiPlayer> beforePlayers =
+	        new ArrayList<>(room.getPlayers());
 
-		if (isHostLeaving || room.getPlayers().isEmpty()) {
+	    // 이후 실제 제거
+	    room.getPlayers().removeIf(p -> p.getUserId().equals(userId));
 
-			// 남아있는 플레이어들에게만 ROOM_CLOSED 전송
-			// 1) 남아 있는 플레이어들에게 전송
-			for (MultiPlayer p : room.getPlayers()) {
-			    messagingTemplate.convertAndSendToUser(
-			        String.valueOf(p.getUserId()),
-			        "/queue/room-closed",
-			        Map.of("roomId", roomId)
-			    );
-			}
+	    // ===== 방 폭파 조건 =====
+	    if (isHostLeaving || room.getPlayers().isEmpty()) {
 
-			// ★★★ 추가: 방장 본인에게도 명확히 전송 ★★★
-			messagingTemplate.convertAndSendToUser(
-			    String.valueOf(userId),
-			    "/queue/room-closed",
-			    Map.of("roomId", roomId)
-			);
+	        // (1) **기존 참여자 전원에게 알림 (나 제외)**
+	        for (MultiPlayer p : beforePlayers) {
+	            if (!p.getUserId().equals(userId)) {
+	                messagingTemplate.convertAndSendToUser(
+	                    String.valueOf(p.getUserId()),
+	                    "/queue/room-closed",
+	                    Map.of("roomId", roomId)
+	                );
+	            }
+	        }
 
-			closedRooms.add(roomId);
-			rooms.remove(roomId);
-			broadcastRoomList();
-			return true;
-		}
+	        // (2) **나간 사람(방장 포함)에게도 반드시 알림**
+	        messagingTemplate.convertAndSendToUser(
+	            String.valueOf(userId),
+	            "/queue/room-closed",
+	            Map.of("roomId", roomId)
+	        );
 
-		broadcastRoom(room);
-		broadcastRoomList();
-		return false;
+	        // (3) 프론트 정리용 공용 토픽
+	        messagingTemplate.convertAndSend(
+	        	    "/topic/multi/room/" + roomId + "/closed",
+	        	    Map.of(
+	        	        "type", "ROOM_CLOSED",
+	        	        "roomId", roomId,
+	        	        "forceLeave", true
+	        	    )
+	        	);
+
+	        rooms.remove(roomId);
+	        closedRooms.add(roomId);
+	        broadcastRoomList();
+	        return true;
+	    }
+
+	    // ===== 일반 퇴장 =====
+	    broadcastRoom(room);
+	    broadcastRoomList();
+	    return false;
 	}
+
+
 
 	/* ===== ROOM_STATE ===== */
 	public void broadcastRoom(MultiRoom room) {
@@ -154,18 +184,33 @@ public class MultiRoomManager {
 	}
 
 	public synchronized String leaveByDisconnect(Integer userId) {
-		for (MultiRoom room : rooms.values()) {
+	    for (MultiRoom room : rooms.values()) {
 
-			boolean exists = room.getPlayers().stream().anyMatch(p -> p.getUserId().equals(userId));
+	        boolean exists = room.getPlayers()
+	                .stream()
+	                .anyMatch(p -> p.getUserId().equals(userId));
 
-			if (!exists)
-				continue;
+	        if (!exists) continue;
 
-			leaveRoom(room.getRoomId(), userId);
-			return room.getRoomId();
-		}
-		return null;
+	        // ===== 핵심 변경 =====
+	        // 입장 직후 / 대기 상태의 단순 disconnect는 "방 폭파 금지"
+	        // 대신 플레이어만 조용히 제거
+	        room.getPlayers().removeIf(p -> p.getUserId().equals(userId));
+
+	        // 방장이 아니라면 → 절대 폭파하지 않음
+	        if (!room.getHostUserId().equals(userId)) {
+	            broadcastRoom(room);
+	            broadcastRoomList();
+	            return room.getRoomId();
+	        }
+
+	        // 방장이 disconnect면 → 기존 정책대로 폭파 경로로 보냄
+	        leaveRoom(room.getRoomId(), userId);
+	        return room.getRoomId();
+	    }
+	    return null;
 	}
+
 
 	public synchronized boolean leaveGameByDisconnect(Integer userId) {
 		long now = System.currentTimeMillis();

@@ -85,7 +85,7 @@ export default function RoomLobby() {
         }
 
         if (data?.type === 'START') {
-          startedRef.current = true;   // ★ 핵심 플래그
+          startedRef.current = true;
 
           sessionStorage.setItem('roomClosed', 'true');
 
@@ -96,11 +96,10 @@ export default function RoomLobby() {
       },
 
       onRoomClosed: () => {
-        console.log('[ROOM_CLOSED RX]');
+        if (startedRef.current) return;
 
+        // ★★★ 핵심 추가 ★★★
         sessionStorage.setItem('roomClosed', 'true');
-
-        alert('방이 종료되었습니다.'); // ← 선택 추가
 
         navigate('/main', { replace: true });
       }
