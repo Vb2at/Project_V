@@ -189,24 +189,27 @@ public class SongController {
 	}
 
 	// songId 조회
-	// songId로 조회
+	// 플레이용(공개곡 허용)
 	@GetMapping("/{songId}")
-	public ResponseEntity<Song> getSong(@PathVariable Long songId, HttpSession session) {
-	    Song song = this.songService.getSong(songId);
-	    if (song == null) {
-	        return ResponseEntity.notFound().build();
-	    }
+	public ResponseEntity<Song> getSong(
+	        @PathVariable Long songId,
+	        HttpSession session) {
+
+	    Song song = songService.getSong(songId);
+	    if (song == null) return ResponseEntity.notFound().build();
 
 	    Integer loginUserId = (Integer) session.getAttribute("loginUserId");
 	    Boolean isAdmin = (Boolean) session.getAttribute("isAdmin");
 	    if (isAdmin == null) isAdmin = false;
 
+	    // ✅ 여기서 canAccess 사용 → PUBLIC이면 누구나 OK
 	    if (!songService.canAccess(song, loginUserId, isAdmin, null)) {
 	        return ResponseEntity.status(403).build();
 	    }
 
 	    return ResponseEntity.ok(song);
 	}
+
 
 	// 토큰으로 조회
 	@GetMapping("/info")
@@ -301,6 +304,25 @@ public class SongController {
 		return ResponseEntity.ok(this.songService.getMySongs(loginUserId, visibility));
 	}
 
+	// ✅ 에디터 전용 — 무조건 소유자만 허용
+	@GetMapping("/{songId}/edit")
+	public ResponseEntity<Song> getSongForEditor(
+	        @PathVariable Long songId,
+	        HttpSession session) {
+
+	    Song song = songService.getSong(songId);
+	    if (song == null) return ResponseEntity.notFound().build();
+
+	    Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+
+	    if (loginUserId == null || song.getUserId() != loginUserId) {
+	        return ResponseEntity.status(403).build();
+	    }
+
+	    return ResponseEntity.ok(song);
+	}
+
+	
 	// 음원 미리듣기 (싸비 5~10초)
 	@GetMapping("/{songId}/preview")
 	public ResponseEntity<Resource> getPreview(@PathVariable Long songId, HttpSession session) {

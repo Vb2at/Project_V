@@ -114,21 +114,35 @@ export default function SongEditor() {
     /* ===== 초기 정보 로드 ===== */
     useEffect(() => {
         if (!songId) return;
-        axios.get(`/api/songs/${songId}`, { withCredentials: true })
-            .then(res => {
+
+        axios
+            .get(`/api/songs/${songId}`, { withCredentials: true })
+            .then((res) => {
                 const s = res.data;
-                setTitle(s.title.replace('.mp3', '') || '');
+
+                setTitle((s.title || '').replace('.mp3', ''));
                 setArtist(s.artist || '');
                 setVisibility(s.visibility || 'PRIVATE');
+
                 if (s.coverPath) {
                     setCoverPreview(`/api/songs/${songId}/cover`);
                 }
             })
-            .catch(() => {
+            .catch((err) => {
+                console.error('[SongEditor load]', err);
+
+                if (err.response?.status === 403) {
+                    // 타인 접근 → 차단 (정상 동작)
+                    navigate('/main', { replace: true });
+                    return;
+                }
+
                 alert('곡 정보를 불러오지 못했습니다.');
-                navigate('/');
+                navigate('/main', { replace: true });
             });
     }, [songId, navigate]);
+
+
 
     /* ===== 저장 ===== */
     const handleSave = async () => {

@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 const HEADER_HEIGHT = 64;
 const SIDEBAR_WIDTH = 300;
@@ -13,49 +13,37 @@ function resolveProfileImg(src) {
 export default function RightSidebar({
   isMulti,
   rival,
+  rivalScore,
   opponentLeft,
   singleInfo,
-  myLocalStream,
 }) {
   const videoRef = useRef(null);
-  const memo = useMemo(() => {
-    if (!isMulti) return null;
-    return {
-      nickname: rival?.nickname ?? 'OPPONENT',
-      profileUrl: resolveProfileImg(rival?.profileUrl),
-      score: rival?.score ?? 0,
-      combo: rival?.combo ?? 0,
-      stream: rival?.stream ?? null,
-    };
-  }, [isMulti, rival]);
-
+  // ───────────── WebRTC 비디오 유지 ─────────────
   useEffect(() => {
     if (!isMulti) return;
 
     const video = videoRef.current;
-    const stream = memo?.stream;
+    const stream = rival?.stream;
 
     if (!video || !stream) {
       if (video) video.srcObject = null;
       return;
     }
 
-    console.log('[RIVAL STREAM APPLY]', stream.id);
-
     video.muted = true;
     video.playsInline = true;
     video.autoplay = true;
-
-    // 🔥 핵심: 절대 null로 초기화하지 않음
     video.srcObject = stream;
-
     video.play().catch(() => { });
-  }, [isMulti, memo?.stream]);
+  }, [isMulti, rival?.stream]);
+  // ───────────────────────────────────────────────
 
   if (isMulti) {
-    if (!memo) return null;
-    const { nickname, profileUrl, score, combo } = memo;
 
+    const nickname = rival?.nickname ?? 'OPPONENT';
+    const profileUrl = resolveProfileImg(rival?.profileUrl);
+    const combo = rival?.combo ?? 0;
+    console.log('[SIDEBAR SCORE]', rivalScore);
     return (
       <div style={styles.sidebar}>
         <div style={styles.neonLine} />
@@ -100,7 +88,7 @@ export default function RightSidebar({
           </div>
 
           <div style={styles.scoreBlock}>
-            <InfoRow label="SCORE: " value={score} color="#5aeaff" />
+            <InfoRow label="SCORE: " value={rivalScore} color="#5aeaff" />
             <InfoRow label="COMBO: " value={combo} color="#ff8cff" />
           </div>
         </div>
@@ -148,10 +136,6 @@ function InfoRow({ label, value, color }) {
     </div>
   );
 }
-
-/* ==============================
-   스타일 (기존 그대로 유지)
-============================== */
 const styles = {
   sidebar: {
     position: 'fixed',
@@ -205,8 +189,8 @@ const styles = {
     justifyContent: 'center',
     borderRadius: 10,
     overflow: 'hidden',
-    background: '#111',   // ← 완전 검정 → 살짝 회색
-    border: '2px solid #5aeaff', // ← 두껍게
+    background: '#111',
+    border: '2px solid #5aeaff',
     margin: '0 auto',
     width: '100%',
     aspectRatio: '9 / 16',
@@ -220,14 +204,11 @@ const styles = {
     height: '100%',
     objectFit: 'cover',
     background: '#000',
-
-    /* ===== 반드시 추가 ===== */
     zIndex: 99999,
     opacity: 1,
     visibility: 'visible',
     pointerEvents: 'none',
   },
-
 
   rivalInfo: {
     flex: 4,

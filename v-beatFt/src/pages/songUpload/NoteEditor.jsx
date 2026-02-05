@@ -120,34 +120,99 @@ export default function NoteEditor() {
 
     useEffect(() => {
         if (!songId) return;
-        if (isEditorReturn) return; // ✅ editorTest 복귀면 서버 로드 절대 금지
+        if (isEditorReturn) return; // editorTest 복귀면 서버 로드 금지
 
         (async () => {
             try {
+                // ───── 1) SONG 로드 ─────
                 const songRes = await fetch(`/api/songs/${songId}`);
-                const songJson = await songRes.json();
 
+                if (songRes.status === 403) {
+                    navigate('/main', { replace: true });
+                    return;
+                }
+                if (!songRes.ok) {
+                    navigate('/main', { replace: true });
+                    return;
+                }
+
+                const songJson = await songRes.json();
+                const realSong = songJson.data ?? songJson.song ?? songJson;
+
+                // ─── 소유자 체크 (안전판 버전) ───
+                let loginUserId = null;
+
+                try {
+                    const meRes = await fetch('/api/auth/status', { credentials: 'include' });
+
+                    if (meRes.ok) {
+                        const me = await meRes.json();
+                        loginUserId = me.loginUserId;
+                    }
+                } catch {
+                    // 404나 네트워크 실패 시 무시 → 아래에서 안전 처리
+                }
+
+                // 서버에서 내려온 song.userId가 있고,
+                // loginUserId가 확인된 경우에만 비교
+                if (loginUserId !== null && realSong.userId !== loginUserId) {
+                    navigate('/main', { replace: true });
+                    return;
+                }
+
+                setSong(realSong);
+
+                // ───── 2) NOTES 로드 ─────
                 const notesRes = await fetch(`/api/songs/${songId}/notes`);
+
+                if (notesRes.status === 403) {
+                    navigate('/main', { replace: true });
+                    return;
+                }
+                if (!notesRes.ok) {
+                    navigate('/main', { replace: true });
+                    return;
+                }
+
+                // ✅ 빠져 있던 JSON 파싱을 정확히 추가
                 const notesJson = await notesRes.json();
 
-
-                setSong(songJson.data ?? songJson.song ?? songJson);
-
-                const rawNotes = notesJson?.data ?? notesJson?.notes ?? notesJson;
+                const rawNotes =
+                    notesJson?.data ??
+                    notesJson?.notes ??
+                    notesJson;
 
                 const mappedNotes = Array.isArray(rawNotes)
                     ? rawNotes.map((n) => {
                         const id = crypto.randomUUID();
                         const lane = Number(n.lane ?? n.laneIndex ?? n.key ?? 0);
-                        const type = (n.type ?? n.noteType ?? 'tap') === 'long' ? 'long' : 'tap';
-                        const tSec = Number(n.time ?? n.noteTime ?? n.note_time ?? n.timing ?? 0);
+                        const type =
+                            (n.type ?? n.noteType ?? 'tap') === 'long' ? 'long' : 'tap';
+
+                        const tSec = Number(
+                            n.time ?? n.noteTime ?? n.note_time ?? n.timing ?? 0
+                        );
                         const timing = Math.round(tSec * 1000);
+
                         const endSec = n.endTime ?? n.end_time ?? n.end ?? null;
-                        const endTime = endSec != null ? Math.round(Number(endSec) * 1000) : undefined;
+                        const endTime =
+                            endSec != null
+                                ? Math.round(Number(endSec) * 1000)
+                                : undefined;
 
                         if (type === 'long') {
-                            return { id, lane, timing, endTime: endTime ?? timing + 1000, type: 'long', hit: false, holding: false, released: false };
+                            return {
+                                id,
+                                lane,
+                                timing,
+                                endTime: endTime ?? timing + 1000,
+                                type: 'long',
+                                hit: false,
+                                holding: false,
+                                released: false,
+                            };
                         }
+
                         return { id, lane, timing, type: 'tap', hit: false };
                     })
                     : [];
@@ -155,9 +220,11 @@ export default function NoteEditor() {
                 setNotes(mappedNotes);
             } catch (e) {
                 console.error('editor load failed', e);
+                navigate('/main', { replace: true });
             }
         })();
-    }, [songId, isEditorReturn]);
+    }, [songId, isEditorReturn, navigate]);
+
 
 
     // ===== editorTest 복귀 시 상태 복원 =====

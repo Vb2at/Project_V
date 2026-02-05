@@ -272,15 +272,25 @@ public void updateSongInfo(
 
 	// 곡 제한 접근 제어
 	public boolean canAccess(Song song, Integer loginUserId, Boolean isAdmin, String token) {
-		if (Boolean.TRUE.equals(isAdmin))
-			return true; // 관리자 통과
-		if (loginUserId != null)
-			return true; // 로그인 유저 통과
-		if (token != null && token.equals(song.getShareToken()))
-			return true; // 토큰 통과
-		if (song.getIsPublic())
-			return true; // 공개곡 통과
-		return false; // 나머지 차단
+
+	    if (Boolean.TRUE.equals(isAdmin)) {
+	        return true;                       // 관리자 통과
+	    }
+
+	    // ─────────────────────────────────────
+	    // ① PRIVATE → 소유자만 허용
+	    if ("PRIVATE".equals(song.getVisibility())) {
+	        return loginUserId != null 
+	                && song.getUserId() == loginUserId;
+	    }
+
+	    // ② UNLISTED → 토큰이 맞으면 허용
+	    if ("UNLISTED".equals(song.getVisibility())) {
+	        return token != null && token.equals(song.getShareToken());
+	    }
+
+	    // ③ PUBLIC → 누구나 허용
+	    return song.getIsPublic();
 	}
 
 	public Song getSongByToken(String token) {

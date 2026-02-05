@@ -95,6 +95,8 @@ function GamePlay() {
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
   const [song, setSong] = useState(null);
   const [opponentLeft, setOpponentLeft] = useState(false);
+  const [rivalScore, setRivalScore] = useState(0);
+
   const tryStartRtc = async () => {
     if (!isMulti) return;
     if (!roomId) return;
@@ -298,16 +300,21 @@ function GamePlay() {
 
         rivalIdRef.current = opp.userId;
 
-        setRival(prev => ({
-          userId: opp.userId,
-          nickname: opp.nickname,
-          profileUrl: opp.profileImg,
+        setRival(prev => {
+          if (prev?.userId === opp.userId &&
+            prev?.nickname === opp.nickname &&
+            prev?.profileUrl === opp.profileImg) {
+            return prev;   // ← 불필요 렌더 차단
+          }
 
-          // ★★★ 여기 유지가 핵심 ★★★
-          score: prev?.score ?? 0,
-          combo: prev?.combo ?? 0,
-          stream: prev?.stream,   // ← 절대 초기화 금지
-        }));
+          return {
+            userId: opp.userId,
+            nickname: opp.nickname,
+            profileUrl: opp.profileImg,
+            combo: prev?.combo,
+            stream: prev?.stream,
+          };
+        });
 
         ensurePc();
         tryStartRtc();
@@ -316,24 +323,21 @@ function GamePlay() {
 
       // ===================== SCORE =====================
       onScoreMessage: (data) => {
+        console.log('[SCORE RX]', data.score);
         rivalScoreRef.current = data.score ?? 0;
         rivalComboRef.current = data.combo ?? 0;
         rivalMaxComboRef.current = data.maxCombo ?? rivalMaxComboRef.current;
         rivalMaxScoreRef.current = data.maxScore ?? rivalMaxScoreRef.current;
 
+        setRivalScore(data.score ?? 0);
 
+        // combo가 정말 바뀐 경우에만 갱신
         setRival(prev => {
           if (!prev) return prev;
-          return {
-            ...prev,
-            score: data.score,
-            combo: data.combo,
-            scoreFromServer: data.score,
-            comboFromServer: data.combo,
-            maxComboFromServer: rivalMaxComboRef.current,
-            stream: prev.stream,
-          };
+          if (prev.combo === data.combo) return prev;
+          return { ...prev, combo: data.combo };
         });
+
         rivalMaxScoreRef.current = Math.max(
           rivalMaxScoreRef.current,
           data.maxScore ?? 0
@@ -550,8 +554,9 @@ function GamePlay() {
       if (e.detail?.type === 'MULTI_START') {
         setRival(prev => ({
           ...(prev || {}),
-          ...(e.detail.rival || {}),
-          stream: prev?.stream ?? null,   // ★ 상대 스트림 절대 유지
+          nickname: e.detail.rival?.nickname ?? prev?.nickname,
+          profileUrl: e.detail.rival?.profileUrl ?? prev?.profileUrl,
+          stream: prev?.stream ?? null,
         }));
       }
     };
@@ -675,7 +680,8 @@ function GamePlay() {
       <RightSidebar
         isMulti={isMulti}
         rival={rival}
-        myLocalStream={localStreamRef.current}
+        rivalScore={rivalScore}
+        opponentLeft={opponentLeft}
       />
       <HUDFrame>
         <HUD
@@ -1114,7 +1120,7 @@ function GamePlay() {
 
                   rivalNickname: rival?.nickname ?? 'RIVAL',
                   rivalScore: rivalScoreRef.current ?? 0,
-                  rivalMaxScore: Math.max(rivalMaxScoreRef.current, maxScore),
+                  rivalMaxScore: rivalMaxScoreRef.current,
                   rivalMaxCombo: rivalMaxComboRef.current ?? 0,
 
                   diff: diff ?? 'unknown',
