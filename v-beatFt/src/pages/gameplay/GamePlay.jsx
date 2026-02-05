@@ -208,23 +208,66 @@ function GamePlay() {
   };
 
   useEffect(() => {
-    const sendLeave = () => {
-      if (isMulti && roomId) {
-        console.log('[MULTI LEAVE AUTO]');
-        publishMulti('/app/multi/leave', { roomId });
-      }
+    const handler = (e) => {
+      const { roomId } = e.detail;
+      console.log('[BACK BUTTON → FORCE LEAVE]', roomId);
+
+      iAmLeavingRef.current = true;
+      sessionStorage.setItem(`leftRoom:${roomId}`, 'true');
+
+      publishMulti('/app/multi/leave', { roomId });
     };
 
-    // 탭 닫기 / 새로고침 / 뒤로가기 / navigate 모두 커버
-    window.addEventListener('beforeunload', sendLeave);
-    window.addEventListener('pagehide', sendLeave);
+    window.addEventListener('multi:forceLeave', handler);
+    return () => window.removeEventListener('multi:forceLeave', handler);
+  }, [roomId]);
+
+
+  useEffect(() => {
+    const roomId = new URLSearchParams(window.location.search).get('roomId');
+
+    if (!isMulti) return;
+
+    if (!roomId) return;
+
+    if (sessionStorage.getItem(`leftRoom:${roomId}`) === 'true') {
+      alert('이미 나간 방에는 재입장할 수 없습니다.');
+      navigate('/main', { replace: true });
+      return;
+    }
+
+    if (sessionStorage.getItem('forceMainAfterRefresh') === 'true') {
+      sessionStorage.removeItem('forceMainAfterRefresh');
+      navigate('/main', { replace: true });
+    }
+  }, [navigate, roomId, isMulti]);
+
+
+  useEffect(() => {
+    if (!isMulti || !roomId) return;
+
+    const onBeforeUnload = (e) => {
+      console.log('[MULTI REFRESH DETECTED]');
+
+      // 🔥 새로고침 = 내가 나간 사람으로 확정
+      iAmLeavingRef.current = true;
+
+      // 🔥 프론트에 “이 방은 다시 못 들어감” 기록
+      sessionStorage.setItem(`leftRoom:${roomId}`, 'true');
+
+      // 🔥 서버에 leave 전송
+      publishMulti('/app/multi/leave', { roomId });
+
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', onBeforeUnload);
 
     return () => {
-      window.removeEventListener('beforeunload', sendLeave);
-      window.removeEventListener('pagehide', sendLeave);
+      window.removeEventListener('beforeunload', onBeforeUnload);
     };
   }, [isMulti, roomId]);
-
 
   useEffect(() => {
     opponentLeftRef.current = opponentLeft;
@@ -918,6 +961,7 @@ function GamePlay() {
                   if (isMulti && roomId) {
                     console.log('[MULTI LEAVE CLICK]');
                     iAmLeavingRef.current = true;   // ← ★ 핵심 추가
+                    sessionStorage.setItem(`leftRoom:${roomId}`, 'true');
                     publishMulti('/app/multi/leave', { roomId });
                     await new Promise(r => setTimeout(r, 120));
                   }

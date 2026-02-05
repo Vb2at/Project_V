@@ -51,6 +51,7 @@ export default function RoomLobby() {
 
     // ★ 중요: 방장/비방장 구분 없이 프론트는 즉시 무효화
     sessionStorage.setItem('roomClosed', 'true');
+    sessionStorage.setItem(`leftRoom:${roomId}`, 'true');
 
     setTimeout(() => {
       navigate('/main', { replace: true });
@@ -72,6 +73,7 @@ export default function RoomLobby() {
     roomInfo?.duration ??
     roomInfo?.lengthSec ??
     null;
+
 
 
   useEffect(() => {
@@ -98,9 +100,8 @@ export default function RoomLobby() {
       onRoomClosed: () => {
         if (startedRef.current) return;
 
-        // ★★★ 핵심 추가 ★★★
         sessionStorage.setItem('roomClosed', 'true');
-
+        sessionStorage.setItem(`leftRoom:${roomId}`, 'true'); // ← 추가
         navigate('/main', { replace: true });
       }
     });
@@ -126,6 +127,13 @@ export default function RoomLobby() {
      초기 방 입장 + 정보 로드
   ========================= */
   useEffect(() => {
+
+    if (sessionStorage.getItem(`leftRoom:${roomId}`) === 'true') {
+      alert('퇴장한 방에는 다시 입장할 수 없습니다.');
+      navigate('/main', { replace: true });
+      return;
+    }
+
     let alive = true;
 
     (async () => {

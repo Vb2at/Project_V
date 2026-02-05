@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -76,5 +78,12 @@ public class MultiRoom {
 
 		return payload;
 	}
+	
+	private final Set<Integer> leftUsers = ConcurrentHashMap.newKeySet();
+
+	public Set<Integer> getLeftUsers() {
+	    return leftUsers;
+	}
+
 
 }

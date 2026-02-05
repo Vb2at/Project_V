@@ -78,6 +78,8 @@ public class MultiRoomManager {
 
 	/* ===== 방 입장 ===== */
 	public synchronized boolean joinRoom(String roomId, Integer userId) {
+
+	    // 1) 이미 폭파된 방 → 무조건 차단
 	    if (closedRooms.contains(roomId))
 	        return false;
 
@@ -85,26 +87,36 @@ public class MultiRoomManager {
 	    if (room == null || room.isFull())
 	        return false;
 
-	    // ✅ 게임 진행 중(START 이후) 입장 차단
+	    // 2) 이미 한 번 나간 유저 → 재진입 차단
+	    if (room.getLeftUsers().contains(userId)) {
+	        log.warn("[JOIN BLOCKED] user already left room: {} userId={}", roomId, userId);
+	        return false;
+	    }
+
+	    // 3) 게임 진행 중(START 이후) 입장 차단
 	    Long startAt = room.getStartAt();
 	    if (startAt != null && System.currentTimeMillis() >= startAt) {
 	        return false;
 	    }
 
-	    boolean exists = room.getPlayers().stream().anyMatch(p -> p.getUserId().equals(userId));
+	    boolean exists =
+	        room.getPlayers().stream()
+	            .anyMatch(p -> p.getUserId().equals(userId));
 
 	    if (!exists) {
 	        var user = userService.findById(userId);
 	        if (user == null)
 	            return false;
 
-	        room.getPlayers().add(new MultiPlayer(userId, user.getNickName(), user.getProfileImg(), false));
+	        room.getPlayers()
+	            .add(new MultiPlayer(userId, user.getNickName(), user.getProfileImg(), false));
 	    }
 
 	    broadcastRoom(room);
 	    broadcastRoomList();
 	    return true;
 	}
+
 
 
 	/* ===== 방 퇴장 ===== */
@@ -122,7 +134,7 @@ public class MultiRoomManager {
 
 	    // 이후 실제 제거
 	    room.getPlayers().removeIf(p -> p.getUserId().equals(userId));
-
+	    room.getLeftUsers().add(userId);
 	    // ===== 방 폭파 조건 =====
 	    if (isHostLeaving || room.getPlayers().isEmpty()) {
 

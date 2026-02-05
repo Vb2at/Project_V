@@ -20,7 +20,8 @@ import NoteEditor from './pages/songUpload/NoteEditor';
 import RePw from './pages/member/RePw';
 import RoomLobby from './pages/multi/RoomLobby';
 import LandingPage from './pages/LandingPage';
-import InviteModal from './components/mulit/InviteModal'; 
+import InviteModal from './components/mulit/InviteModal';
+import RefreshGuard from './components/Common/RefreshGuard';
 
 // 로그인 필수 페이지용
 function RequireAuth({ isLogin, children }) {
@@ -61,6 +62,49 @@ function AppInner() {
   const [isLogin, setIsLogin] = useState(null);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const onBack = () => {
+      // 이미 메인이면 아무 것도 하지 않음
+      if (window.location.pathname === '/main') {
+        window.history.pushState(null, '', window.location.href);
+        return;
+      }
+
+      alert('뒤로가기는 사용할 수 없습니다. 메인으로 이동합니다.');
+
+      // 🔥 핵심 추가 — 뒤로가기 = 실제 퇴장 처리
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const roomId = params.get('roomId');
+        const isMulti = params.get('mode') === 'multi';
+
+        if (isMulti && roomId) {
+          window.dispatchEvent(
+            new CustomEvent('multi:forceLeave', { detail: { roomId } })
+          );
+        }
+      } catch { }
+
+      navigate('/main', { replace: true });
+
+      // 히스토리 기준점 재삽입
+      window.history.pushState(null, '', window.location.href);
+    };
+
+
+    // 초기 기준점 확보
+    window.history.pushState(null, '', window.location.href);
+
+    window.addEventListener('popstate', onBack);
+
+    return () => {
+      window.removeEventListener('popstate', onBack);
+    };
+  }, [navigate]);
+
+
+
+
   const handleLogout = async () => {
     try {
       await logoutApi();   // 서버 세션 제거
@@ -95,6 +139,7 @@ function AppInner() {
 
   return (
     <>
+      <RefreshGuard />
       {invite && (
         <InviteModal
           from={invite.from}
@@ -107,7 +152,6 @@ function AppInner() {
           }}
         />
       )}
-
       <Routes>
         <Route path="/join" element={<RequireGuest isLogin={isLogin}><Join /></RequireGuest>} />
         <Route path="/re-password" element={<RequireGuest isLogin={isLogin}><RePw /></RequireGuest>} />
@@ -137,6 +181,7 @@ function AppInner() {
 export default function App() {
   return (
     <BrowserRouter>
+
       <AppInner />
     </BrowserRouter>
   );
