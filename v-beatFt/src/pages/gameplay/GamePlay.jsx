@@ -56,7 +56,7 @@ function GamePlay() {
   // ===== songId 결정 =====
   const baseSongId = paramSongId ?? searchParams.get('songId');
 
-
+  const opponentLeftRef = useRef(false);
   const [diff, setDiff] = useState('unknown');
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
@@ -91,10 +91,10 @@ function GamePlay() {
   const rivalComboRef = useRef(0);
   const rivalMaxComboRef = useRef(0);
   const rivalMaxScoreRef = useRef(0);
+  const iAmLeavingRef = useRef(false);
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
   const [song, setSong] = useState(null);
   const [opponentLeft, setOpponentLeft] = useState(false);
-
   const tryStartRtc = async () => {
     if (!isMulti) return;
     if (!roomId) return;
@@ -138,7 +138,26 @@ function GamePlay() {
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     });
 
-    pc.onconnectionstatechange = () => console.log('[RTC conn]', pc.connectionState);
+    pc.onconnectionstatechange = () => {
+      console.log('[RTC conn]', pc.connectionState);
+
+      if (
+        (pc.connectionState === 'disconnected' ||
+          pc.connectionState === 'failed') &&
+        !opponentLeftRef.current
+      ) {
+        console.log('[RTC DISCONNECTED → OPPONENT LEFT]');
+
+        opponentLeftRef.current = true;
+        setOpponentLeft(true);
+
+        // 🔥 핵심: 내가 나간 사람이면 alert 스킵
+        if (!iAmLeavingRef.current) {
+          alert('상대가 연결을 종료했습니다. 게임은 계속 진행됩니다.');
+        }
+      }
+
+    };
     pc.onsignalingstatechange = () => console.log('[RTC sig]', pc.signalingState);
     pc.oniceconnectionstatechange = () => console.log('[RTC ice]', pc.iceConnectionState);
 
@@ -185,12 +204,33 @@ function GamePlay() {
         pc.addTrack(t, localStreamRef.current);
       }
     }
-
-
-    const isOfferer = Number(myId) === Number(hostIdRef.current);
-    if (!isOfferer) return;
     return pc;
   };
+
+  useEffect(() => {
+    const sendLeave = () => {
+      if (isMulti && roomId) {
+        console.log('[MULTI LEAVE AUTO]');
+        publishMulti('/app/multi/leave', { roomId });
+      }
+    };
+
+    // 탭 닫기 / 새로고침 / 뒤로가기 / navigate 모두 커버
+    window.addEventListener('beforeunload', sendLeave);
+    window.addEventListener('pagehide', sendLeave);
+
+    return () => {
+      window.removeEventListener('beforeunload', sendLeave);
+      window.removeEventListener('pagehide', sendLeave);
+    };
+  }, [isMulti, roomId]);
+
+
+  useEffect(() => {
+    opponentLeftRef.current = opponentLeft;
+  }, [opponentLeft]);
+
+
   // 멀티 연결
   useEffect(() => {
     if (!isMulti) return;
@@ -354,12 +394,16 @@ function GamePlay() {
           console.error('[RTC SIGNAL ERROR]', msg?.type, err);
         }
       },
-    });
+      onRoomClosed: () => {
+        console.log('[ROOM_CLOSED RX - GAME]');
+        setOpponentLeft(true);
 
-    onRoomClosed: () => {
-      console.log('[ROOM_CLOSED RX - GAME]');
-      setOpponentLeft(true);   // ← 핵심
-    }
+        if (!iAmLeavingRef.current) {
+          alert('상대가 방을 나갔습니다. 게임은 계속 진행됩니다.');
+        }
+      }
+
+    });
 
     return () => {
       setMultiSocketHandlers({});
@@ -868,8 +912,15 @@ function GamePlay() {
                   padding: '10px 0',
                   cursor: 'pointer',
                 }}
-                onClick={() => {
+                onClick={async () => {
                   playMenuConfirm();
+
+                  if (isMulti && roomId) {
+                    console.log('[MULTI LEAVE CLICK]');
+                    iAmLeavingRef.current = true;   // ← ★ 핵심 추가
+                    publishMulti('/app/multi/leave', { roomId });
+                    await new Promise(r => setTimeout(r, 120));
+                  }
 
                   const params = new URLSearchParams(window.location.search);
                   const isEditorTest = params.get('mode') === 'editorTest';
@@ -880,6 +931,7 @@ function GamePlay() {
                     navigate('/main');
                   }
                 }}
+
               >
                 나가기
               </button>
@@ -947,6 +999,7 @@ function GamePlay() {
               setClassProgress(maxScore > 0 ? Math.min(1, score / maxScore) : 0);
 
               if (isMulti && roomId) {
+                if (opponentLeft) return;
                 myMaxComboRef.current = Math.max(
                   myMaxComboRef.current,
                   comboRef.current
