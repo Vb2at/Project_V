@@ -21,6 +21,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faExclamation } from '@fortawesome/free-solid-svg-icons';
 
 import { useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
 
 import { Client } from '@stomp/stompjs';
@@ -63,6 +64,7 @@ export default function MyPage() {
   useEffect(() => {
     tabRef.current = tab;
   }, [tab]);
+
 
   // ✅ Header(햄버거 점) 동기화 이벤트
   const emitPmUnread = (count) => {
@@ -140,6 +142,38 @@ export default function MyPage() {
     setComposeTo(toNickName);
     setTab('messages');
   };
+
+  // ==============================
+  // ✅ (정답 위치) 곡 제한 상태 세팅
+  // ==============================
+  const [mySongs, setMySongs] = useState([]);
+  const MAX = 20;
+  const navigate = useNavigate();
+
+  // ─── 파생값 ─────────────────────
+  const isFull = mySongs.length >= MAX;
+
+  // ─── 클릭 핸들러 ────────────────
+  const handleUploadClick = () => {
+    if (isFull) {
+      alert("곡은 계정당 최대 20곡까지 등록할 수 있습니다.");
+      return;            // 이동 차단
+    }
+    navigate('/song/upload');
+  };
+
+  // ─── 내 곡 목록 로드 ─────────────
+  useEffect(() => {
+    api.get('/api/songs/my')
+      .then(res => setMySongs(res.data || []))
+      .catch(err => console.error('[MY SONGS] load error', err));
+  }, []);
+
+  useEffect(() => {
+    api.get('/api/songs/my')
+      .then(res => setMySongs(res.data || []))
+      .catch(err => console.error('[MY SONGS] load error', err));
+  }, []);
 
   // 내 정보 조회
   useEffect(() => {
@@ -439,7 +473,29 @@ export default function MyPage() {
           {tab === 'profile' && (
             <ProfileSection myInfo={myInfo} status={status} />
           )}
-          {tab === 'games' && <MyGames />}
+          {tab === 'games' && (
+            <>
+              <MyGames />
+
+              {/* ===== 곡 수 표시 + 등록 버튼 ===== */}
+              <div
+                style={{
+                  marginTop: '24px',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  background: 'rgba(255,255,255,0.05)',
+                  display: 'flex',
+                  justifyContent: 'center',   // ← 핵심 변경
+                  alignItems: 'center',
+                }}
+              >
+                <div style={{ color: '#e6ecf5' }}>
+                  내 등록곡: <strong>{mySongs.length}</strong> / {MAX}
+                </div>
+              </div>
+            </>
+          )}
+
           {tab === 'records' && <Records />}
 
           {/* ✅ Friends에 쪽지 오픈 콜백 전달 */}

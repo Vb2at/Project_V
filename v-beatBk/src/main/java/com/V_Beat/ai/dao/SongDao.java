@@ -205,4 +205,16 @@ public interface SongDao {
 		    WHERE share_token = #{token} 
 		""")
 	Song getSongByToken(@Param("token") String token);
+	
+	// ===== 사용자별 업로드 곡 개수 카운트 (업로드 제한용) =====
+	@Select("""
+	        SELECT COUNT(*)
+	        FROM song
+	        WHERE user_id = #{userId}
+	        """)
+	long countByUserId(@Param("userId") long userId);
+	
+	
 }
+
+

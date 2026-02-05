@@ -30,6 +30,28 @@ function RequireAuth({ isLogin, children }) {
   const [alertDone, setAlertDone] = useState(false);
 
   useEffect(() => {
+    const blockZoomKeys = (e) => {
+      if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '0')) {
+        e.preventDefault();
+      }
+    };
+
+
+    const blockZoomWheel = (e) => {
+      if (e.ctrlKey) e.preventDefault();
+    };
+
+
+    window.addEventListener('keydown', blockZoomKeys);
+    window.addEventListener('wheel', blockZoomWheel, { passive: false });
+
+    return () =>
+      window.removeEventListener('keydown', blockZoomKeys);
+      window.removeEventListener('wheel', blockZoomWheel);
+  }, []);
+
+
+  useEffect(() => {
     if (isLogin === false && !alertDone) {
       alert("로그인 후 이용 가능한 서비스입니다.");
       setAlertDone(true);
@@ -235,9 +257,10 @@ function AppInner() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-
-      <AppInner />
-    </BrowserRouter>
+    <div className="root-frame">
+      <BrowserRouter>
+        <AppInner />
+      </BrowserRouter>
+    </div>
   );
 }

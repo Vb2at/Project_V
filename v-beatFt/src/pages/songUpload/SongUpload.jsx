@@ -36,6 +36,17 @@ export default function SongUpload() {
     const [loading, setLoading] = useState(false);
     const [diff, setDiff] = useState('NORMAL');
 
+    useEffect(() => {
+        api.get('/api/songs/my')
+            .then(res => {
+                if ((res.data || []).length >= 20) {
+                    alert("곡은 계정당 최대 20곡까지 등록할 수 있습니다.");
+                    navigate('/mypage');
+                }
+            });
+    }, []);
+
+
     /* ===== 메뉴 BGM 유지 ===== */
     useEffect(() => {
         if (!isMenuBgmPlaying()) playMenuBgmRandom();

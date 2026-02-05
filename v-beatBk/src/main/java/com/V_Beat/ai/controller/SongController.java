@@ -39,17 +39,38 @@ public class SongController {
 	}
 
 	@PostMapping("/{songId}/update")
-	public ResponseEntity<Void> updateSong(@PathVariable Long songId, @RequestParam String title,
-			@RequestParam String artist, @RequestParam String visibility,
-			@RequestParam(required = false) MultipartFile cover, HttpSession session) {
-		Integer loginUserId = (Integer) session.getAttribute("loginUserId");
-		if (loginUserId == null) {
-			return ResponseEntity.status(401).build(); // 로그인 안 됨
-		}
+	public ResponseEntity<Void> updateSong(
+	        @PathVariable Long songId,
+	        @RequestParam String title,
+	        @RequestParam String artist,
+	        @RequestParam String visibility,
+	        @RequestParam(required = false) MultipartFile cover,
+	        HttpSession session
+	) {
 
-		songService.updateSongInfo(songId, loginUserId, title, artist, visibility, cover);
-		return ResponseEntity.ok().build();
+	    Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+	    if (loginUserId == null) {
+	        return ResponseEntity.status(401).build(); // 로그인 안 됨
+	    }
+
+	    // ✅ 관리자 여부를 세션에서 정확히 꺼내기
+	    Boolean isAdmin = (Boolean) session.getAttribute("isAdmin");
+	    if (isAdmin == null) isAdmin = false;
+
+	    // ✅ Service 호출 — 관리자 예외 포함
+	    songService.updateSongInfo(
+	            songId,
+	            loginUserId,
+	            title,
+	            artist,
+	            visibility,
+	            cover,
+	            isAdmin
+	    );
+
+	    return ResponseEntity.ok().build();
 	}
+
 	
 	// 파일을 Resource로 반환하는 공통 헬퍼
 	private ResponseEntity<Resource> buildAudioResponse(Song song) {

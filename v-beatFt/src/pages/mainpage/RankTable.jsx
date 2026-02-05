@@ -1,24 +1,55 @@
 const toImgUrl = (v) => {
-  if (!v) return null;
-  let s = String(v).trim();
+    if (!v) return null;
+    let s = String(v).trim();
 
-  // 이미 절대 URL이면 그대로
-  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+    // 이미 절대 URL이면 그대로
+    if (s.startsWith('http://') || s.startsWith('https://')) return s;
 
-  // "/upload/..." 같이 오면 백엔드 붙여줌
-  if (s.startsWith('/upload/')) return `http://localhost:8080${s}`;
+    // "/upload/..." 같이 오면 백엔드 붙여줌
+    if (s.startsWith('/upload/')) return `http://localhost:8080${s}`;
 
-  // "profileImg/xxx.png"로 오는 케이스 -> prefix 제거
-  if (s.startsWith('profileImg/')) s = s.replace(/^profileImg\//, '');
+    // "profileImg/xxx.png"로 오는 케이스 -> prefix 제거
+    if (s.startsWith('profileImg/')) s = s.replace(/^profileImg\//, '');
 
-  // 윈도우 경로로 저장된 케이스 대비 (혹시 모름)
-  if (s.includes('\\')) s = s.split('\\').pop();
+    // 윈도우 경로로 저장된 케이스 대비 (혹시 모름)
+    if (s.includes('\\')) s = s.split('\\').pop();
 
-  // 파일명만 오면 (DB에 파일명 저장한 케이스)
-  return `http://localhost:8080/upload/profileImg/${encodeURIComponent(s)}`;
+    // 파일명만 오면 (DB에 파일명 저장한 케이스)
+    return `http://localhost:8080/upload/profileImg/${encodeURIComponent(s)}`;
 };
 
 export default function RankTable({ ranking = [], loading = false }) {
+
+    // ─────────────────────────────────────
+    // ✅ 핵심: "유저당 최고 점수 1개만" 정리
+    // ─────────────────────────────────────
+    const dedupedRanking = (() => {
+        const bestMap = new Map(); // userId -> 최고 기록
+
+        for (const r of ranking) {
+            const uid = r.userId;
+
+            if (!bestMap.has(uid)) {
+                bestMap.set(uid, r);
+                continue;
+            }
+
+            const prev = bestMap.get(uid);
+
+            // 더 높은 점수면 교체
+            if (
+                r.score > prev.score ||
+                (r.score === prev.score && r.maxCombo > prev.maxCombo)
+            ) {
+                bestMap.set(uid, r);
+            }
+        }
+
+        // 다시 배열 + 점수 내림차순 정렬
+        return Array.from(bestMap.values())
+            .sort((a, b) => b.score - a.score);
+    })();
+
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Header */}
@@ -50,12 +81,12 @@ export default function RankTable({ ranking = [], loading = false }) {
             <div style={{ flex: 1, overflowY: 'auto' }}>
                 {loading && <div style={{ padding: 12 }}>Loading...</div>}
 
-                {!loading && ranking.length === 0 && (
+                {!loading && dedupedRanking.length === 0 && (
                     <div style={{ textAlign: 'center', padding: 28, opacity: 0.6 }}>No Records</div>
                 )}
 
                 {!loading &&
-                    ranking.slice(0, 100).map((r, i) => {
+                    dedupedRanking.slice(0, 100).map((r, i) => {
                         const isTop = i < 3;
 
                         const gradeColor =
@@ -66,7 +97,7 @@ export default function RankTable({ ranking = [], loading = false }) {
 
                         return (
                             <div
-                                key={i}
+                                key={`${r.songId}-${r.userId}`}
                                 style={{
                                     display: 'grid',
                                     gridTemplateColumns: '36px 1.6fr 1.2fr .9fr .8fr 1fr',
@@ -85,12 +116,12 @@ export default function RankTable({ ranking = [], loading = false }) {
                                 <div>
                                     {r.profileImg ? (
                                         <img
-                                         src={(() => {
-                                            const url = toImgUrl(r.profileImg);
-                                            return url ? `${url}?t=${Date.now()}` : '';
-                                        })()}
-                                        alt=""
-                                        style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}
+                                            src={(() => {
+                                                const url = toImgUrl(r.profileImg);
+                                                return url ? `${url}?t=${Date.now()}` : '';
+                                            })()}
+                                            alt=""
+                                            style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}
                                         />
                                     ) : (
                                         <div
