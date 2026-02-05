@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import UserReportModal from './UserReportModal';
-
+import { createPortal } from 'react-dom';
 export default function UserProfileModal({ open, user, onClose }) {
     const [reportOpen, setReportOpen] = useState(false);
 
@@ -27,8 +27,7 @@ export default function UserProfileModal({ open, user, onClose }) {
     };
 
 
-    const targetProfileImg = user?.profileImg || user?.otherProfileImg || null;
-
+    const targetProfileImg = user?.profileImg || null;
     const submitUserReport = async (payload) => {
         const body = {
             targetType: payload.targetType,
@@ -55,7 +54,7 @@ export default function UserProfileModal({ open, user, onClose }) {
         return data;
     };
 
-    return (
+    return createPortal(
         <>
             <div
                 style={overlay}
@@ -64,43 +63,89 @@ export default function UserProfileModal({ open, user, onClose }) {
                     onClose();
                 }}
             />
+
             <div style={modal}>
                 <div style={header}>
                     <div style={avatarWrap}>
                         {targetProfileImg ? (
-                            <img src={toImgUrl(targetProfileImg)} alt="target profile" style={avatarImg} />
+                            <img
+                                src={toImgUrl(targetProfileImg)}
+                                alt="target profile"
+                                style={avatarImg}
+                            />
                         ) : (
                             <div style={avatarDummy} />
                         )}
                     </div>
 
                     <div style={name}>
-                        {user?.otherNickName ?? 'Unknown'}
+                        {user?.otherNickName
+                            ?? user?.nickname
+                            ?? user?.nickName
+                            ?? 'Unknown'}
                     </div>
                 </div>
 
-                <div style={btnRow}>
-
+                {/* ===== 버튼 영역 (새 구조) ===== */}
+                <div
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                        alignItems: 'center',
+                        marginTop: 8,
+                    }}
+                >
+                    {/* 1) 친구추가 버튼 (신고 위) */}
                     <button
-                        style={btnDanger}
+                        style={{
+                            ...btnSub,
+                            height: 100,              // 친구추가만 두껍게
+                            width: '100%',
+                            border: '1px solid #5aeaff',
+                            color: '#5aeaff',
+                        }}
+                        onClick={() => {
+                            console.log('[ADD FRIEND]', user?.userId ?? user?.id);
+                            alert('친구 추가 요청 준비중입니다. 마이페이지를 이용해주세요.');
+                        }}
+                    >
+                        친구추가
+                    </button>
+                    {/* 2) 신고 버튼 */}
+                    <button
+                        style={{ ...btnDanger, width: '100%' }}
                         onClick={() => setReportOpen(true)}
                     >
                         신고
                     </button>
-                </div>
 
-                <button style={closeBtn} onClick={onClose}>
-                    닫기
-                </button>
+                    {/* 3) 닫기 버튼 — 중앙 정렬 */}
+                    <button
+                        style={{
+                            ...closeBtn,
+                            width: '80%',
+                            alignSelf: 'center',
+                            marginTop: 6,
+                        }}
+                        onClick={onClose}
+                    >
+                        닫기
+                    </button>
+                </div>
             </div>
 
             {/* 신고 모달 */}
             <UserReportModal
                 open={reportOpen}
                 type="USER"
-                targetId={user?.otherUserId ?? user?.id}
-                targetName={user?.otherNickName ?? user?.nickname ?? user?.nickName}
-                targetProfileImg={toImgUrl(targetProfileImg)}    //신고 모달에 상대 프로필 이미지 URL 전달
+                targetId={user?.userId ?? user?.id}
+                targetName={
+                    user?.otherNickName
+                    ?? user?.nickname
+                    ?? user?.nickName
+                }
+                targetProfileImg={toImgUrl(targetProfileImg)}
                 onClose={() => setReportOpen(false)}
                 onSubmit={async (payload) => {
                     try {
@@ -112,16 +157,17 @@ export default function UserProfileModal({ open, user, onClose }) {
                         alert(e?.message ?? '신고 처리 중 오류가 발생했습니다.');
                     }
                 }}
-
             />
-        </>
+        </>,
+        document.body
     );
+
 }
 const overlay = {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(0,0,0,0.6)',
-    zIndex: 9000,
+    background: 'rgba(0,0,0,0.75)',
+    zIndex: 9998,
 };
 
 const modal = {
@@ -129,15 +175,13 @@ const modal = {
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
-    width: 360,
+    width: 300,          // 적당한 기본 크기
+    maxWidth: '90vw',    // 작은 화면 보호
     background: '#0b0b0b',
     border: '1px solid #333',
     borderRadius: 14,
     padding: 16,
-    zIndex: 9001,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 14,
+    zIndex: 9999,        // ★ overlay 위에 확실히 올라오게
 };
 
 const header = {
@@ -192,6 +236,13 @@ const btnSub = {
     color: '#ccc',
     cursor: 'pointer',
 };
+
+const btnFriend = {
+    ...btnSub,
+    height: 48,          // ★ 친구추가만 두껍게
+    padding: '10px 12px'
+};
+
 
 const btnDanger = {
     ...btnSub,

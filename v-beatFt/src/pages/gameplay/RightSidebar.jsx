@@ -84,7 +84,7 @@ export default function RightSidebar({
               {!profileUrl && 'PROFILE'}
             </div>
 
-            <div style={styles.nickname}>NICK: {nickname}</div>
+            <div style={styles.nickname}> {nickname}</div>
           </div>
 
           <div style={styles.scoreBlock}>
@@ -249,15 +249,18 @@ const styles = {
     gap: 6,
   },
 
-  infoLabel: {
-    opacity: 0.8,
-    fontFamily: 'monospace',
-  },
-
-  infoValue: {
-    fontWeight: 700,
-    fontFamily: 'monospace',
-  },
+infoLabel: {
+  opacity: 0.9,
+  fontFamily: 'monospace',
+  fontSize: 23,      // ← 추가 (SCORE / COMBO 글자 확대)
+  letterSpacing: '0.05em',
+},
+infoValue: {
+  fontWeight: 800,
+  fontFamily: 'monospace',
+  fontSize: 23,      // ← 추가 (숫자만 확대)
+  letterSpacing: '0.05em',
+},
 
   profileBlock: {
     display: 'flex',

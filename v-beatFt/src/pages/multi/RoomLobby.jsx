@@ -6,6 +6,8 @@ import Visualizer from '../../components/visualizer/Visualizer';
 import { getMenuAnalyser } from '../../components/engine/SFXManager';
 import Background from '../../components/Common/Background';
 import { connectMultiSocket, sendReady, sendStart, sendLeave } from './MultiSocket';
+import UserProfileModal from '../../components/Common/UserProfileModal';
+
 
 // 프로필 이미지 경로 정리 함수
 function resolveProfileImg(src) {
@@ -43,6 +45,8 @@ export default function RoomLobby() {
   const songTitleRef = useRef(null);
   const toggleReady = () => sendReady(roomId);
   const startGame = () => sendStart(roomId);
+  const [targetUserId, setTargetUserId] = useState(null);
+  const [profileTarget, setProfileTarget] = useState(null);
 
   const leaveRoom = () => {
     console.log('[LOBBY LEAVE CLICK]', roomId);
@@ -299,7 +303,12 @@ export default function RoomLobby() {
               <div style={ghostRoomId}>Room ID: {roomId}</div>
             </div>
 
-            <PlayerCard title="상대방" player={opponent} hostUserId={roomInfo.hostUserId} />
+            <PlayerCard
+              title="상대방"
+              player={opponent}
+              hostUserId={roomInfo.hostUserId}
+              onNameClick={(playerObj) => setProfileTarget(playerObj)}
+            />
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 20 }}>
             <button
@@ -325,12 +334,22 @@ export default function RoomLobby() {
           </div>
         </div>
       </div>
+      <UserProfileModal
+        open={!!profileTarget}
+        user={{
+          id: profileTarget?.userId,
+          nickname: profileTarget?.nickname,
+          profileImg: profileTarget?.profileImg,
+        }}
+        onClose={() => setProfileTarget(null)}
+      />
+
       <Visualizer size="game" preset="menu" analyserRef={analyserRef} active />
     </div>
   );
 }
 /* ===== Player Card ===== */
-function PlayerCard({ title, player, hostUserId }) {
+function PlayerCard({ title, player, hostUserId, onNameClick }) {
   const waiting = !player;
 
   return (
@@ -351,8 +370,17 @@ function PlayerCard({ title, player, hostUserId }) {
           <div style={ghostPlaceholder}>PROFILE</div>
         )}
       </div>
-
-      <div style={ghostName}>
+      <div
+        style={{
+          ...ghostName,
+          cursor: waiting ? 'default' : 'pointer'
+        }}
+        onClick={() => {
+          if (!waiting && onNameClick) {
+            onNameClick(player);   // ✅ 객체 통째 전달
+          }
+        }}
+      >
         {waiting
           ? 'WAITING'
           : (
@@ -374,6 +402,7 @@ function PlayerCard({ title, player, hostUserId }) {
       </div>
     </div>
   );
+
 }
 
 /* ===== Styles ===== */
@@ -396,7 +425,11 @@ const ghostProfile = {
 };
 const ghostImg = { width: '100%', height: '100%', objectFit: 'cover', borderRadius: 12 };
 const ghostPlaceholder = { fontSize: 10, opacity: 0.3 };
-const ghostName = { fontSize: 20, fontWeight: 500 };
+const ghostName = {
+  fontSize: 20,
+  fontWeight: 500,
+  textDecoration: 'none',   // ✅ 밑줄 원천 제거
+};
 const ghostRecord = { fontSize: 20, opacity: 0.35 };
 const ghostStatus = { marginTop: 6, fontSize: 15, letterSpacing: '0.2em' };
 

@@ -23,6 +23,8 @@ import LandingPage from './pages/LandingPage';
 import InviteModal from './components/mulit/InviteModal';
 import RefreshGuard from './components/Common/RefreshGuard';
 
+
+
 // 로그인 필수 페이지용
 function RequireAuth({ isLogin, children }) {
   const [alertDone, setAlertDone] = useState(false);
@@ -102,7 +104,60 @@ function AppInner() {
     };
   }, [navigate]);
 
+  // ===== 개발자도구 + 우클릭 전역 차단 =====
+  useEffect(() => {
+    const blockContextMenu = (e) => {
+      e.preventDefault();
+    };
 
+    const blockDevKeys = (e) => {
+      // F12
+      if (e.key === 'F12') {
+        e.preventDefault();
+        return;
+      }
+
+      // Ctrl + Shift + I / J
+      if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) {
+        e.preventDefault();
+        return;
+      }
+
+      // Ctrl + U (소스보기)
+      if (e.ctrlKey && e.key === 'U') {
+        e.preventDefault();
+        return;
+      }
+    };
+
+    document.addEventListener('contextmenu', blockContextMenu);
+    document.addEventListener('keydown', blockDevKeys);
+
+    return () => {
+      document.removeEventListener('contextmenu', blockContextMenu);
+      document.removeEventListener('keydown', blockDevKeys);
+    };
+  }, []);
+
+  // ===== 드래그 + 텍스트 선택 전역 차단 =====
+  useEffect(() => {
+    const blockDrag = (e) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener('dragstart', blockDrag);
+    document.addEventListener('selectstart', blockDrag);
+    document.addEventListener('mousedown', (e) => {
+      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+      }
+    });
+
+    return () => {
+      document.removeEventListener('dragstart', blockDrag);
+      document.removeEventListener('selectstart', blockDrag);
+    };
+  }, []);
 
 
   const handleLogout = async () => {

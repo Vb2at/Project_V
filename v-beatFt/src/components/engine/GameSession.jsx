@@ -103,7 +103,7 @@ export default function GameSession({
     if (combo >= 20) return 2;
     return 1;
   };
-  const TARGET_FPS = 30;
+  const TARGET_FPS = 45;
   const FRAME_MS = 1000 / TARGET_FPS;
 
   const onStateRef = useRef(onState);
@@ -203,7 +203,7 @@ export default function GameSession({
     compositeRafRef.current = requestAnimationFrame(rafTick);
 
     setTimeout(() => {
-      const stream = out.captureStream(30);
+      const stream = out.captureStream(60);
       onStreamReady?.(stream);
       console.log('[COMPOSITE TRACKS]', stream.getTracks());
       console.log('[COMPOSITE VIDEO TRACK]', stream.getVideoTracks()[0]);
