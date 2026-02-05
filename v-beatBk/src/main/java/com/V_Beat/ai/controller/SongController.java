@@ -382,6 +382,34 @@ public class SongController {
 	    return ResponseEntity.ok().build();
 	}
 
+	
+	// ===============================
+	// ✅ 에디터 전용 — 노트 조회 (소유자만 허용)
+	// ===============================
+	@GetMapping("/{songId}/notes/edit")
+	public ResponseEntity<SongNotesResult> getNotesForEditor(
+	        @PathVariable Long songId,
+	        HttpSession session) {
+
+	    Song song = songService.getSong(songId);
+	    if (song == null) {
+	        return ResponseEntity.notFound().build();
+	    }
+
+	    Integer loginUserId = (Integer) session.getAttribute("loginUserId");
+	    if (loginUserId == null) {
+	        return ResponseEntity.status(401).build();
+	    }
+
+	    // ★ 핵심: 공개 여부와 무관하게 작성자만 허용
+	    if (song.getUserId() != loginUserId) {
+	        return ResponseEntity.status(403).build();
+	    }
+
+	    return ResponseEntity.ok(songService.getSongNotes(songId));
+	}
+
+	
 	// 곡 삭제
 	@DeleteMapping("/{songId}")
 	public ResponseEntity<?> deleteSong(@PathVariable long songId, HttpSession session) {

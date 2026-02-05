@@ -296,4 +296,15 @@ public void updateSongInfo(
 	public Song getSongByToken(String token) {
 		return this.songDao.getSongByToken(token);
 	}
+	
+	public boolean canAccessEditor(Song song, Integer loginUserId, Boolean isAdmin) {
+
+	    if (Boolean.TRUE.equals(isAdmin)) {
+	        return true;
+	    }
+
+	    // 에디터는 공개 여부와 무관하게 "작성자만" 허용
+	    return loginUserId != null 
+	           && song.getUserId() == loginUserId;
+	}
 }

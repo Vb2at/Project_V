@@ -125,7 +125,7 @@ export default function NoteEditor() {
         (async () => {
             try {
                 // ───── 1) SONG 로드 ─────
-                const songRes = await fetch(`/api/songs/${songId}`);
+                const songRes = await fetch(`/api/songs/${songId}/edit`);
 
                 if (songRes.status === 403) {
                     navigate('/main', { replace: true });
@@ -163,7 +163,7 @@ export default function NoteEditor() {
                 setSong(realSong);
 
                 // ───── 2) NOTES 로드 ─────
-                const notesRes = await fetch(`/api/songs/${songId}/notes`);
+                const notesRes = await fetch(`/api/songs/${songId}/notes/edit`);
 
                 if (notesRes.status === 403) {
                     navigate('/main', { replace: true });
@@ -437,7 +437,14 @@ export default function NoteEditor() {
                     <div style={{ marginTop: 50 }}>
                         <button
                             style={secondaryBtn}
-                            onClick={() => navigate(-1)}
+                            onClick={() => {
+                                // 편집 상태 폐기 후 곡 에디터로 이동
+                                sessionStorage.removeItem('EDITOR_STATE_SNAPSHOT');
+                                sessionStorage.removeItem('EDITOR_RETURNING');
+                                sessionStorage.removeItem('EDITOR_TEST_NOTES');
+
+                                navigate(`/song/${songId}/edit`, { replace: true });
+                            }}
                         >
                             뒤로가기
                         </button>
