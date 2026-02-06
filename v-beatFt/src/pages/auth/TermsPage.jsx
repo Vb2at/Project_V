@@ -85,7 +85,7 @@ export default function TermsPage() {
 
         {/* 버튼 */}
         <div className="terms-actions">
-          <button className="terms-btn ghost" onClick={() => navigate(-1)}>
+          <button className="terms-btn ghost" onClick={() => navigate("/login")}>
             이전
           </button>
           <button

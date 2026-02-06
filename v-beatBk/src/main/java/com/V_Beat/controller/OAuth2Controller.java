@@ -27,7 +27,7 @@ public class OAuth2Controller {
     private final UserService userService;
 
     // ✅ 프론트 주소 (환경별로 바뀌니 yml로 빼는 게 좋음)
-    @Value("${app.front-base-url:http://localhost:5173}")
+    @Value("${app.front-base-url:http://34.64.242.203}")
     private String frontBaseUrl;
 
     public OAuth2Controller(

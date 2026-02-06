@@ -27,7 +27,7 @@ export default function LoginForm({ onLoginSuccess }) {
     const handleSocialLogin = (provider) => {
         unlockAudioContext();
 
-        const API_BASE = "http://localhost:8080";
+        const API_BASE = "";
         if (provider === 'google') {
             window.location.href = `${API_BASE}/oauth/google`;
         } else if (provider === 'kakao') {

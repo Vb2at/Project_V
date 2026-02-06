@@ -23,7 +23,7 @@ public class HomeController {
     // ===== 메인 페이지 (로그인 후) =====
     @GetMapping("/user/home/main")
     public String showMain(Model model) {
-        model.addAttribute("pageTitle", "DiscoDing - 협업 코드 에디터");
+        model.addAttribute("pageTitle");
         return "user/home/main";
     }
 }

@@ -123,27 +123,6 @@ CREATE TABLE friendrequest (
 );
 DROP TABLE friend_request;
 
-# PRIVATE MESSAGE
-CREATE TABLE private_message (
-    id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
-    from_user_id INT UNSIGNED NOT NULL,
-    to_user_id INT UNSIGNED NOT NULL,
-    title VARCHAR(120) NULL,
-    content TEXT NOT NULL,
-    filtered TINYINT(1) NOT NULL DEFAULT 0,
-    filter_type VARCHAR(20) NULL,
-    is_read TINYINT(1) NOT NULL DEFAULT 0,
-    read_date DATETIME NULL,
-    reg_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    INDEX idx_to_read_date (to_user_id, is_read, reg_date),
-    INDEX idx_from_date (from_user_id, reg_date),
-
-    FOREIGN KEY (from_user_id) REFERENCES `user`(id) ON DELETE CASCADE,
-    FOREIGN KEY (to_user_id)   REFERENCES `user`(id) ON DELETE CASCADE
-);
-
-
 # REPORT - 신고 접수 테이블
 CREATE TABLE report (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
